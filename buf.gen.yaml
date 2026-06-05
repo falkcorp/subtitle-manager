@@ -18,14 +18,14 @@ plugins:
       - Mgoogle/protobuf/empty.proto=google.golang.org/protobuf/types/known/emptypb
       - Mgoogle/protobuf/any.proto=google.golang.org/protobuf/types/known/anypb
       # gcommon mappings for consistent type usage
-      - Mgcommon/v1/common/user.proto=github.com/jdfalk/gcommon/sdks/go/v1/common
-      - Mgcommon/v1/common/session.proto=github.com/jdfalk/gcommon/sdks/go/v1/common
-      - Mgcommon/v1/common/error.proto=github.com/jdfalk/gcommon/sdks/go/v1/common
-      - Mgcommon/v1/common/metadata.proto=github.com/jdfalk/gcommon/sdks/go/v1/common
-      - Mgcommon/v1/config/config.proto=github.com/jdfalk/gcommon/sdks/go/v1/config
-      - Mgcommon/v1/health/health_check.proto=github.com/jdfalk/gcommon/sdks/go/v1/health
-      - Mgcommon/v1/media/media_file.proto=github.com/jdfalk/gcommon/sdks/go/v1/media
-      - Mgcommon/v1/media/language.proto=github.com/jdfalk/gcommon/sdks/go/v1/media
+      - Mgcommon/v1/common/user.proto=github.com/falkcorp/gcommon/sdks/go/v1/common
+      - Mgcommon/v1/common/session.proto=github.com/falkcorp/gcommon/sdks/go/v1/common
+      - Mgcommon/v1/common/error.proto=github.com/falkcorp/gcommon/sdks/go/v1/common
+      - Mgcommon/v1/common/metadata.proto=github.com/falkcorp/gcommon/sdks/go/v1/common
+      - Mgcommon/v1/config/config.proto=github.com/falkcorp/gcommon/sdks/go/v1/config
+      - Mgcommon/v1/health/health_check.proto=github.com/falkcorp/gcommon/sdks/go/v1/health
+      - Mgcommon/v1/media/media_file.proto=github.com/falkcorp/gcommon/sdks/go/v1/media
+      - Mgcommon/v1/media/language.proto=github.com/falkcorp/gcommon/sdks/go/v1/media
   - remote: buf.build/grpc/go:v1.5.1
     out: pkg
     opt:

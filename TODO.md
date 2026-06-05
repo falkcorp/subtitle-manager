@@ -887,7 +887,7 @@ into the binary and served by the `web` command.
 ## GCommon Refactor Plan
 
 This refactor will replace several internal packages with the shared modules
-provided by [gcommon](https://github.com/jdfalk/gcommon). The migration follows
+provided by [gcommon](https://github.com/falkcorp/gcommon). The migration follows
 the hybrid Docker build approach defined in `Dockerfile.hybrid` which installs
 Node.js in the Go builder stage so `go generate` can embed the pre-built React
 UI.
@@ -896,7 +896,7 @@ UI.
 
 #### Phase 1: Dependency Setup
 
-- Add `github.com/jdfalk/gcommon` to `go.mod` and run `go mod tidy`.
+- Add `github.com/falkcorp/gcommon` to `go.mod` and run `go mod tidy`.
 - Vendor the module to ensure consistent builds.
 - Confirm CI passes with the new dependency.
 

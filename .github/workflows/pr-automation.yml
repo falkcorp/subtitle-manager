@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          submodules: recursive
 
       - name: Apply file-based labels
         uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6

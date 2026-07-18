@@ -128,3 +128,47 @@ itself, out of scope for this repo.
    renaming that is a separate, higher-consequence decision (breaks any
    external importer of this repo as a Go module) not needed to fix the
    build, and out of scope here.
+
+## Outcome: blocked, not fixed — gcommon's generated code is corrupted upstream
+
+`go build ./...` and `go vet ./...` pass cleanly after the rewrite above (0
+errors), which looked like success. It is not: **the compiled binary panics
+at startup**, before even parsing flags:
+
+```
+$ go build -o /tmp/sm-spike . && /tmp/sm-spike --help
+panic: runtime error: slice bounds out of range [-4:]
+  .../google.golang.org/protobuf/internal/filedesc/desc_init.go:262
+  .../github.com/falkcorp/gcommon/pkg/commonpb/v2@.../ack_level.pb.go:125
+```
+
+`go build`/`go vet` never execute package `init()`, so they can't catch this
+— only actually running the binary (or `go test`, which does run `init()`)
+surfaces it. Root cause, confirmed independent of subtitle-manager (a bare
+Go program importing only `github.com/falkcorp/gcommon/pkg/commonpb/v2`
+panics identically, on both protobuf-go v1.36.10 and v1.36.11/latest — not a
+runtime-version issue):
+
+**Commit `08c26f44` on `falkcorp/gcommon` (the org-migration fix from
+2026-07-16, see [[project-gcommon-org-migration-incomplete]]) corrupted the
+embedded raw protobuf `FileDescriptor` bytes in ~3523 generated `.pb.go`
+files repo-wide.** Its blind `github.com/jdfalk/gcommon` →
+`github.com/falkcorp/gcommon` sed rewrote the `go_package` string *inside*
+each file's binary-encoded `rawDesc` byte literal, but didn't recalculate the
+protobuf length-prefix byte that precedes it — "falkcorp" is 2 bytes longer
+than "jdfalk", so every rewritten descriptor is now malformed. Confirmed via
+`git diff 48e80cd3 08c26f44 -- pkg/commonpb/v2/ack_level.pb.go`: the length
+byte stayed `)` (0x29=41) while the string it prefixes grew by 2 bytes. The
+file still compiles (it's just a Go string literal to the compiler) but
+`protoimpl.TypeBuilder.Build()` panics decoding it at `init()` time.
+
+Net: **there is currently no usable version of `falkcorp/gcommon`'s
+`pkg/*pb` submodules for any consumer.** Real tags (`pkg/common/v2.1.5` etc.)
+have correct bytes but declare the pre-rename module path and fail to
+resolve under the `falkcorp` import path at all; `main` HEAD resolves under
+the right path but panics at init. The import rewrite in this repo (28
+files, go.mod/go.sum) is believed correct and left in the working tree
+uncommitted, but **cannot land until `falkcorp/gcommon` is fixed** — almost
+certainly a full `buf generate` regeneration from source `.proto` files
+followed by fresh tags, not a manual byte patch. That is out of scope for
+this repo; tracked as a `falkcorp/gcommon`-side follow-up.

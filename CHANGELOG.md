@@ -6,6 +6,10 @@
 
 All notable changes to this project will be documented in this file.
 
+<!-- scriv-insert-here -->
+
+<!-- scriv-end-here: releases below predate the changelog.d fragment system. -->
+
 ## [Unreleased]
 
 ### Added

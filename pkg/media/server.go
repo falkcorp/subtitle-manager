@@ -15,7 +15,7 @@ import (
 
 	"github.com/asticode/go-astisub"
 	"github.com/google/uuid"
-	media "github.com/jdfalk/gcommon/sdks/go/v1/media"
+	media "github.com/falkcorp/gcommon/v2/pkg/mediapb/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"

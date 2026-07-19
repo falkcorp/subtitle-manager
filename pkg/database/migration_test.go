@@ -7,7 +7,7 @@ package database
 import (
 	"testing"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/database"
+	database "github.com/falkcorp/gcommon/v2/pkg/databasepb/v2"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

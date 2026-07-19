@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	mediapb "github.com/jdfalk/gcommon/sdks/go/v1/media"
+	mediapb "github.com/falkcorp/gcommon/v2/pkg/mediapb/v2"
 )
 
 // Client wraps gRPC clients for media services

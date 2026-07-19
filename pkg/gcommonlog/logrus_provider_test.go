@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 )
 
 // TestLogrusProvider verifies that the provider writes log messages and fields.

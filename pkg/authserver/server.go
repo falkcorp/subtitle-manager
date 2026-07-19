@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	authpb "github.com/jdfalk/gcommon/sdks/go/v1/common"
+	authpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	gauth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

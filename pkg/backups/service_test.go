@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 )

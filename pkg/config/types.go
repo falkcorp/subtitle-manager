@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 )
 
 // LogLevel is now an alias for gcommon LogLevel to maintain compatibility

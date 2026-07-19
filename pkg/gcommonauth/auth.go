@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	gqueue "github.com/jdfalk/gcommon/sdks/go/v1/queue"
+	gqueue "github.com/falkcorp/gcommon/v2/pkg/queuepb/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

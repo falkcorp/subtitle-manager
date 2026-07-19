@@ -5,7 +5,7 @@
 package cache
 
 import (
-	commonpb "github.com/jdfalk/gcommon/sdks/go/v1/common"
+	commonpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 

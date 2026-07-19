@@ -9,7 +9,7 @@ package metrics
 import (
 	"context"
 
-	gmetrics "github.com/jdfalk/gcommon/sdks/go/v1/metrics"
+	gmetrics "github.com/falkcorp/gcommon/v2/pkg/metricspb/v2"
 )
 
 var (

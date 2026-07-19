@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	authpb "github.com/jdfalk/gcommon/sdks/go/v1/common"
+	authpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	gauth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"github.com/jdfalk/subtitle-manager/pkg/testutil"
 )

@@ -11,7 +11,7 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	"github.com/google/uuid"
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	profilesPkg "github.com/jdfalk/subtitle-manager/pkg/profiles"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

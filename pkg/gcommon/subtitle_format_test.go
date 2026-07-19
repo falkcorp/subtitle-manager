@@ -7,7 +7,7 @@ package gcommon
 import (
 	"testing"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/common"
+	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"github.com/stretchr/testify/assert"
 )
 

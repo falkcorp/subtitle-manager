@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jdfalk/gcommon/sdks/go/v1/queue"
+	queue "github.com/falkcorp/gcommon/v2/pkg/queuepb/v2"
 	jobpb "github.com/jdfalk/subtitle-manager/pkg/jobpb"
 	"github.com/jdfalk/subtitle-manager/pkg/subtitles"
 	"google.golang.org/protobuf/types/known/anypb"

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	gcommon "github.com/jdfalk/gcommon/sdks/go/v1/common"
+	gcommon "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 )
 

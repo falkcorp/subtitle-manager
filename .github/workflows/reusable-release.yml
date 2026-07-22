@@ -1,0 +1,1070 @@
+# file: .github/workflows/reusable-release.yml
+# version: 2.14.5
+# guid: 7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e
+
+name: Reusable Release Coordinator
+
+on:
+  workflow_call:
+    inputs:
+      release-type:
+        description: 'Release type (auto, major, minor, patch)'
+        required: false
+        type: string
+        default: 'auto'
+      build-target:
+        description: 'Build target (all, go, python, rust, frontend, docker, protobuf)'
+        required: false
+        type: string
+        default: 'all'
+      prerelease:
+        description: 'Create as prerelease'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Create as draft'
+        required: false
+        type: boolean
+        default: false
+      skip-language-detection:
+        description: 'Skip automatic language detection'
+        required: false
+        type: boolean
+        default: false
+      go-enabled:
+        description: 'Force enable Go builds'
+        required: false
+        type: boolean
+        default: false
+      python-enabled:
+        description: 'Force enable Python builds'
+        required: false
+        type: boolean
+        default: false
+      rust-enabled:
+        description: 'Force enable Rust builds'
+        required: false
+        type: boolean
+        default: false
+      frontend-enabled:
+        description: 'Force enable Frontend builds'
+        required: false
+        type: boolean
+        default: false
+      docker-enabled:
+        description: 'Force enable Docker builds'
+        required: false
+        type: boolean
+        default: false
+      protobuf-enabled:
+        description: 'Force enable Protobuf builds'
+        required: false
+        type: boolean
+        default: false
+      system-packages:
+        description: 'Space-separated list of apt packages to install before build (e.g. libtag1-dev)'
+        required: false
+        type: string
+        default: ''
+      pre-build-script:
+        description: 'Shell script to run before goreleaser (e.g. build frontend assets)'
+        required: false
+        type: string
+        default: ''
+      go-experiment:
+        description: 'Value for GOEXPERIMENT environment variable (e.g. jsonv2)'
+        required: false
+        type: string
+        default: ''
+      go-run-linters:
+        description: 'Whether to run go vet/golangci-lint before the Go release build (redundant with CI on most repos)'
+        required: false
+        type: boolean
+        default: true
+      stable:
+        description: 'Create a stable (non-RC) release directly, bypassing the pre-release flow'
+        required: false
+        type: boolean
+        default: false
+      previous-version:
+        description: 'Override the auto-detected previous version for changelog generation. Use when maintaining parallel release lines (e.g. 1.x, 2.x) or when auto-detection picks the wrong base. Format: vX.Y.Z'
+        required: false
+        type: string
+        default: ''
+      changelog-collect:
+        description: "Assemble CHANGELOG.md from changelog.d/ fragments (scriv) on stable releases. Empty auto-enables when changelog.d/scriv.ini exists; 'false' disables."
+        required: false
+        type: string
+        default: ''
+    outputs:
+      release-created:
+        description: 'Whether a release was created'
+        value: ${{ jobs.build-status.outputs.release-created }}
+      release-tag:
+        description: 'The created release tag'
+        value: ${{ jobs.detect-languages.outputs.release-tag }}
+      primary-language:
+        description: 'The detected primary language'
+        value: ${{ jobs.detect-languages.outputs.primary-language }}
+      release-strategy:
+        description: 'The release strategy used (stable, prerelease, draft)'
+        value: ${{ jobs.detect-languages.outputs.release-branch-strategy }}
+
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Load unified configuration
+  load-config:
+    name: Load Repository Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.load-config.outputs.config }}
+      has-config: ${{ steps.load-config.outputs.has-config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Load repository configuration
+        id: load-config
+        uses: falkcorp/gha-load-config@bb213cbf6b6e789bea8ad0787f2914760d00536b # v1.1.3
+        with:
+          config-file: .github/repository-config.yml
+          fail-on-missing: false
+
+  # Detect what languages/technologies are present
+  detect-languages:
+    name: Detect Project Languages
+    runs-on: ubuntu-latest
+    needs: [load-config]
+    outputs:
+      has-go: ${{ steps.detect.outputs.has-go }}
+      has-python: ${{ steps.detect.outputs.has-python }}
+      has-frontend: ${{ steps.detect.outputs.has-frontend }}
+      has-docker: ${{ steps.detect.outputs.has-docker }}
+      has-rust: ${{ steps.detect.outputs.has-rust }}
+      protobuf-needed: ${{ steps.detect.outputs.protobuf-needed }}
+      primary-language: ${{ steps.detect.outputs.primary-language }}
+      go-matrix: ${{ steps.detect.outputs.go-matrix }}
+      python-matrix: ${{ steps.detect.outputs.python-matrix }}
+      frontend-matrix: ${{ steps.detect.outputs.frontend-matrix }}
+      docker-matrix: ${{ steps.detect.outputs.docker-matrix }}
+      rust-matrix: ${{ steps.detect.outputs.rust-matrix }}
+      registry: ${{ steps.env-setup.outputs.registry }}
+      image-name: ${{ steps.env-setup.outputs.image-name }}
+      release-tag: ${{ steps.version.outputs.tag }}
+      full-version: ${{ steps.version.outputs.full-version }}
+      release-branch-strategy: ${{ steps.release-strategy.outputs.strategy }}
+      auto-prerelease: ${{ steps.release-strategy.outputs.auto-prerelease }}
+      auto-draft: ${{ steps.release-strategy.outputs.auto-draft }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup environment variables
+        id: env-setup
+        run: |
+          {
+            echo "registry=${REGISTRY}"
+            echo "image-name=${IMAGE_NAME}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Detect project languages and generate matrices
+        id: detect
+        uses: falkcorp/gha-detect-languages@d5712363aae458b4bbb47bbb1780f02de2a03784 # v1.1.5
+        with:
+          skip-detection: ${{ inputs.skip-language-detection }}
+          build-target: ${{ inputs.build-target || 'all' }}
+          go-enabled: ${{ inputs.go-enabled && 'true' || 'auto' }}
+          python-enabled: ${{ inputs.python-enabled && 'true' || 'auto' }}
+          rust-enabled: ${{ inputs.rust-enabled && 'true' || 'auto' }}
+          frontend-enabled: ${{ inputs.frontend-enabled && 'true' || 'auto' }}
+          docker-enabled: ${{ inputs.docker-enabled && 'true' || 'auto' }}
+          protobuf-enabled: ${{ inputs.protobuf-enabled && 'true' || 'auto' }}
+
+      - name: Determine release strategy
+        id: release-strategy
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          FORCE_PRERELEASE: ${{ inputs.prerelease }}
+          FORCE_DRAFT: ${{ inputs.draft }}
+          STABLE_RELEASE: ${{ inputs.stable }}
+        run: |
+          # When explicitly requesting a stable release, skip the RC flow
+          if [ "$STABLE_RELEASE" = "true" ]; then
+            {
+              echo "strategy=stable"
+              echo "auto-prerelease=false"
+              echo "auto-draft=false"
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$FORCE_PRERELEASE" = "true" ]; then
+            {
+              echo "strategy=prerelease"
+              echo "auto-prerelease=true"
+              echo "auto-draft=false"
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$FORCE_DRAFT" = "true" ]; then
+            {
+              echo "strategy=stable"
+              echo "auto-prerelease=false"
+              echo "auto-draft=true"
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "master" ]; then
+            # Default for push-to-main: pre-release RC
+            {
+              echo "strategy=prerelease"
+              echo "auto-prerelease=true"
+              echo "auto-draft=false"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "strategy=prerelease"
+              echo "auto-prerelease=true"
+              echo "auto-draft=false"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate version with RC support
+        id: version
+        env:
+          RELEASE_TYPE: ${{ inputs.release-type || 'auto' }}
+          STABLE_RELEASE: ${{ inputs.stable }}
+        run: |
+          set -euo pipefail
+
+          # Find latest full (non-prerelease) release tag
+          LATEST_FULL=$(git tag -l 'v*.*.*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          if [ -z "$LATEST_FULL" ]; then
+            LATEST_FULL="v0.0.0"
+          fi
+          echo "Latest full release: $LATEST_FULL"
+
+          # Parse version components
+          MAJOR=$(echo "$LATEST_FULL" | sed 's/^v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST_FULL" | sed 's/^v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST_FULL" | sed 's/^v//' | cut -d. -f3)
+
+          # Determine next version based on release-type
+          case "$RELEASE_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+            auto|*)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Next full version: $NEXT_VERSION"
+
+          if [ "$STABLE_RELEASE" = "true" ]; then
+            # Stable release: use the full version directly
+            VERSION_TAG="$NEXT_VERSION"
+            echo "Creating stable release: $VERSION_TAG"
+          else
+            # RC release: find the next rc number
+            LATEST_RC=$(git tag -l "${NEXT_VERSION}-rc.*" --sort=-v:refname | head -1)
+            if [ -z "$LATEST_RC" ]; then
+              RC_NUM=1
+            else
+              RC_NUM=$(echo "$LATEST_RC" | grep -o 'rc\.[0-9]*' | cut -d. -f2)
+              RC_NUM=$((RC_NUM + 1))
+            fi
+            VERSION_TAG="${NEXT_VERSION}-rc.${RC_NUM}"
+            echo "Creating RC release: $VERSION_TAG"
+          fi
+
+          echo "tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          echo "full-version=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
+
+  # Protocol Buffer Generation (if needed)
+  build-protobuf:
+    name: Generate Protocol Buffers
+    runs-on: ubuntu-latest
+    needs: [detect-languages]
+    if: ${{ needs.detect-languages.outputs.protobuf-needed == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Generate protobuf
+        uses: falkcorp/gha-release-protobuf@1c07a62621ea5bdaf7fd46643fd4e650c69de8d9 # v1.0.2+
+
+  # Go Build
+  build-go:
+    name: Build Go Components
+    runs-on: ubuntu-latest
+    needs: [detect-languages, build-protobuf]
+    if: |
+      always() &&
+      needs.detect-languages.outputs.has-go == 'true' &&
+      (inputs.build-target == 'all' || inputs.build-target == 'go')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # Mint a short-lived GitHub App installation token so the tag-push
+      # step inside release-go-action can push refs whose reachable
+      # commits touch .github/workflows/ — the default GITHUB_TOKEN
+      # can't. Skipped entirely when CI_APP_ID isn't configured so the
+      # job doesn't emit a noisy error; falls back to GITHUB_TOKEN.
+      # `if:` cannot reference secrets.* directly in a workflow_call workflow
+      # ("Unrecognized named-value: 'secrets'"). Materialize CI_APP_ID through
+      # env in a guard step, then gate the mint step on that step's output.
+      - name: Check for App credentials
+        id: check-app
+        env:
+          CI_APP_ID: ${{ secrets.CI_APP_ID }}
+        run: |
+          if [ -n "$CI_APP_ID" ]; then
+            echo "have-app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have-app=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint App token for tag push
+        id: app-token
+        if: steps.check-app.outputs.have-app == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+
+      - name: Build Go
+        uses: falkcorp/gha-release-go@e6b2fa793ea1f43d6baee44c77c6047b5abe7f15 # v2.0.1 (GORELEASER_CURRENT_TAG pin)
+        with:
+          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+          release-version: ${{ needs.detect-languages.outputs.release-tag }}
+          system-packages: ${{ inputs.system-packages }}
+          pre-build-script: ${{ inputs.pre-build-script }}
+          go-experiment: ${{ inputs.go-experiment }}
+          run-linters: ${{ inputs.go-run-linters }}
+          github-token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+  # Python Build
+  build-python:
+    name: Build Python Components
+    runs-on: ubuntu-latest
+    needs: [detect-languages, build-protobuf]
+    if: |
+      always() &&
+      needs.detect-languages.outputs.has-python == 'true' &&
+      (inputs.build-target == 'all' || inputs.build-target == 'python')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Build Python
+        uses: falkcorp/gha-release-python@f3105cab8ecca34051c16c989cc809b19ae5a297 # v2.0.0
+        with:
+          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+
+  # Rust Build
+  build-rust:
+    name: Build Rust Components
+    runs-on: ubuntu-latest
+    needs: [detect-languages, build-protobuf]
+    if: |
+      always() &&
+      needs.detect-languages.outputs.has-rust == 'true' &&
+      (inputs.build-target == 'all' || inputs.build-target == 'rust')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Build Rust
+        uses: falkcorp/gha-release-rust@fcee6b67fc61c0da24d890d850793ccae981ccbf # v2.0.0
+        with:
+          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+          release-version: ${{ needs.detect-languages.outputs.release-tag }}
+
+  # Frontend Build
+  build-frontend:
+    name: Build Frontend Components
+    runs-on: ubuntu-latest
+    needs: [detect-languages]
+    if: |
+      always() &&
+      needs.detect-languages.outputs.has-frontend == 'true' &&
+      (inputs.build-target == 'all' || inputs.build-target == 'frontend')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Build Frontend
+        uses: falkcorp/gha-release-frontend@d2a4a8364559606e0f5ac04ef87963a660eab8ac # v2.0.0
+
+  # Docker Build
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [detect-languages, build-go, build-python, build-rust]
+    if: |
+      always() &&
+      needs.detect-languages.outputs.has-docker == 'true' &&
+      (inputs.build-target == 'all' || inputs.build-target == 'docker')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Build Docker
+        uses: falkcorp/gha-release-docker@5438b1e9389357ebe4142d23944ee89f0afd9d11 # v2.0.0
+        with:
+          registry: ${{ needs.detect-languages.outputs.registry }}
+          image-name: ${{ needs.detect-languages.outputs.image-name }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+  # Create GitHub Release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      [
+        detect-languages,
+        build-go,
+        build-python,
+        build-rust,
+        build-frontend,
+        build-docker,
+      ]
+    if: |
+      always() &&
+      !failure() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release-id: ${{ steps.release.outputs.id }}
+      release-created: ${{ steps.check-release.outputs.created }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Determine ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            echo "ref=$(cat .github/ghcommon-ref.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=e04c222a0366d5801d3b02bb76519f19ba1fa440" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Get version
+        id: version
+        env:
+          DETECTED_RELEASE_TAG: ${{ needs.detect-languages.outputs.release-tag }}
+        run: |
+          VERSION="$DETECTED_RELEASE_TAG"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          PRIMARY_LANGUAGE: ${{ needs.detect-languages.outputs.primary-language }}
+          RELEASE_STRATEGY: ${{ needs.detect-languages.outputs.release-branch-strategy }}
+          AUTO_PRERELEASE: ${{ needs.detect-languages.outputs.auto-prerelease }}
+          AUTO_DRAFT: ${{ needs.detect-languages.outputs.auto-draft }}
+          PREVIOUS_VERSION: ${{ inputs.previous-version }}
+        run: |
+          python3 "$GHCOMMON_SCRIPTS_DIR/release_workflow.py" "generate-changelog"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ./artifacts
+      - name: Package and organize release artifacts
+        id: package-artifacts
+        uses: falkcorp/gha-package-assets@c1dc41c8fb6800606eee2714da4d7b807d55ecc4 # v1.2.0
+        with:
+          artifacts-dir: ./artifacts
+
+      - name: Clean up artifact directory
+        run: |
+          set -euo pipefail
+          # Remove empty files
+          find ./artifacts -type f -empty -delete -print 2>/dev/null || true
+
+          # Remove individual frontend JS chunks and source maps — these
+          # are Vite build output that should NOT be attached as release
+          # assets. The frontend is embedded in the Go binary; shipping
+          # loose JS files and .map files as release artifacts is noise.
+          # Keep only: binaries, tarballs, checksums, config, manifests,
+          # docker metadata, and similar build outputs.
+          # Frontend build output (embedded in the Go binary)
+          find ./artifacts -type f \( \
+            -name "*.js" -o -name "*.js.map" -o \
+            -name "*.css" -o -name "*.css.map" -o \
+            -name "*.html" -o -name "*.svg" -o \
+            -name "*.woff" -o -name "*.woff2" -o \
+            -name "*.ttf" -o -name "*.eot" -o \
+            -name "*.png" -o -name "*.ico" \
+          \) -delete -print 2>/dev/null || true
+
+          # GoReleaser internal metadata — build manifests that are
+          # useful during the workflow but should not be shipped as
+          # release assets to end users.
+          find ./artifacts -type f \( \
+            -name "artifacts.json" -o \
+            -name "metadata.json" -o \
+            -name "config.yaml" \
+          \) -delete -print 2>/dev/null || true
+
+          echo "Remaining artifacts:"
+          find ./artifacts -type f 2>/dev/null | sort || true
+
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        if: github.event_name != 'pull_request'
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            ${{ steps.changelog.outputs.changelog_content }}
+
+            ## Release Assets
+
+            This release includes organized packages for easy consumption:
+
+            ### Binaries
+            Pre-built binaries for multiple platforms with SHA256 checksums:
+            - **Linux**: `*-linux-amd64`, `*-linux-arm64`
+            - **macOS**: `*-darwin-amd64`, `*-darwin-arm64`
+
+            Each binary includes a `.sha256` checksum file for verification.
+
+            ### SDKs
+            - **Go SDK**: `*-go-sdk.tar.gz` / `*-go-sdk.zip`
+            - **Python SDK**: `*-python-sdk.tar.gz` / `*-python-sdk.zip`
+
+            ### Documentation
+            - **API Documentation**: `*-docs.tar.gz` / `*-docs.zip`
+
+            See `MANIFEST.md` in the release assets for a complete list of all files and their sizes.
+
+            ---
+            *Generated automatically from commit ${{ github.sha }}*
+          draft: ${{ needs.detect-languages.outputs.auto-draft }}
+          prerelease: ${{ needs.detect-languages.outputs.auto-prerelease }}
+          files: |
+            ./artifacts/**/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Assemble CHANGELOG.md from changelog.d/ fragments (scriv) and commit it
+      # back to the default branch. Opt-in by presence: only runs when the
+      # calling repo has changelog.d/scriv.ini (see changelog.d/README.md in
+      # falkcorp/github-common). No-op for every repo without that file.
+      - name: Collect changelog fragments
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.changelog-collect != 'false' &&
+          needs.detect-languages.outputs.auto-prerelease != 'true' &&
+          hashFiles('changelog.d/scriv.ini') != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CHANGELOG_PAT: ${{ secrets.JF_CI_GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VERSION:-}" ]; then
+            echo "::warning::No version resolved; skipping changelog collect."
+            exit 0
+          fi
+
+          # Defensive: scriv needs a CHANGELOG.md carrying the insert marker.
+          # Skip cleanly if the repo has scriv.ini but no marker-bearing changelog.
+          if [ ! -f CHANGELOG.md ] || ! grep -q 'scriv-insert-here' CHANGELOG.md; then
+            echo "::warning::changelog.d/scriv.ini present but CHANGELOG.md lacks the scriv-insert-here marker; skipping collect."
+            exit 0
+          fi
+
+          # Only real fragments count — README.md, templates/ and scriv.ini don't.
+          if ! find changelog.d -maxdepth 1 -name '*.md' ! -name 'README.md' | grep -q .; then
+            echo "::notice::No changelog fragments to collect for ${VERSION}."
+            exit 0
+          fi
+
+          python3 -m pip install --quiet scriv
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          python3 -m scriv collect --version "${VERSION}"
+
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "::notice::scriv produced no CHANGELOG.md changes."
+            exit 0
+          fi
+
+          git add -A CHANGELOG.md changelog.d
+          # [skip ci] stops this changelog commit from retriggering release CI.
+          git commit -m "docs(changelog): collect fragments for ${VERSION} [skip ci]"
+
+          # Prefer the PAT (passes branch protection); fall back to the workflow
+          # token. Push to an explicit authenticated URL so we don't depend on the
+          # checkout's persisted credentials.
+          TOKEN="${CHANGELOG_PAT:-$GITHUB_TOKEN}"
+          REMOTE="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          n=0
+          until git push "${REMOTE}" "HEAD:${DEFAULT_BRANCH}" || [ "$n" -ge 4 ]; do
+            n=$((n + 1))
+            echo "Retry $n/4 for changelog push..."
+            sleep $((2 ** n))
+            git pull --rebase "${REMOTE}" "${DEFAULT_BRANCH}"
+          done
+          [ "$n" -lt 4 ] || { echo "::error::Failed to push CHANGELOG.md"; exit 1; }
+          echo "CHANGELOG.md updated for ${VERSION}"
+
+      - name: Create or update draft full release
+        if: needs.detect-languages.outputs.auto-prerelease == 'true' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FULL_VERSION: ${{ needs.detect-languages.outputs.full-version }}
+          RC_TAG: ${{ steps.version.outputs.version }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog_content }}
+        run: |
+          set -euo pipefail
+
+          echo "Managing draft release for $FULL_VERSION (latest RC: $RC_TAG)"
+
+          # Find existing draft releases
+          DRAFTS=$(gh release list --json tagName,isDraft --jq '[.[] | select(.isDraft)] | sort_by(.tagName) | reverse')
+          DRAFT_COUNT=$(echo "$DRAFTS" | jq 'length')
+
+          # Check if a draft for this specific version exists
+          EXISTING_DRAFT=$(echo "$DRAFTS" | jq -r "[.[] | select(.tagName == \"$FULL_VERSION\")] | first // empty | .tagName")
+
+          if [ -n "$EXISTING_DRAFT" ]; then
+            echo "Updating existing draft release $FULL_VERSION"
+            gh release edit "$FULL_VERSION" \
+              --target "$GITHUB_SHA" \
+              --title "$FULL_VERSION" \
+              --notes "$(cat <<NOTES_EOF
+          Draft release for $FULL_VERSION — will be published when ready.
+
+          Latest RC: $RC_TAG
+
+          $CHANGELOG
+          NOTES_EOF
+          )"
+          else
+            echo "Creating new draft release for $FULL_VERSION"
+            # Create new draft — the tag doesn't exist yet, it will be created when published
+            gh release create "$FULL_VERSION" \
+              --target "$GITHUB_SHA" \
+              --title "$FULL_VERSION" \
+              --notes "$(cat <<NOTES_EOF
+          Draft release for $FULL_VERSION — will be published when ready.
+
+          Latest RC: $RC_TAG
+
+          $CHANGELOG
+          NOTES_EOF
+          )" \
+              --draft
+          fi
+
+          # Clean up stale drafts: delete drafts for versions older than FULL_VERSION
+          # but keep the current one
+          if [ "$DRAFT_COUNT" -gt 1 ]; then
+            echo "Found $DRAFT_COUNT draft releases, cleaning up stale ones..."
+            for tag in $(echo "$DRAFTS" | jq -r ".[].tagName"); do
+              if [ "$tag" != "$FULL_VERSION" ]; then
+                echo "Deleting stale draft: $tag"
+                gh release delete "$tag" --yes 2>/dev/null || true
+              fi
+            done
+          fi
+
+      # When a stable release is cut, any draft or RC pre-release whose base
+      # version is <= the stable version is now superseded. The RC-only
+      # upsert logic above never runs for stable cuts, so without this step
+      # superseded drafts/RCs linger indefinitely (see v0.205.1 draft left
+      # behind when v0.206.0 shipped, and 117 RCs accumulated before that).
+      #
+      # Policy:
+      #   - Drafts: delete every superseded one. They're WIP notes, no value.
+      #   - RC prereleases: keep the RC_KEEP_COUNT most recent by createdAt
+      #     for rollback / historical debugging, delete the rest.
+      - name: Clean up superseded drafts and prereleases
+        if: needs.detect-languages.outputs.release-branch-strategy == 'stable' && steps.release.outcome == 'success' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_VERSION: ${{ steps.version.outputs.version }}
+          RC_KEEP_COUNT: '5'
+        run: |
+          set -euo pipefail
+          echo "Cleaning up drafts and prereleases superseded by $STABLE_VERSION"
+          echo "(keeping the $RC_KEEP_COUNT most recent RC prereleases)"
+
+          stable_num="${STABLE_VERSION#v}"
+
+          # Build keep-list: N most recently created prereleases, regardless
+          # of version. Newline-separated tagNames.
+          keep_list=$(gh release list --limit 500 --json tagName,isPrerelease,createdAt \
+            --jq "[.[] | select(.isPrerelease)] | sort_by(.createdAt) | reverse | .[0:${RC_KEEP_COUNT}] | .[].tagName")
+
+          if [ -n "$keep_list" ]; then
+            echo "Keeping these recent RC prereleases:"
+            # shellcheck disable=SC2001
+            echo "$keep_list" | sed 's/^/  - /'
+          fi
+
+          # List drafts + prereleases. In principle the stable release we just
+          # cut has isDraft=false/isPrerelease=false and is excluded here, but
+          # a stale list read (or a leftover draft placeholder reused under
+          # the same tag by the release-creation step) can still surface it —
+          # so the loop below also hard-guards on the tag string itself.
+          releases=$(gh release list --limit 500 --json tagName,isDraft,isPrerelease \
+            --jq '.[] | select(.isDraft or .isPrerelease) | .tagName')
+
+          if [ -z "$releases" ]; then
+            echo "No drafts or prereleases to consider."
+            exit 0
+          fi
+
+          deleted=0
+          kept=0
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+
+            # Never delete the release we just cut, regardless of what
+            # isDraft/isPrerelease report for it above.
+            if [ "$tag" = "$STABLE_VERSION" ]; then
+              echo "Skipping just-created stable release: $tag"
+              kept=$((kept + 1))
+              continue
+            fi
+
+            # base = version stripped of leading v and any -rc/-alpha/-beta suffix
+            base="${tag#v}"
+            base="${base%%-*}"
+
+            if ! echo "$base" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Skipping non-semver tag: $tag"
+              continue
+            fi
+
+            # sort -V outputs smallest first; if base sorts first, base <= stable
+            smallest=$(printf '%s\n%s\n' "$base" "$stable_num" | sort -V | head -1)
+            if [ "$smallest" != "$base" ]; then
+              # Newer than stable (shouldn't happen, but guard anyway).
+              continue
+            fi
+
+            # Superseded. If it's in the RC keep-list, spare it.
+            if [ -n "$keep_list" ] && printf '%s\n' "$keep_list" | grep -qxF "$tag"; then
+              echo "Keeping recent RC: $tag"
+              kept=$((kept + 1))
+              continue
+            fi
+
+            echo "Deleting superseded release: $tag (base $base <= $stable_num)"
+            # --cleanup-tag fails on drafts (no tag exists yet); fall back to plain delete
+            if gh release delete "$tag" --yes --cleanup-tag 2>/dev/null; then
+              deleted=$((deleted + 1))
+            elif gh release delete "$tag" --yes 2>/dev/null; then
+              deleted=$((deleted + 1))
+            else
+              echo "  (could not delete $tag — may have been removed already)"
+            fi
+          done <<< "$releases"
+
+          echo "Cleanup done — deleted $deleted, kept $kept recent RC(s)"
+
+      - name: Check release created
+        id: check-release
+        env:
+          RELEASE_OUTCOME: ${{ steps.release.outcome }}
+        run: |
+          created=false
+          if [ "${RELEASE_OUTCOME:-failure}" = "success" ]; then
+            created=true
+          fi
+          {
+            echo "created=${created}"
+            echo "release-created=${created}"
+          } >> "$GITHUB_OUTPUT"
+
+  publish-github-packages:
+    name: Publish GitHub Packages
+    runs-on: ubuntu-latest
+    needs: [load-config, detect-languages, create-release]
+    if: |
+      always() &&
+      needs.create-release.outputs.release-created == 'true'
+    env:
+      REPOSITORY_CONFIG: ${{ needs.load-config.outputs.config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Determine ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            echo "ref=$(cat .github/ghcommon-ref.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=e04c222a0366d5801d3b02bb76519f19ba1fa440" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Download release artifacts for publishing
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: packages
+          merge-multiple: true
+          # if-no-files-found: ignore
+
+      - name: Ensure packages directory exists
+        run: mkdir -p packages
+
+      - name: Publish artifacts to GitHub Packages
+        env:
+          # publish_to_github_packages.py shells out to `gh release upload`,
+          # which requires GH_TOKEN. Without this the step fails with
+          # "To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
+          # environment variable" and exits 4.
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PRIMARY_LANGUAGE: ${{ needs.detect-languages.outputs.primary-language || 'unknown' }}
+          RELEASE_TAG: ${{ needs.detect-languages.outputs.release-tag }}
+          RELEASE_STRATEGY: ${{ needs.detect-languages.outputs.release-branch-strategy }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          GHCOMMON_SCRIPTS_DIR: ${{ env.GHCOMMON_SCRIPTS_DIR }}
+        run: |
+          set -euo pipefail
+          SCRIPT_PATH="${GHCOMMON_SCRIPTS_DIR}/publish_to_github_packages.py"
+
+          ARGS=(
+            "python3"
+            "$SCRIPT_PATH"
+            "--language" "${PRIMARY_LANGUAGE:-unknown}"
+            "--tag" "${RELEASE_TAG:-}"
+            "--branch" "${BRANCH_NAME:-}"
+            "--artifacts-dir" "packages"
+            "--require-github"
+          )
+
+          if [ "${RELEASE_STRATEGY:-}" = "stable" ]; then
+            ARGS+=("--is-stable")
+          fi
+
+          "${ARGS[@]}"
+
+  # Update floating version tags
+  update-floating-tags:
+    name: Update Floating Tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [detect-languages, create-release]
+    if: |
+      needs.create-release.outputs.release-created == 'true' &&
+      needs.detect-languages.outputs.release-branch-strategy == 'stable' &&
+      !inputs.prerelease &&
+      !inputs.draft
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Parse version and update floating tags
+        env:
+          VERSION_TAG: ${{ needs.detect-languages.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+
+          echo "📌 Updating floating tags for $VERSION_TAG"
+
+          # Parse version (e.g., v1.2.3)
+          if [[ ! $VERSION_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::warning::Version tag $VERSION_TAG is not in semver format, skipping floating tag update"
+            exit 0
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Update major version tag (v1) with retry logic
+          MAJOR_TAG="v${MAJOR}"
+          echo "🏷️  Updating $MAJOR_TAG to point to $VERSION_TAG"
+          git tag -fa "$MAJOR_TAG" "$VERSION_TAG" -m "chore(release): update $MAJOR_TAG to $VERSION_TAG"
+
+          # Retry logic for push
+          retry_count=0
+          max_retries=3
+          until git push origin "$MAJOR_TAG" --force || [ $retry_count -eq $max_retries ]; do
+            retry_count=$((retry_count + 1))
+            echo "⚠️  Retry $retry_count/$max_retries for $MAJOR_TAG after 5 seconds..."
+            sleep 5
+          done
+
+          if [ $retry_count -eq $max_retries ]; then
+            echo "❌ Failed to push $MAJOR_TAG after $max_retries attempts"
+            exit 1
+          fi
+          echo "✅ Updated $MAJOR_TAG"
+
+          # Update minor version tag (v1.2) with retry logic
+          MINOR_TAG="v${MAJOR}.${MINOR}"
+          echo "🏷️  Updating $MINOR_TAG to point to $VERSION_TAG"
+          git tag -fa "$MINOR_TAG" "$VERSION_TAG" -m "chore(release): update $MINOR_TAG to $VERSION_TAG"
+
+          # Retry logic for push
+          retry_count=0
+          until git push origin "$MINOR_TAG" --force || [ $retry_count -eq $max_retries ]; do
+            retry_count=$((retry_count + 1))
+            echo "⚠️  Retry $retry_count/$max_retries for $MINOR_TAG after 5 seconds..."
+            sleep 5
+          done
+
+          if [ $retry_count -eq $max_retries ]; then
+            echo "❌ Failed to push $MINOR_TAG after $max_retries attempts"
+            exit 1
+          fi
+          echo "✅ Updated $MINOR_TAG"
+
+          echo "🎉 Floating tags updated successfully"
+
+  # Final status check
+  build-status:
+    name: Release Status Summary
+    runs-on: ubuntu-latest
+    needs:
+      [
+        detect-languages,
+        build-go,
+        build-python,
+        build-rust,
+        build-frontend,
+        build-docker,
+        create-release,
+        publish-github-packages,
+        update-floating-tags,
+      ]
+    if: always()
+    outputs:
+      release-created: ${{ needs.create-release.outputs.release-created || 'false' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Detect ghcommon ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            echo "ref=$(cat .github/ghcommon-ref.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=e04c222a0366d5801d3b02bb76519f19ba1fa440" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          sparse-checkout: |
+            .github/workflows/scripts
+          path: .ghcommon
+
+      - name: Set up GHCOMMON_SCRIPTS_DIR
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$GITHUB_WORKSPACE/.ghcommon/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Generate release summary
+        env:
+          SUMMARY_PRIMARY_LANGUAGE: ${{ needs.detect-languages.outputs.primary-language }}
+          SUMMARY_BUILD_TARGET: ${{ inputs.build-target }}
+          SUMMARY_RELEASE_TAG: ${{ needs.detect-languages.outputs.release-tag }}
+          SUMMARY_RELEASE_STRATEGY: ${{ needs.detect-languages.outputs.release-branch-strategy }}
+          SUMMARY_BRANCH: ${{ github.ref_name }}
+          SUMMARY_GO_RESULT: ${{ needs.build-go.result || 'skipped' }}
+          SUMMARY_PYTHON_RESULT: ${{ needs.build-python.result || 'skipped' }}
+          SUMMARY_RUST_RESULT: ${{ needs.build-rust.result || 'skipped' }}
+          SUMMARY_FRONTEND_RESULT: ${{ needs.build-frontend.result || 'skipped' }}
+          SUMMARY_DOCKER_RESULT: ${{ needs.build-docker.result || 'skipped' }}
+          SUMMARY_RELEASE_RESULT: ${{ needs.create-release.result || 'skipped' }}
+          SUMMARY_PUBLISH_RESULT: ${{ needs.publish-github-packages.result || 'skipped' }}
+          SUMMARY_RELEASE_CREATED: ${{ needs.create-release.outputs.release-created || 'false' }}
+          SUMMARY_AUTO_PRERELEASE: ${{ needs.detect-languages.outputs.auto-prerelease || 'false' }}
+          SUMMARY_AUTO_DRAFT: ${{ needs.detect-languages.outputs.auto-draft || 'false' }}
+        run: python3 "$GHCOMMON_SCRIPTS_DIR/generate_release_summary.py"

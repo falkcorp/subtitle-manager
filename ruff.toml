@@ -1,5 +1,5 @@
 # file: ruff.toml
-# version: 1.1.1
+# version: 1.1.2
 # guid: f1a2b3c4-d5e6-789f-a012-456789abcdef
 
 # Ruff configuration following Google Python Style Guide
@@ -49,6 +49,11 @@ ignore = [
     "PLR0913", # Too many arguments to function call
     "PLR0912", # Too many branches
     "PLR0915", # Too many statements
+    # ERA001 (commented-out code) cannot coexist with this repo's mandatory
+    # `# file:` / `# version:` / `# guid:` header block — it flags the header on
+    # every Python file and its autofix DELETES it. The header rule wins.
+    # See .standards/instructions/file-headers.md. (Matches ghcommon's ruff.toml.)
+    "ERA001",
 ]
 
 [lint.per-file-ignores]

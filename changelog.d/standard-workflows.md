@@ -11,9 +11,12 @@ Replaced the old self-contained workflow fleet (`release-go.yml`,
 language-detecting, keeps all build logic in one central place, and pins the Go
 toolchain to 1.25 to match `go.mod`. Also refreshed the synced
 `sync-receiver.yml` and `commit-override-handler.yml` to their current ghcommon
-versions. (Security-workflow standardization is deferred to a follow-up because
-the repo currently uses CodeQL default setup, which conflicts with a custom
-CodeQL workflow.)
+versions. Pruned the now-dead `.github/scripts/*.py` helpers (22 files) that
+drove the retired self-contained workflows — the standard workflows use the
+published `falkcorp/gha-*` actions and the consolidated
+`.github/workflows/scripts/sync_receiver.py` instead. (Security-workflow
+standardization is deferred to a follow-up because the repo currently uses
+CodeQL default setup, which conflicts with a custom CodeQL workflow.)
 
 ### Fixed
 

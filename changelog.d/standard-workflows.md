@@ -19,9 +19,11 @@ CodeQL workflow.)
 
 #### Repair the Python build
 
-Fixed `requirements.txt` so it installs cleanly under strict pip resolution:
+Fixed `requirements.txt` so it installs cleanly under strict pip resolution
+(the old CI ran `pip install` via `os.system`, silently ignoring failures):
 dropped the dead `gcommon` git pin (unfetchable ref, not imported by any Python
-code) and bumped `cffi` to 2.0.0 to satisfy `cryptography==48.0.1`
-(`cffi>=2.0.0`). Added a root `pytest.ini` that excludes the out-of-band Selenium
-E2E suite (`tests/e2e/`) from standard CI collection, so both
-`pip install -r requirements.txt` and pytest succeed.
+code), bumped `cffi` to 2.0.0 to satisfy `cryptography==48.0.1` (`cffi>=2.0.0`),
+and removed the unused `fido2` / `yubikey-manager` pins that capped
+`cryptography<45` (no Python code imports them). Added a root `pytest.ini` that
+excludes the out-of-band Selenium E2E suite (`tests/e2e/`) from standard CI
+collection, so both `pip install -r requirements.txt` and pytest succeed.

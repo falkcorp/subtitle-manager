@@ -71,7 +71,6 @@ pydantic==2.11.7
 pydantic_core==2.33.2
 Pygments==2.20.0
 pylint==3.3.3
-pyscard==2.2.0
 pysubs2==1.8.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2

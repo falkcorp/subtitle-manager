@@ -1,5 +1,5 @@
-# file: .github/linters/ruff.toml
-# version: 1.1.0
+# file: ruff.toml
+# version: 1.1.1
 # guid: f1a2b3c4-d5e6-789f-a012-456789abcdef
 
 # Ruff configuration following Google Python Style Guide
@@ -56,6 +56,11 @@ ignore = [
 "test_*.py" = ["S101", "D100", "D103", "PLR2004"]
 "**/tests/**/*.py" = ["S101", "D100", "D103", "PLR2004"]
 "scripts/**/*.py" = ["T20", "S602", "S603", "S607"]
+# Vendored workflow-helper scripts synced from ghcommon (e.g. sync_receiver.py).
+# Same rationale as scripts/**: shelling out to git/gh with partial paths and
+# printing status is the point; they are not part of the app's public API, so
+# missing-docstring (D1xx) and magic-value (PLR2004) rules don't apply.
+".github/workflows/scripts/**/*.py" = ["T20", "S602", "S603", "S607", "D100", "D101", "D102", "D103", "D104", "D107", "PLR2004", "RUF001"]
 "**/migrations/**/*.py" = ["D100", "D103"]
 
 [lint.isort]

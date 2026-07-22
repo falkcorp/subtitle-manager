@@ -1,5 +1,5 @@
 // file: pkg/queue/queue_test.go
-// version: 1.1.0
+// version: 1.1.1
 // guid: 123e4567-e89b-12d3-a456-426614174003
 package queue
 
@@ -104,13 +104,17 @@ func TestQueueProcessJob(t *testing.T) {
 	require.NoError(t, err)
 	defer q.Stop()
 
-	executed := false
+	// executed is closed from the worker goroutine when the job runs; the test
+	// goroutine waits on it. Using a channel (instead of a plain bool + sleep)
+	// provides the happens-before needed to avoid a data race under `go test
+	// -race`, and lets the test proceed as soon as the job completes.
+	executed := make(chan struct{})
 	job := &mockJob{
 		id:          "test-job",
 		jobType:     JobTypeSingleFile,
 		description: "test execution",
 		executeFunc: func(ctx context.Context) error {
-			executed = true
+			close(executed)
 			return nil
 		},
 	}
@@ -118,9 +122,12 @@ func TestQueueProcessJob(t *testing.T) {
 	_, err = q.Add(job)
 	require.NoError(t, err)
 
-	// Wait for job to be processed
-	time.Sleep(200 * time.Millisecond)
-	assert.True(t, executed, "job should have been executed")
+	// Wait for the job to be processed.
+	select {
+	case <-executed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("job should have been executed within the timeout")
+	}
 }
 
 func TestQueueStatus(t *testing.T) {

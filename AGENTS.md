@@ -1,5 +1,5 @@
 <!-- file: AGENTS.md -->
-<!-- version: 3.0.0 -->
+<!-- version: 4.0.0 -->
 <!-- guid: 2e7c1a4b-5d3f-4b8c-9e1f-7a6b2c3d4e5f -->
 <!-- last-edited: 2026-06-13 -->
 
@@ -8,4 +8,4 @@
 See **CLAUDE.md** for all agent instructions and project context.
 
 Org-wide coding standards (file headers, language rules, commit format):
-**https://github.com/falkcorp/.github**
+**<https://github.com/falkcorp/.github>**

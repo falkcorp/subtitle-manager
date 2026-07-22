@@ -1,14 +1,14 @@
 <!-- file: .github/prompts/ai-rebase-context.md -->
 <!-- version: 1.0.1 -->
 <!-- guid: 5f8e7d6c-9b8a-7c6d-5e4f-3a2b1c0d9e8f -->
+<!-- last-edited: 2026-01-19 -->
 
 # Repository Context for AI Rebase
 
 ## Project Overview
 
-This is the **ghcommon** repository, which contains shared GitHub workflows,
-automation scripts, and common utilities for managing multiple repositories in
-the organization. It focuses on:
+This is the **ghcommon** repository, which contains shared GitHub workflows, automation scripts, and
+common utilities for managing multiple repositories in the organization. It focuses on:
 
 - Reusable GitHub Actions workflows
 - Documentation management automation
@@ -27,13 +27,11 @@ the organization. It focuses on:
 
 ### README.md
 
-The main project documentation explaining the repository's purpose and
-structure.
+The main project documentation explaining the repository's purpose and structure.
 
 ### .github/instructions/general-coding.instructions.md
 
-Contains the canonical coding standards and file header requirements that apply
-to all files.
+Contains the canonical coding standards and file header requirements that apply to all files.
 
 ### .github/commit-messages.md
 
@@ -41,8 +39,7 @@ Defines the conventional commit message format used across all repositories.
 
 ### .github/workflows/
 
-Contains reusable GitHub Actions workflows that can be used by other
-repositories.
+Contains reusable GitHub Actions workflows that can be used by other repositories.
 
 ## Common Conflict Patterns
 

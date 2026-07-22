@@ -9,9 +9,15 @@
 
 # Generated files
 workflow-permissions-analysis.json
+**/doc-updates/*.json
 **/processed/*.json
 
-# TODO fragments are partial Markdown assembled into TODO.md; keep the README.
+# Changelog fragments are assembled verbatim into CHANGELOG.md (keep README)
+changelog.d/*.md
+changelog.d/templates/**
+!changelog.d/README.md
+
+# TODO fragments are assembled verbatim into TODO.md (keep README)
 todo.d/*.md
 todo.d/templates/**
 !todo.d/README.md

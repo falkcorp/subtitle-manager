@@ -1,0 +1,967 @@
+# file: .github/workflows/reusable-ci.yml
+# version: 1.13.0
+# guid: reusable-ci-2025-09-24-core-workflow
+
+name: Reusable CI Workflow
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.24'
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '22'
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.13'
+      rust-version:
+        description: 'Rust version to use'
+        required: false
+        type: string
+        default: '1.76'
+      coverage-threshold:
+        description: 'Coverage threshold percentage'
+        required: false
+        type: string
+        default: '80'
+      skip-protobuf:
+        description: 'Skip protobuf generation'
+        required: false
+        type: boolean
+        default: false
+      skip-tests:
+        description: 'Skip running tests'
+        required: false
+        type: boolean
+        default: false
+      skip-e2e-tests:
+        description: 'Skip running E2E tests'
+        required: false
+        type: boolean
+        default: false
+      skip-linting:
+        description: 'Skip linting'
+        required: false
+        type: boolean
+        default: false
+      go-experiment:
+        description: 'Value for GOEXPERIMENT environment variable (e.g. jsonv2)'
+        required: false
+        type: string
+        default: ''
+      system-packages:
+        description: 'Space-separated list of apt packages to install before build/test (e.g. libtag1-dev)'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      go-files:
+        description: 'Whether Go files were detected'
+        value: ${{ jobs.detect-changes.outputs.go-files }}
+      python-files:
+        description: 'Whether Python files were detected'
+        value: ${{ jobs.detect-changes.outputs.python-files }}
+      rust-files:
+        description: 'Whether Rust files were detected'
+        value: ${{ jobs.detect-changes.outputs.rust-files }}
+      frontend-files:
+        description: 'Whether frontend files were detected'
+        value: ${{ jobs.detect-changes.outputs.frontend-files }}
+      docker-files:
+        description: 'Whether Docker files were detected'
+        value: ${{ jobs.detect-changes.outputs.docker-files }}
+      docs-files:
+        description: 'Whether documentation files were detected'
+        value: ${{ jobs.detect-changes.outputs.docs-files }}
+      workflows-files:
+        description: 'Whether workflow files were detected'
+        value: ${{ jobs.detect-changes.outputs.workflows-files }}
+      lint-files:
+        description: 'Whether linter configuration files were detected'
+        value: ${{ jobs.detect-changes.outputs.lint-files }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  load-config:
+    name: Load Repository Configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      config: ${{ steps.load.outputs.config }}
+      has-config: ${{ steps.load.outputs.has-config }}
+      go-matrix: ${{ steps.matrices.outputs.go-matrix }}
+      python-matrix: ${{ steps.matrices.outputs.python-matrix }}
+      rust-matrix: ${{ steps.matrices.outputs.rust-matrix }}
+      frontend-matrix: ${{ steps.matrices.outputs.frontend-matrix }}
+      coverage-threshold: ${{ steps.matrices.outputs.coverage-threshold }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Load repository configuration
+        id: load
+        uses: falkcorp/gha-load-config@bb213cbf6b6e789bea8ad0787f2914760d00536b # v1.1.3
+        with:
+          config-file: .github/repository-config.yml
+          fail-on-missing: false
+
+      - name: Generate language matrices
+        id: matrices
+        uses: falkcorp/gha-ci-generate-matrices@8c36d080ec55e96d3532e9b02417054fc6aaaeac # v1.1.6
+        with:
+          repository-config: ${{ steps.load.outputs.config }}
+          fallback-go-version: ${{ inputs.go-version }}
+          fallback-python-version: ${{ inputs.python-version }}
+          fallback-rust-version: ${{ inputs.rust-version }}
+          fallback-node-version: ${{ inputs.node-version }}
+          fallback-coverage-threshold: ${{ inputs.coverage-threshold }}
+
+  # Detect what files changed to optimize workflow execution
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    needs: load-config
+    outputs:
+      go-files: ${{ steps.changes.outputs.go_files }}
+      python-files: ${{ steps.changes.outputs.python_files }}
+      rust-files: ${{ steps.changes.outputs.rust_files }}
+      frontend-files: ${{ steps.changes.outputs.frontend_files }}
+      docker-files: ${{ steps.changes.outputs.docker_files }}
+      docs-files: ${{ steps.changes.outputs.docs_files }}
+      workflow-files: ${{ steps.changes.outputs.workflow_yaml }}
+      workflows-files: ${{ steps.changes.outputs.workflow_yaml }}
+      workflows-scripts: ${{ steps.changes.outputs.workflow_scripts }}
+      lint-files: ${{ steps.changes.outputs.lint_files }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 2
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          filters: |
+            go_files:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+            python_files:
+              - '**/*.py'
+              - 'requirements*.txt'
+              - 'pyproject.toml'
+              - 'setup.py'
+              - 'setup.cfg'
+            rust_files:
+              - '**/*.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            frontend_files:
+              - '**/*.js'
+              - '**/*.ts'
+              - '**/*.jsx'
+              - '**/*.tsx'
+              - '**/*.vue'
+              - '**/*.svelte'
+              - '**/*.html'
+              - '**/*.css'
+              - '**/*.scss'
+              - '**/*.sass'
+              - '**/*.less'
+              - 'package*.json'
+              - 'yarn.lock'
+              - 'pnpm-lock.yaml'
+            docker_files:
+              - 'Dockerfile*'
+              - 'docker-compose*.yml'
+              - 'docker-compose*.yaml'
+              - '.dockerignore'
+            docs_files:
+              - '**/*.md'
+              - 'docs/**'
+              - '*.md'
+            workflow_yaml:
+              - '.github/workflows/**'
+            workflow_scripts:
+              - '.github/actions/**'
+              - '.github/scripts/**'
+            lint_files:
+              - 'super-linter-*.env'
+              - '.markdownlint.json'
+              - '.yaml-lint.yml'
+              - 'clippy.toml'
+              - 'rustfmt.toml'
+              - '.eslintrc.*'
+              - '.pylintrc'
+              - '.python-black'
+              - '.prettierrc*'
+              - '.flake8'
+
+      - name: Debug change outputs
+        env:
+          CI_GO_FILES: ${{ steps.changes.outputs.go_files }}
+          CI_PYTHON_FILES: ${{ steps.changes.outputs.python_files }}
+          CI_RUST_FILES: ${{ steps.changes.outputs.rust_files }}
+          CI_FRONTEND_FILES: ${{ steps.changes.outputs.frontend_files }}
+          CI_DOCKER_FILES: ${{ steps.changes.outputs.docker_files }}
+          CI_DOCS_FILES: ${{ steps.changes.outputs.docs_files }}
+          CI_WORKFLOW_FILES: ${{ steps.changes.outputs.workflow_yaml }}
+          CI_WORKFLOW_YAML_FILES: ${{ steps.changes.outputs.workflow_yaml }}
+          CI_WORKFLOW_SCRIPT_FILES: ${{ steps.changes.outputs.workflow_scripts }}
+          CI_LINT_FILES: ${{ steps.changes.outputs.lint_files }}
+        run: |
+          {
+            printf '## Change Detection\n\n'
+            printf -- '- Go files: %s\n' "$CI_GO_FILES"
+            printf -- '- Python files: %s\n' "$CI_PYTHON_FILES"
+            printf -- '- Rust files: %s\n' "$CI_RUST_FILES"
+            printf -- '- Frontend files: %s\n' "$CI_FRONTEND_FILES"
+            printf -- '- Docker files: %s\n' "$CI_DOCKER_FILES"
+            printf -- '- Docs files: %s\n' "$CI_DOCS_FILES"
+            printf -- '- Workflow YAML: %s\n' "$CI_WORKFLOW_FILES"
+            printf -- '- Workflow scripts: %s\n' "$CI_WORKFLOW_SCRIPT_FILES"
+            printf -- '- Lint files: %s\n' "$CI_LINT_FILES"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  workflow-lint:
+    name: Workflow Lint
+    needs: detect-changes
+    if: needs.detect-changes.outputs.workflow-files == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.23'
+          check-latest: true
+          cache: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run actionlint
+        id: lint
+        run: |
+          set -euo pipefail
+          ACTIONLINT_BIN="$(go env GOPATH)/bin/actionlint"
+          "$ACTIONLINT_BIN" -no-color \
+            -ignore 'unknown permission scope "code-quality"' \
+            | tee actionlint.log
+
+      - name: Publish workflow summary
+        if: always()
+        run: |
+          {
+            printf '## Workflow Lint\n\n'
+            if [ -s actionlint.log ]; then
+              printf '```text\n'
+              cat actionlint.log
+              printf '\n```\n'
+            else
+              printf "✅ No workflow issues detected.\n"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload actionlint log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: workflow-lint-report
+          path: actionlint.log
+          if-no-files-found: ignore
+
+  # Setup npm cache for workflow-scripts using advanced cache strategy
+  workflow-scripts-npm-cache:
+    name: Cache npm (Workflow Scripts)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.workflows-scripts == 'true' || github.event_name == 'workflow_dispatch'
+    uses: falkcorp/github-common/.github/workflows/reusable-advanced-cache.yml@1e106b5c7bc2e80beb0c6019e8ac263d41f2ed5f # v1.10.3+
+    with:
+      language: 'node'
+      cache-prefix: 'npm-workflow-scripts'
+      include-branch: false
+
+  workflow-scripts:
+    name: Workflow Scripts
+    needs: [detect-changes, workflow-scripts-npm-cache]
+    if: needs.detect-changes.outputs.workflows-scripts == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Lint Python workflow scripts
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+          if find .github/scripts -maxdepth 1 -name "*.py" | head -n 1 | grep -q .; then
+            ruff check .github/scripts
+            ruff format --check .github/scripts
+            python -m compileall .github/scripts
+          else
+            echo "No Python workflow scripts detected."
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Cache has been prepared by workflow-scripts-npm-cache job using reusable-advanced-cache.yml
+      # This leverages intelligent cache key generation based on package-lock.json, yarn.lock, and pnpm-lock.yaml
+      # No additional cache setup needed here.
+
+      - name: Lint JavaScript/TypeScript workflow scripts
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t js_ts_files < <(find .github -type f \( -path "./.github/scripts/*" -o -path "./.github/actions/*" \) \( -name "*.js" -o -name "*.ts" -o -name "*.tsx" \) -print0)
+          if [ "${#js_ts_files[@]}" -gt 0 ]; then
+            directories=(".github/scripts")
+            if [ -d ".github/actions" ]; then
+              directories+=(".github/actions")
+            fi
+            npx --yes eslint@9.13.0 --config .eslintrc.yml --ext .js,.ts,.tsx "${directories[@]}"
+            printf '%s\0' "${js_ts_files[@]}" | xargs -0 npx --yes prettier@3.3.3 --check
+          else
+            echo "No JavaScript/TypeScript workflow scripts detected."
+          fi
+
+      - name: Publish workflow script summary
+        if: always()
+        run: |
+          {
+            printf '## Workflow Script Lint\n\n'
+            printf -- '- Python scripts linted and formatted with Ruff.\n'
+            printf -- '- JavaScript/TypeScript scripts linted with ESLint and checked with Prettier.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Protobuf generation (if applicable)
+  protobuf-generation:
+    name: Generate Protobuf
+    runs-on: ubuntu-latest
+    if: |
+      !inputs.skip-protobuf &&
+      (contains(github.event.head_commit.message, '[protobuf]') ||
+       contains(github.event.head_commit.message, '[generate]') ||
+       contains(github.event.head_commit.message, '[buf]'))
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Generate protobuf
+        uses: falkcorp/gha-release-protobuf@1c07a62621ea5bdaf7fd46643fd4e650c69de8d9 # v1.0.1
+
+  # Language-specific build and test jobs
+  go-ci:
+    name: Go CI
+    needs: [load-config, detect-changes]
+    if: needs.detect-changes.outputs.go-files == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.go-matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      REPOSITORY_CONFIG: ${{ needs.load-config.outputs.config }}
+      GOEXPERIMENT: ${{ inputs.go-experiment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Get ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            ref="$(cat .github/ghcommon-ref.txt)"
+          else
+            # Fallback pin for repos with no .github/ghcommon-ref.txt. This MUST be
+            # kept current with this workflow: the workflow is consumed at @main but
+            # the scripts come from this SHA, so a stale pin means main invokes
+            # subcommands the pinned ci_workflow.py does not define. The previous pin
+            # (e04c222, 2026-03-28) predated the rust-* commands added in 767acd4
+            # (2026-05-27), so every repo without the ref file failed Rust CI with
+            # "Unknown command: rust-build".
+            ref="e73b80106099118143806b0ce58e0a73cbcfb27c"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install system packages
+        if: inputs.system-packages != ''
+        env:
+          PACKAGES: ${{ inputs.system-packages }}
+        run: |
+          sudo apt-get update
+          # Intentional word splitting for multiple package names.
+          # shellcheck disable=SC2086
+          sudo apt-get install -y $PACKAGES
+
+      - name: Build Go project
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: go-setup
+
+      - name: Test Go project
+        if: ${{ !inputs.skip-tests }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: go-test
+          coverage-threshold: ${{ inputs.coverage-threshold || needs.load-config.outputs.coverage-threshold }}
+
+      - name: Generate Go coverage profile
+        if: ${{ !inputs.skip-tests }}
+        continue-on-error: true
+        run: go test ./... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
+
+      - name: Check Go test coverage
+        if: ${{ !inputs.skip-tests }}
+        continue-on-error: true
+        uses: vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
+        with:
+          config: ./.testcoverage.yml
+
+  python-ci:
+    name: Python CI
+    needs: [load-config, detect-changes]
+    if: needs.detect-changes.outputs.python-files == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.python-matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      REPOSITORY_CONFIG: ${{ needs.load-config.outputs.config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # actions/setup-python fails the job outright when `cache: pip` is set but
+      # the repo has no requirements.txt / pyproject.toml ("No file in ... matched
+      # to [**/requirements.txt or **/pyproject.toml]"). A repo can legitimately
+      # have Python sources and no dependency manifest — a single stdlib-only
+      # script is enough to activate this job — so detect the manifest and only
+      # ask for the pip cache when there is something to cache.
+      - name: Detect Python dependency manifest
+        id: py-manifest
+        run: |
+          set -euo pipefail
+          if find . -path ./.git -prune -o \
+               \( -name 'requirements*.txt' -o -name 'pyproject.toml' \) -print \
+               | grep -q .; then
+            echo "cache=pip" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Python dependency manifest found; skipping the pip cache."
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: ${{ steps.py-manifest.outputs.cache }}
+
+      - name: Get ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            ref="$(cat .github/ghcommon-ref.txt)"
+          else
+            ref="e73b80106099118143806b0ce58e0a73cbcfb27c"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Install Python dependencies
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: python-install
+
+      - name: Lint Python code
+        if: ${{ !inputs.skip-linting }}
+        run: |
+          python "$GHCOMMON_SCRIPTS_DIR/ci_workflow.py" python-lint
+
+      - name: Test Python code
+        if: ${{ !inputs.skip-tests }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: python-run-tests
+
+  rust-ci:
+    name: Rust CI
+    needs: [load-config, detect-changes]
+    if: needs.detect-changes.outputs.rust-files == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.rust-matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      REPOSITORY_CONFIG: ${{ needs.load-config.outputs.config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # stable
+        with:
+          toolchain: ${{ matrix.rust-version }}
+          components: rustfmt, clippy
+
+      - name: Get ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            ref="$(cat .github/ghcommon-ref.txt)"
+          else
+            ref="e73b80106099118143806b0ce58e0a73cbcfb27c"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format Rust code
+        if: ${{ !inputs.skip-linting }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: rust-format
+
+      - name: Lint Rust code
+        if: ${{ !inputs.skip-linting }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: rust-clippy
+
+      - name: Build Rust project
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: rust-build
+
+      - name: Test Rust project
+        if: ${{ !inputs.skip-tests }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: rust-test
+
+  # Setup npm cache for frontend using advanced cache strategy
+  frontend-npm-cache:
+    name: Cache npm (Frontend)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend-files == 'true'
+    uses: falkcorp/github-common/.github/workflows/reusable-advanced-cache.yml@1e106b5c7bc2e80beb0c6019e8ac263d41f2ed5f # v1.10.3+
+    with:
+      language: 'node'
+      cache-prefix: 'npm-frontend'
+      include-branch: false
+
+  frontend-ci:
+    name: Frontend CI
+    needs: [load-config, detect-changes, frontend-npm-cache]
+    if: needs.detect-changes.outputs.frontend-files == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.frontend-matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      REPOSITORY_CONFIG: ${{ needs.load-config.outputs.config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Get frontend working directory
+        id: frontend-dir
+        uses: falkcorp/gha-get-frontend-config@517d41adc382a541ea13dead79a12a57a7172dcf # v1.1.3
+        with:
+          repository-config: ${{ env.REPOSITORY_CONFIG }}
+
+      - name: Get ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            ref="$(cat .github/ghcommon-ref.txt)"
+          else
+            ref="e73b80106099118143806b0ce58e0a73cbcfb27c"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # Cache has been prepared by frontend-npm-cache job using reusable-advanced-cache.yml
+      # This leverages intelligent cache key generation based on package-lock.json in the frontend directory
+      # No additional cache setup needed here.
+
+      - name: Install dependencies
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: frontend-install
+          frontend-working-dir: ${{ steps.frontend-dir.outputs.dir }}
+
+      - name: Lint frontend code
+        if: ${{ !inputs.skip-linting }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: frontend-run
+          frontend-working-dir: ${{ steps.frontend-dir.outputs.dir }}
+          frontend-script: lint
+          frontend-success-message: '✅ Linting passed'
+          frontend-failure-message: '❌ Linting failed or not configured'
+
+      - name: Build frontend
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: frontend-run
+          frontend-working-dir: ${{ steps.frontend-dir.outputs.dir }}
+          frontend-script: build
+          frontend-success-message: '✅ Build successful'
+          frontend-failure-message: 'ℹ️ No build script configured'
+
+      - name: Test frontend
+        if: ${{ !inputs.skip-tests }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: frontend-run
+          frontend-working-dir: ${{ steps.frontend-dir.outputs.dir }}
+          frontend-script: test
+          frontend-success-message: '✅ Tests passed'
+          frontend-failure-message: 'ℹ️ No tests configured'
+
+      # E2E Tests with Playwright
+      - name: Install Playwright browsers
+        if: ${{ !inputs.skip-tests && !inputs.skip-e2e-tests }}
+        env:
+          FRONTEND_DIR: ${{ steps.frontend-dir.outputs.dir }}
+        run: |
+          # Strip any stray quotes from the directory value
+          dir="${FRONTEND_DIR//\'/}"
+          dir="${dir//\"/}"
+          cd "${dir:-.}"
+          sudo npx playwright install --with-deps chromium webkit
+        shell: bash
+
+      - name: Run E2E tests
+        if: ${{ !inputs.skip-tests && !inputs.skip-e2e-tests }}
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: frontend-run
+          frontend-working-dir: ${{ steps.frontend-dir.outputs.dir }}
+          frontend-script: test:e2e
+          frontend-success-message: '✅ E2E tests passed'
+          frontend-failure-message: 'ℹ️ No E2E tests configured or test:e2e script not found'
+        continue-on-error: false
+
+      - name: Upload Playwright report
+        if: ${{ !inputs.skip-tests && !inputs.skip-e2e-tests && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-${{ matrix.os }}-node-${{ matrix.node-version }}
+          path: ${{ steps.frontend-dir.outputs.dir }}/playwright-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        if: ${{ !inputs.skip-tests && !inputs.skip-e2e-tests && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results-${{ matrix.os }}-node-${{ matrix.node-version }}
+          path: ${{ steps.frontend-dir.outputs.dir }}/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Require a changelog fragment on PRs for repos that use the changelog.d/
+  # fragment system. Opt-in by presence: the job self-skips (passes) for every
+  # repo without changelog.d/scriv.ini. See changelog.d/README.md in
+  # falkcorp/github-common.
+  changelog-fragment-check:
+    name: Changelog Fragment Check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      SKIP_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Require a changelog fragment
+        run: |
+          set -euo pipefail
+
+          # Opt-in by presence: repos without the fragment system pass immediately.
+          if [ ! -f changelog.d/scriv.ini ]; then
+            echo "::notice::changelog.d/scriv.ini not present — changelog fragments not enabled here."
+            exit 0
+          fi
+
+          if [ "${SKIP_LABEL}" = "true" ]; then
+            echo "::notice::'skip-changelog' label present — skipping."
+            exit 0
+          fi
+          case "${PR_TITLE}" in
+            *"[skip changelog]"*)
+              echo "::notice::'[skip changelog]' in PR title — skipping."
+              exit 0
+              ;;
+          esac
+
+          git fetch --no-tags origin "${BASE_REF}"
+
+          # Files added on this branch that are real fragments: Markdown under
+          # changelog.d/, excluding the docs/config/template scaffolding.
+          added="$(git diff --name-only --diff-filter=A "origin/${BASE_REF}...HEAD" \
+            | { grep -E '^changelog\.d/.*\.md$' || true; } \
+            | { grep -vE '^changelog\.d/(README\.md$|templates/)' || true; })"
+
+          if [ -n "${added}" ]; then
+            echo "Found changelog fragment(s):"
+            echo "${added}"
+            exit 0
+          fi
+
+          echo "::error::No changelog fragment under changelog.d/. Run 'scriv create'"
+          echo "(see changelog.d/README.md), or add the 'skip-changelog' label or"
+          echo "'[skip changelog]' to the PR title if no changelog entry is needed."
+          exit 1
+
+  # Summary job
+  ci-summary:
+    name: CI Summary
+    needs:
+      [
+        detect-changes,
+        workflow-lint,
+        workflow-scripts,
+        workflow-scripts-npm-cache,
+        go-ci,
+        python-ci,
+        rust-ci,
+        frontend-ci,
+        frontend-npm-cache,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Get ghcommon workflow ref
+        id: ghcommon-ref
+        run: |
+          if [ -f .github/ghcommon-ref.txt ]; then
+            ref="$(cat .github/ghcommon-ref.txt)"
+          else
+            ref="e73b80106099118143806b0ce58e0a73cbcfb27c"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout ghcommon workflow scripts
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # do not add submodules: recursive here — sparse-checkout can't lazy-fetch .gitmodules, causing a promisor-fetch 400
+          repository: falkcorp/github-common
+          ref: ${{ steps.ghcommon-ref.outputs.ref }}
+          path: ghcommon-workflow-scripts
+          sparse-checkout: |
+            .github/workflows/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Configure workflow script path
+        run: |
+          echo "GHCOMMON_SCRIPTS_DIR=$PWD/ghcommon-workflow-scripts/.github/workflows/scripts" >> "$GITHUB_ENV"
+
+      - name: Set environment variables for summary
+        run: |
+          {
+            echo "CI_GO_FILES=${{ needs.detect-changes.outputs.go-files }}"
+            echo "CI_PYTHON_FILES=${{ needs.detect-changes.outputs.python-files }}"
+            echo "CI_RUST_FILES=${{ needs.detect-changes.outputs.rust-files }}"
+            echo "CI_FRONTEND_FILES=${{ needs.detect-changes.outputs.frontend-files }}"
+            echo "CI_DOCKER_FILES=${{ needs.detect-changes.outputs.docker-files }}"
+            echo "CI_DOCS_FILES=${{ needs.detect-changes.outputs.docs-files }}"
+            echo "CI_WORKFLOW_FILES=${{ needs.detect-changes.outputs.workflow-files }}"
+            echo "CI_WORKFLOW_YAML_FILES=${{ needs.detect-changes.outputs.workflows-files }}"
+            echo "CI_WORKFLOW_SCRIPT_FILES=${{ needs.detect-changes.outputs.workflows-scripts }}"
+            echo "CI_LINT_FILES=${{ needs.detect-changes.outputs.lint-files }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Generate summary
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: generate-ci-summary
+        env:
+          JOB_DETECT_CHANGES: ${{ needs.detect-changes.result || 'skipped' }}
+          JOB_WORKFLOW_LINT: ${{ needs.workflow-lint.result || 'skipped' }}
+          JOB_WORKFLOW_SCRIPTS: ${{ needs.workflow-scripts.result || 'skipped' }}
+          JOB_GO: ${{ needs.go-ci.result || 'skipped' }}
+          JOB_PYTHON: ${{ needs.python-ci.result || 'skipped' }}
+          JOB_RUST: ${{ needs.rust-ci.result || 'skipped' }}
+          JOB_FRONTEND: ${{ needs.frontend-ci.result || 'skipped' }}
+          JOB_DOCKER: skipped
+          JOB_DOCS: skipped
+
+      - name: Check overall status
+        uses: falkcorp/gha-ci-workflow-helpers@c8b87fae92ee0a0458e47b970ed892310323aa58 # v1.1.4
+        with:
+          command: check-ci-status
+        env:
+          JOB_WORKFLOW_LINT: ${{ needs.workflow-lint.result || 'skipped' }}
+          JOB_WORKFLOW_SCRIPTS: ${{ needs.workflow-scripts.result || 'skipped' }}
+          JOB_GO: ${{ needs.go-ci.result || 'skipped' }}
+          JOB_PYTHON: ${{ needs.python-ci.result || 'skipped' }}
+          JOB_RUST: ${{ needs.rust-ci.result || 'skipped' }}
+          JOB_FRONTEND: ${{ needs.frontend-ci.result || 'skipped' }}
+          JOB_DOCKER: skipped
+          JOB_DOCS: skipped

@@ -1,5 +1,5 @@
 # file: requirements.txt
-# version: 1.0.0
+# version: 1.0.1
 # guid: e5f6a7b8-c9d0-1234-ef56-789012345678
 
 alembic==1.14.0
@@ -34,7 +34,6 @@ Flask-Compress==1.17
 Flask-Cors==6.0.1
 Flask-SocketIO==5.5.1
 Flask-SQLAlchemy==3.1.1
--e git+https://github.com/jdfalk/gcommon.git@df1000110961f6ddc47bef0d803527fd864567a9#egg=gcommon&subdirectory=sdks/python
 grpcio==1.74.0
 guessit==3.8.0
 h11==0.16.0

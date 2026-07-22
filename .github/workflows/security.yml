@@ -1,0 +1,204 @@
+# file: .github/workflows/security.yml
+# version: 3.2.1
+# guid: s3c4r5t6-y7a8-b9c0-d1e2-f3a4b5c6d7e8
+
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 6 * * 1' # Weekly on Monday at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      skip-codeql:
+        description: 'Skip CodeQL analysis'
+        required: false
+        type: boolean
+        default: false
+      skip-dependency-review:
+        description: 'Skip dependency review'
+        required: false
+        type: boolean
+        default: false
+      skip-security-audit:
+        description: 'Skip security audit'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect available languages
+  detect-languages:
+    name: Detect Languages
+    runs-on: ubuntu-latest
+    outputs:
+      languages: ${{ steps.detect.outputs.languages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Detect available languages
+        id: detect
+        run: python3 .github/workflows/scripts/detect_languages.py
+
+  # CodeQL Analysis
+  codeql-analysis:
+    name: CodeQL Analysis
+    needs: detect-languages
+    if: ${{ !inputs.skip-codeql && fromJSON(needs.detect-languages.outputs.languages)[0] != null }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(needs.detect-languages.outputs.languages) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Determine build mode for language
+        id: build-config
+        run: |
+          case "${{ matrix.language }}" in
+            go)
+              echo "mode=autobuild" >> "$GITHUB_OUTPUT"
+              ;;
+            javascript|python|actions|*)
+              echo "mode=none" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          build-mode: ${{ steps.build-config.outputs.mode }}
+
+      - name: Set up language environment
+        run: |
+          case "${{ matrix.language }}" in
+            go)
+              if [ -f go.mod ]; then
+                go mod download
+              fi
+              ;;
+            javascript)
+              if [ -f package.json ]; then
+                npm ci || npm install
+              fi
+              ;;
+            python)
+              if [ -f requirements.txt ]; then
+                pip install -r requirements.txt
+              fi
+              ;;
+          esac
+
+      - name: Autobuild
+        if: steps.build-config.outputs.mode == 'autobuild'
+        uses: github/codeql-action/autobuild@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@87557b9c84dde89fdd9b10e88954ac2f4248e463 # v4.36.1
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  # Dependency Review
+  dependency-review:
+    name: Dependency Review
+    needs: detect-languages
+    if: ${{ !inputs.skip-dependency-review && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          config-file: './.github/dependency-review-config.yml'
+          fail-on-severity: moderate
+
+  # Security Audit
+  security-audit:
+    name: Security Audit
+    needs: detect-languages
+    if: ${{ !inputs.skip-security-audit }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Go security audit
+        if: hashFiles('go.mod') != ''
+        run: |
+          go install github.com/securecodewarrior/go-audit@latest
+          go list -json -deps ./... | go-audit
+
+      - name: Python security audit
+        if: hashFiles('requirements*.txt', 'pyproject.toml') != ''
+        run: |
+          pip install safety bandit
+          if [ -f requirements.txt ]; then
+            safety check -r requirements.txt
+          fi
+          if find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | head -1 | grep -q .; then
+            bandit -r . -x ./venv,./venv3,./.venv -f json -o bandit-report.json || true
+            if [ -f bandit-report.json ]; then
+              echo "Bandit security scan completed. Report:"
+              cat bandit-report.json
+            fi
+          fi
+
+      - name: Node.js security audit
+        if: hashFiles('package*.json') != ''
+        run: |
+          if [ -f package.json ]; then
+            npm audit --audit-level=moderate || true
+          fi
+
+      - name: Rust security audit
+        if: hashFiles('Cargo.toml') != ''
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  # Security summary
+  security-summary:
+    name: Security Summary
+    needs:
+      [detect-languages, codeql-analysis, dependency-review, security-audit]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Generate security summary
+        uses: ./.github/actions/security-summary
+        with:
+          codeql-result: ${{ needs.codeql-analysis.result || 'skipped' }}
+          dependency-review-result: ${{ needs.dependency-review.result || 'skipped' }}
+          security-audit-result: ${{ needs.security-audit.result || 'skipped' }}

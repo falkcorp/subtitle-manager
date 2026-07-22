@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # file: .github/scripts/detect_languages.py
-# version: 1.0.0
+# version: 1.0.1
 # guid: 4f6c9d88-2d4b-4a1e-9c61-3e0b2b9a7f11
 """Detect project languages and emit key=value lines for GitHub Actions outputs.
 
@@ -43,9 +43,9 @@ else:
 go_matrix = (
     {
         "include": [
-            {"os": "ubuntu-latest", "go-version": "1.24", "primary": True},
-            {"os": "macos-latest", "go-version": "1.24", "primary": False},
-            {"os": "windows-latest", "go-version": "1.24", "primary": False},
+            {"os": "ubuntu-latest", "go-version": "1.25", "primary": True},
+            {"os": "macos-latest", "go-version": "1.25", "primary": False},
+            {"os": "windows-latest", "go-version": "1.25", "primary": False},
         ]
     }
     if has_go

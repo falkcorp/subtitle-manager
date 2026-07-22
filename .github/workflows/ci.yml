@@ -1,5 +1,5 @@
 # file: .github/workflows/ci.yml
-# version: 1.18.1
+# version: 1.18.2
 # guid: f1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6
 
 name: Continuous Integration
@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
   NODE_VERSION: "22"
   PYTHON_VERSION: "3.13"
   RUST_VERSION: "1.76"
@@ -334,7 +334,7 @@ jobs:
     if: needs.detect-changes.outputs.gofiles == 'true' && needs.check-overrides.outputs.skip-tests != 'true'
     strategy:
       matrix:
-        go-version: ["1.24"]
+        go-version: ["1.25"]
 
     steps:
       - name: Checkout repository

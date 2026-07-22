@@ -1,5 +1,5 @@
 # file: .github/workflows/release-protobuf.yml
-# version: 1.1.0
+# version: 1.1.1
 # guid: 9c2f1b18-7c4e-4c3a-9b54-2b5d9c7e2af1
 
 name: Release Protobuf Assets
@@ -22,7 +22,7 @@ on:
         value: ${{ jobs.generate.outputs.artifacts_available }}
 
 env:
-  GO_VERSION: "1.24.x"
+  GO_VERSION: "1.25.x"
   PYTHON_VERSION: "3.13"
   BUF_VERSION: "1.57.2"
   PROTOC_VERSION: "32.1"

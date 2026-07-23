@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.1.0 -->
+<!-- version: 1.2.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -13,14 +13,37 @@ wired into the live path.
 
 ## The load-bearing caveat: the provider layer
 
-**~52 of ~55 registered subtitle providers are non-functional stubs** — each
+**~50 of ~55 registered subtitle providers are non-functional stubs** — each
 GETs a fictional `https://api.<name>.com/subtitles/<file>/<lang>` endpoint
-(`pkg/providers/*/*.go`). Only **opensubtitles** is a real integration;
-`generic` and `whisper` are configurable HTTP pass-throughs. Bazarr's provider
-breadth comes from Python's `subliminal`; porting dozens of real scrapers to Go
-is a large, separate effort. **Until that is done, automatic search/download
-works only through opensubtitles**, regardless of how good the surrounding
-engine is. This is the single biggest parity gap and is tracked separately.
+(`pkg/providers/*/*.go`). Real integrations: **opensubtitles** (hash + REST),
+**napiprojekt** (keyless hash protocol), plus **embedded** (ffmpeg track
+extraction) and the configurable **generic** / **whisper** HTTP pass-throughs.
+Bazarr's provider breadth comes from Python's `subliminal`; porting dozens of
+real scrapers to Go is a large, separate effort.
+
+### The provider boundary (what can be done autonomously vs. what needs you)
+
+Porting the remaining stubs splits into three buckets:
+
+- **Keyless / anonymous (implementable & unit-testable now):** hash- or
+  anonymous-search services that need no account. `napiprojekt` is done as the
+  reference implementation. A handful of others are theoretically keyless but
+  rely on **fragile HTML scraping of live sites** (e.g. `podnapisi`,
+  `yifysubtitles`, `subscene`), which cannot be implemented correctly or tested
+  offline without replicating each site's exact markup — high effort, brittle.
+- **Credential-gated (BLOCKED — needs the operator):** the majority require an
+  account, API key, or paid tier the agent cannot obtain — e.g. `addic7ed`,
+  `titlovi`, `legendasnet`, `ktuvit`, `avistaz`/`hdbits`/`karagarga`
+  (private trackers), `betaseries`, `assrt`. These stay stubs until you supply
+  credentials and confirm terms-of-service allow automated access.
+- **Large scraping track:** everything else is site-specific HTML scraping with
+  no stable API; porting them is the bulk of the `subliminal` effort and should
+  be scoped deliberately, provider by provider.
+
+**Net:** automatic search/download works through **opensubtitles** and
+**napiprojekt** today; `embedded` covers muxed tracks. Going materially further
+requires either operator-supplied credentials or a deliberate, funded scraping
+effort — it is not fully achievable autonomously.
 
 ## Matrix
 
@@ -93,7 +116,19 @@ Ordered by value × tractability. Items marked **done** are landing now.
    Gated behind `scoring.enabled` (off by default). **done.**
 3. Sonarr/Radarr: decode+apply `monitored`, `tags`, `seriesType`; apply path mappings. **done.**
 4. Real `embedded` source (ffmpeg extract) preferred before providers. **done.**
-5. Profile mass-edit; honor Forced/HI + cutoff-score; single-language filename option.
-6. Infra: outbound proxy; Plex webhook; external-Whisper model/timeout; Apprise notifications.
-7. Blacklist persistence; history retention.
-8. **(Large, separate track)** replace the ~52 stub providers with real integrations.
+5. Profile options: **single-language filename done**; honor per-language
+   Forced/HI + cutoff-score still open (needs the scored primitive threaded into
+   the profile-fetch path in `pkg/providers`, which currently can't import the
+   scanner-side scorer — a small refactor is required first).
+6. Infra: outbound proxy **done**; Plex webhook **done**; external-Whisper
+   model/URL/timeout **done**; Apprise notifications **done** (plus subtitle
+   events now actually reach all notification channels).
+7. Blacklist persistence; history retention. Still open: `AddToBlacklist` builds
+   a reason/expiry entry then discards it, and expiry is never honored;
+   `MonitoredItem` has no field for it, so real persistence needs a new
+   blacklist table migrated across sqlite/postgres/pebble.
+8. **(Large, separate track)** replace the stub providers with real integrations.
+   `napiprojekt` **done** (keyless hash protocol) as the reference; see the
+   provider-boundary section above for what is keyless vs. credential-gated vs.
+   scraping-only. The bulk is credential-gated or site-scraping and is not
+   fully achievable without operator input.

@@ -2,7 +2,7 @@
 // +build sqlite
 
 // file: pkg/database/sqlite_enabled.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 7e6f5a4b-3c2d-8e7f-1a0b-4c3d2e1f0a9b
 
 package database
@@ -67,6 +67,19 @@ func initSchema(db *sql.DB) error {
 		error_message TEXT,
 		response_time_ms INTEGER,
 		created_at TIMESTAMP NOT NULL
+	)`); err != nil {
+		return err
+	}
+
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS blacklist (
+		id TEXT PRIMARY KEY,
+		item_id TEXT,
+		path TEXT,
+		language TEXT,
+		reason TEXT,
+		details TEXT,
+		created_at TIMESTAMP NOT NULL,
+		expires_at TIMESTAMP
 	)`); err != nil {
 		return err
 	}

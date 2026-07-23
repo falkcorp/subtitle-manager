@@ -1,11 +1,10 @@
 // file: pkg/monitoring/blacklist.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 12345678-1234-1234-1234-123456789017
 
 package monitoring
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/jdfalk/subtitle-manager/pkg/database"
@@ -63,9 +62,21 @@ func (m *EpisodeMonitor) AddToBlacklist(itemID, path, language string, reason Bl
 		ExpiresAt:     expiresAt,
 	}
 
-	// Store blacklist entry as a tag association
-	if _, err := json.Marshal(entry); err != nil {
-		return err
+	// Persist the full entry (reason + expiry) when the store supports it, so
+	// the blacklist — including expiry — survives restarts. Otherwise the
+	// entry's metadata is not durable and only the item status is kept.
+	if bs, ok := m.store.(database.BlacklistStore); ok {
+		if err := bs.InsertBlacklist(&database.BlacklistItem{
+			ItemID:    entry.ItemID,
+			Path:      entry.Path,
+			Language:  entry.Language,
+			Reason:    string(entry.Reason),
+			Details:   entry.Details,
+			CreatedAt: entry.BlacklistedAt,
+			ExpiresAt: entry.ExpiresAt,
+		}); err != nil {
+			return err
+		}
 	}
 
 	// Update the monitored item status to blacklisted
@@ -94,6 +105,13 @@ func (m *EpisodeMonitor) RemoveFromBlacklist(itemID string) error {
 		return err
 	}
 
+	// Drop any persisted blacklist entries for this item.
+	if bs, ok := m.store.(database.BlacklistStore); ok {
+		if _, err := bs.DeleteBlacklistByItem(itemID); err != nil {
+			return err
+		}
+	}
+
 	for _, item := range items {
 		if item.ID == itemID && item.Status == "blacklisted" {
 			item.Status = "pending"
@@ -110,8 +128,28 @@ func (m *EpisodeMonitor) RemoveFromBlacklist(itemID string) error {
 	return nil
 }
 
-// IsBlacklisted checks if an item is currently blacklisted.
+// IsBlacklisted checks if an item is currently blacklisted. When the store
+// persists blacklist entries, a matching non-expired entry (for the same
+// language, or an all-language entry) counts; expired entries are ignored.
+// Otherwise it falls back to the monitored item's status.
 func (m *EpisodeMonitor) IsBlacklisted(itemID, language string) bool {
+	if bs, ok := m.store.(database.BlacklistStore); ok {
+		entries, err := bs.ListBlacklist()
+		if err == nil {
+			now := time.Now()
+			for i := range entries {
+				e := &entries[i]
+				if e.ItemID != itemID || e.Expired(now) {
+					continue
+				}
+				if e.Language == "" || language == "" || e.Language == language {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
 	items, err := m.store.ListMonitoredItems()
 	if err != nil {
 		return false
@@ -126,11 +164,21 @@ func (m *EpisodeMonitor) IsBlacklisted(itemID, language string) bool {
 	return false
 }
 
-// CleanupExpiredBlacklist removes expired blacklist entries.
+// CleanupExpiredBlacklist removes expired blacklist entries from persistent
+// storage. It is a no-op when the store does not persist the blacklist.
 func (m *EpisodeMonitor) CleanupExpiredBlacklist() error {
-	// This would be implemented when we have proper blacklist storage
-	// For now, blacklisted items remain blacklisted until manually removed
-	m.logger.Debug("Cleanup expired blacklist entries (not implemented)")
+	bs, ok := m.store.(database.BlacklistStore)
+	if !ok {
+		m.logger.Debug("blacklist store does not persist entries; nothing to expire")
+		return nil
+	}
+	n, err := bs.DeleteExpiredBlacklist(time.Now())
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		m.logger.Infof("removed %d expired blacklist entries", n)
+	}
 	return nil
 }
 

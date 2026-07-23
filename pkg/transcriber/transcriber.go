@@ -1,10 +1,17 @@
+// file: pkg/transcriber/transcriber.go
+// version: 1.1.0
+// guid: b7d3f0a2-1c64-4e58-9a0d-6f2b8c5e1a37
+// last-edited: 2026-07-23
+
 package transcriber
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
+	"github.com/spf13/viper"
 )
 
 // TranscriptionMethod represents the method used for transcription
@@ -60,6 +67,20 @@ func TranscribeWithMethod(ctx context.Context, method TranscriptionMethod, path,
 // The language code may be empty to enable auto detection. The API key is
 // required. It returns the SRT subtitle bytes produced by the service.
 func WhisperTranscribe(path, lang, apiKey string) ([]byte, error) {
+	// Prefer a self-hosted whisper-asr-webservice when its URL is configured.
+	// This speaks the native /asr protocol (no API key required) and takes
+	// precedence over the OpenAI-compatible path, so a user who points
+	// whisper.transcribe_url at their own server gets it used everywhere
+	// transcription happens (CLI, sync, verify, web).
+	if u := viper.GetString("whisper.transcribe_url"); u != "" {
+		ctx := context.Background()
+		if secs := viper.GetInt("whisper.transcribe_timeout"); secs > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, time.Duration(secs)*time.Second)
+			defer cancel()
+		}
+		return ASRTranscribe(ctx, nil, u, path, ASROptions{Language: lang, Output: "srt"})
+	}
 	if apiKey == "" {
 		return nil, fmt.Errorf("api key required")
 	}

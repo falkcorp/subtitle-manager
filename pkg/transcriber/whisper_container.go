@@ -311,7 +311,9 @@ func (w *WhisperContainer) transcribeWithExternalAPI(ctx context.Context, taskID
 	tasks.Update(taskID, 20) // Falling back to external API
 
 	apiKey := viper.GetString("openai.api_key")
-	if apiKey == "" {
+	// A configured self-hosted whisper.transcribe_url needs no API key; only
+	// require one when there is no external ASR server to fall back to.
+	if apiKey == "" && viper.GetString("whisper.transcribe_url") == "" {
 		return fmt.Errorf("OpenAI API key not configured and container not available")
 	}
 

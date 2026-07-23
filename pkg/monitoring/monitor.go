@@ -1,5 +1,5 @@
 // file: pkg/monitoring/monitor.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 12345678-1234-1234-1234-123456789012
 
 package monitoring
@@ -7,17 +7,14 @@ package monitoring
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
-	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/radarr"
+	"github.com/jdfalk/subtitle-manager/pkg/scanner"
 	"github.com/jdfalk/subtitle-manager/pkg/sonarr"
 )
 
@@ -165,16 +162,13 @@ func (m *EpisodeMonitor) processItem(ctx context.Context, item *MonitoredItem) e
 	return m.updateMonitoredItem(item)
 }
 
-// checkLanguage attempts to download subtitles for a specific language.
+// checkLanguage attempts to download subtitles for a specific language via the
+// full download pipeline (scanner.ProcessFile), so the automatic monitoring
+// loop gets the same behaviour as manual downloads: score-gating, Whisper
+// fallback, post-processing, single-language naming and score-based upgrade —
+// instead of the previous bare fetch-and-write.
 func (m *EpisodeMonitor) checkLanguage(ctx context.Context, item *MonitoredItem, lang string) error {
-	// Use the existing provider system to fetch subtitles
-	data, providerID, err := providers.FetchFromAll(ctx, item.Path, lang, "")
-	if err != nil {
-		return err
-	}
-
-	// Store the subtitle and mark as found
-	return m.storeSubtitle(item, lang, data, providerID)
+	return scanner.ProcessFile(ctx, item.Path, lang, "", nil, true, m.store)
 }
 
 // getItemsToCheck retrieves monitored items that need checking.
@@ -233,28 +227,4 @@ func (m *EpisodeMonitor) updateMonitoredItem(item *MonitoredItem) error {
 	}
 
 	return m.store.UpdateMonitoredItem(dbItem)
-}
-
-// storeSubtitle saves the downloaded subtitle to disk and database.
-func (m *EpisodeMonitor) storeSubtitle(item *MonitoredItem, lang string, data []byte, providerID string) error {
-	// Generate subtitle file path
-	ext := filepath.Ext(item.Path)
-	base := strings.TrimSuffix(item.Path, ext)
-	subtitlePath := base + "." + lang + ".srt"
-
-	// Write subtitle to disk
-	if err := os.WriteFile(subtitlePath, data, 0644); err != nil {
-		return err
-	}
-
-	// Record download in database
-	downloadRec := &database.DownloadRecord{
-		File:      subtitlePath,
-		VideoFile: item.Path,
-		Provider:  providerID,
-		Language:  lang,
-		CreatedAt: time.Now(),
-	}
-
-	return m.store.InsertDownload(downloadRec)
 }

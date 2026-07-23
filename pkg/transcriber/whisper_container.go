@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
 
+	"github.com/jdfalk/subtitle-manager/pkg/security"
 	"github.com/jdfalk/subtitle-manager/pkg/tasks"
 )
 
@@ -275,30 +277,36 @@ func (w *WhisperContainer) TranscribeFile(ctx context.Context, filePath, languag
 	return task, nil
 }
 
-// transcribeWithContainer performs transcription using the local container.
+// Transcribe transcribes filePath against the running self-hosted Whisper
+// container and returns the subtitle bytes (SRT). It speaks the ASR
+// webservice's native protocol via ASRTranscribe against the mapped container
+// port; it does NOT use the OpenAI API.
+func (w *WhisperContainer) Transcribe(ctx context.Context, filePath, language string) ([]byte, error) {
+	baseURL := fmt.Sprintf("http://localhost:%s", w.config.Port)
+	return ASRTranscribe(ctx, nil, baseURL, filePath, ASROptions{Language: language, Output: "srt"})
+}
+
+// transcribeWithContainer performs transcription using the local container and
+// writes the resulting SRT next to the media file (<media>.<lang>.srt).
 func (w *WhisperContainer) transcribeWithContainer(ctx context.Context, taskID, filePath, language string) error {
 	tasks.Update(taskID, 20) // Container available
 
-	// For now, delegate to external API until container API is fully implemented
-	// This is where you'd implement the container-specific transcription logic
-	baseURL := fmt.Sprintf("http://localhost:%s/v1", w.config.Port)
-	oldBaseURL := baseURL
-	SetBaseURL(baseURL)
-	defer SetBaseURL(oldBaseURL)
-
-	tasks.Update(taskID, 50) // Starting API call
-
-	// Use existing transcriber function
-	_, err := WhisperTranscribe(filePath, language, "dummy-key-for-container")
+	data, err := w.Transcribe(ctx, filePath, language)
 	if err != nil {
 		return fmt.Errorf("container transcription failed: %w", err)
+	}
+
+	tasks.Update(taskID, 80) // Transcription complete, writing output
+	if err := writeTranscript(filePath, language, data); err != nil {
+		return err
 	}
 
 	tasks.Update(taskID, 100) // Completed
 	return nil
 }
 
-// transcribeWithExternalAPI performs transcription using external OpenAI API.
+// transcribeWithExternalAPI performs transcription using an external
+// OpenAI-compatible API and writes the resulting SRT next to the media file.
 func (w *WhisperContainer) transcribeWithExternalAPI(ctx context.Context, taskID, filePath, language string) error {
 	tasks.Update(taskID, 20) // Falling back to external API
 
@@ -309,12 +317,31 @@ func (w *WhisperContainer) transcribeWithExternalAPI(ctx context.Context, taskID
 
 	tasks.Update(taskID, 50) // Starting API call
 
-	_, err := WhisperTranscribe(filePath, language, apiKey)
+	data, err := WhisperTranscribe(filePath, language, apiKey)
 	if err != nil {
 		return fmt.Errorf("external API transcription failed: %w", err)
 	}
 
+	tasks.Update(taskID, 80) // Transcription complete, writing output
+	if err := writeTranscript(filePath, language, data); err != nil {
+		return err
+	}
+
 	tasks.Update(taskID, 100) // Completed
+	return nil
+}
+
+// writeTranscript writes subtitle bytes to a sidecar file next to the media,
+// named <media-base>.<lang>.srt, using the same validated-path construction as
+// the scanner so the output is safe and consistent with downloaded subtitles.
+func writeTranscript(mediaPath, language string, data []byte) error {
+	out, err := security.ValidateSubtitleOutputPath(mediaPath, language)
+	if err != nil {
+		return fmt.Errorf("invalid transcript output path: %w", err)
+	}
+	if err := os.WriteFile(out, data, 0644); err != nil {
+		return fmt.Errorf("write transcript: %w", err)
+	}
 	return nil
 }
 

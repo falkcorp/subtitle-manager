@@ -20,26 +20,29 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Keep MUI packages together to avoid circular dependencies
-          mui: [
-            '@mui/material',
-            '@mui/system',
-            '@emotion/react',
-            '@emotion/styled',
-          ],
-          'mui-icons': ['@mui/icons-material'],
-          // Split React into separate chunk
-          'react-vendor': ['react', 'react-dom'],
-          // Split router separately
-          'react-router': ['react-router-dom'],
-          // Create settings chunk for settings-related components
-          settings: [
-            './src/components/AuthSettings.jsx',
-            './src/components/DatabaseSettings.jsx',
-            './src/components/GeneralSettings.jsx',
-            './src/components/NotificationSettings.jsx',
-          ],
+        // Function form (required by Vite 8 / Rolldown; the rollup object form
+        // is not supported and fails with "manualChunks is not a function").
+        manualChunks(id) {
+          if (id.includes('@mui/icons-material')) return 'mui-icons';
+          if (
+            id.includes('@mui/material') ||
+            id.includes('@mui/system') ||
+            id.includes('@emotion/react') ||
+            id.includes('@emotion/styled')
+          ) {
+            return 'mui';
+          }
+          if (id.includes('react-router')) return 'react-router';
+          if (/[\\/]node_modules[\\/]react(-dom)?[\\/]/.test(id)) {
+            return 'react-vendor';
+          }
+          if (
+            /[\\/]src[\\/]components[\\/](Auth|Database|General|Notification)Settings\.jsx$/.test(
+              id
+            )
+          ) {
+            return 'settings';
+          }
         },
       },
     },

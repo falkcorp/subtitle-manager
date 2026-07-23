@@ -16,6 +16,7 @@ import {
   Settings as SettingsIcon,
   BugReport as SystemIcon,
   Translate as TranslateIcon,
+  Timeline as VerifyIcon,
   Download as WantedIcon,
 } from '@mui/icons-material';
 import {
@@ -69,6 +70,7 @@ const System = lazy(() => import('./System.jsx'));
 const Extract = lazy(() => import('./Extract.jsx'));
 const Convert = lazy(() => import('./Convert.jsx'));
 const Translate = lazy(() => import('./Translate.jsx'));
+const Verify = lazy(() => import('./Verify.jsx'));
 const Scheduling = lazy(() => import('./Scheduling.jsx'));
 const Setup = lazy(() => import('./Setup.jsx'));
 const ConfigEditor = lazy(() => import('./ConfigEditor.jsx'));
@@ -510,6 +512,12 @@ function App() {
       label: t('nav.translate'),
       icon: <TranslateIcon />,
       path: '/tools/translate',
+    },
+    {
+      id: 'verify',
+      label: 'Verify Sync',
+      icon: <VerifyIcon />,
+      path: '/tools/verify',
     },
     {
       id: 'scheduling',
@@ -1110,6 +1118,10 @@ function App() {
               <Route
                 path="/tools/translate"
                 element={<Translate backendAvailable={backendAvailable} />}
+              />
+              <Route
+                path="/tools/verify"
+                element={<Verify backendAvailable={backendAvailable} />}
               />
               <Route
                 path="/tools/scheduling"

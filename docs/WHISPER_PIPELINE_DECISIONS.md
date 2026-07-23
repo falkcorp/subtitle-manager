@@ -249,3 +249,32 @@ Added `pkg/webserver/pipeline.go`: `/api/library/search` (+ `/status`),
 
 - **D-web.4 All three require the `basic` role (same as scan/translate).**
   Revise: tighten to a dedicated role if desired.
+
+---
+
+## W-web (frontend) — Verify page + frontend build repair
+
+Added `webui/src/Verify.jsx` (a `/tools/verify` page) and repaired the
+frontend build.
+
+- **D-web.5 Added a "Verify Sync" tool page calling `/api/verify`.**
+  Why: the drift check is the most visible new capability; the page takes media
+  + subtitle paths and renders the in-sync / offset / drift result.
+  Revise: add a file/library picker instead of raw path text fields; add
+  `dualsub` and `library-search` UIs the same way.
+
+- **D-web.6 Repaired the pre-existing frontend build (was broken on main).**
+  Two Vite-8/Rolldown incompatibilities blocked `vite build`:
+  (1) `manualChunks` must be a function, not the rollup object form — converted
+  in `webui/vite.config.js`; (2) `js-yaml@5` has no default export, so
+  `import yaml from 'js-yaml'` failed — changed `ConfigEditor.jsx` to
+  `import * as yaml`.
+  Revise: n/a (bug fixes), but see D-web.7.
+
+- **D-web.7 KNOWN DEBT: ~19 pre-existing frontend unit tests fail (vitest) in
+  files unrelated to this change (UserManagement, Wanted, …).**
+  Why not fixed here: they are pre-existing (API-mock assertion drift from the
+  Vite-8/dependency upgrade), unrelated to the pipeline UI, and fixing all of
+  them is a separate effort. The frontend BUILD is now green; the test suite is
+  not. There are no required status checks, so this does not block merges.
+  Revise: a dedicated "repair frontend tests" pass.

@@ -1,4 +1,8 @@
 // file: pkg/providers/opensubtitles/opensubtitles.go
+// version: 1.1.0
+// guid: 5af27051-d855-4321-9990-c4a59eaabbd5
+// last-edited: 2026-07-23
+
 package opensubtitles
 
 import (
@@ -368,8 +372,34 @@ func (c *Client) Fetch(ctx context.Context, mediaPath, lang string) ([]byte, err
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("no subtitles found")
 	}
+	return c.download(ctx, urls[0])
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urls[0], nil)
+// downloadURLForResult builds the download URL for a specific search result,
+// mirroring the construction used by Search. It returns "" when the result
+// carries no subtitle identifier.
+func (c *Client) downloadURLForResult(result SearchResult) string {
+	if result.Attributes.SubtitleID == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/download?file_id=%s", c.APIURL, result.Attributes.SubtitleID)
+}
+
+// FetchByResult downloads the subtitle for a specific search result rather than
+// the first match. This is what lets a caller score candidates and then
+// download the selected best one.
+func (c *Client) FetchByResult(ctx context.Context, result SearchResult) ([]byte, error) {
+	url := c.downloadURLForResult(result)
+	if url == "" {
+		return nil, fmt.Errorf("search result has no downloadable subtitle id")
+	}
+	return c.download(ctx, url)
+}
+
+// download performs an authenticated GET of a subtitle download URL and returns
+// its bytes.
+func (c *Client) download(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,5 @@
 // file: pkg/scanner/scanner.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
 package scanner
 
@@ -112,10 +112,32 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 		}
 	}
 	var data []byte
-	if p != nil {
-		data, err = p.Fetch(ctx, path, lang)
-	} else {
-		data, providerName, err = providers.FetchFromAll(ctx, path, lang, "")
+	// matchScore holds the normalized (0-1) quality score when the scored path
+	// produced the subtitle; it stays nil on the plain byte path.
+	var matchScore *float64
+	scoredHandled := false
+	if sp, ok := p.(scoredProvider); ok && scoringEnabled() {
+		res, ferr := fetchBestScored(ctx, sp, path, lang)
+		if ferr != nil {
+			err = ferr
+		} else if res == nil {
+			// No candidate cleared the minimum score: nothing to download.
+			logger.Infof("no subtitle candidate for %s cleared minimum score", path)
+			return nil
+		} else {
+			data = res.data
+			norm := float64(res.total) / 100.0
+			matchScore = &norm
+			scoredHandled = true
+			logger.Infof("selected scored subtitle for %s (score %d, release %q)", path, res.total, res.release)
+		}
+	}
+	if !scoredHandled && err == nil {
+		if p != nil {
+			data, err = p.Fetch(ctx, path, lang)
+		} else {
+			data, providerName, err = providers.FetchFromAll(ctx, path, lang, "")
+		}
 	}
 	if err != nil {
 		logger.Warnf("fetch %s: %v", path, err)
@@ -133,8 +155,16 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 	}
 	var wasUpgrade bool
 	if upgrade {
-		if oldData, err := os.ReadFile(validatedOutputPath); err == nil {
-			if len(data) <= len(oldData) {
+		if oldData, rerr := os.ReadFile(validatedOutputPath); rerr == nil {
+			if matchScore != nil {
+				// Score-based upgrade: only replace the existing subtitle when
+				// the new candidate scores strictly higher than what we already
+				// downloaded for this video/language.
+				if prior := priorMatchScore(store, path, lang); prior != nil && *matchScore <= *prior {
+					logger.Debugf("existing subtitle %s scores >= new candidate (%.2f)", validatedOutputPath, *prior)
+					return nil
+				}
+			} else if len(data) <= len(oldData) {
 				logger.Debugf("existing subtitle %s is higher quality", validatedOutputPath)
 				return nil
 			}
@@ -164,6 +194,13 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 		fileSize = stat.Size()
 	}
 
+	// Report the real score when the scored path produced this subtitle,
+	// otherwise fall back to the neutral default.
+	eventScore := 1.0
+	if matchScore != nil {
+		eventScore = *matchScore
+	}
+
 	// Send appropriate event
 	if wasUpgrade {
 		events.PublishSubtitleUpgraded(ctx, events.SubtitleUpgradedData{
@@ -171,7 +208,7 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 			NewSubtitlePath: validatedOutputPath,
 			Language:        lang,
 			NewProvider:     providerName,
-			NewScore:        1.0, // Default score, could be enhanced
+			NewScore:        eventScore,
 			Timestamp:       time.Now(),
 		})
 	} else {
@@ -180,13 +217,13 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 			SubtitlePath: validatedOutputPath,
 			Language:     lang,
 			Provider:     providerName,
-			Score:        1.0, // Default score, could be enhanced
+			Score:        eventScore,
 			Size:         fileSize,
 			Timestamp:    time.Now(),
 		})
 	}
 	if store != nil {
-		_ = store.InsertDownload(&database.DownloadRecord{File: validatedOutputPath, VideoFile: path, Provider: providerName, Language: lang})
+		_ = store.InsertDownload(&database.DownloadRecord{File: validatedOutputPath, VideoFile: path, Provider: providerName, Language: lang, MatchScore: matchScore})
 	}
 	// Post-processing: chmod, auto-sync, custom script (all opt-in via config).
 	postprocess.AfterDownload(ctx, validatedOutputPath, path, lang)

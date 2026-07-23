@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.3.0 -->
+<!-- version: 1.4.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -76,10 +76,10 @@ effort — it is not fully achievable autonomously.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | Language profiles (multi-lang, priority, cutoff) | ✅ | `pkg/profiles` + REST/CLI |
-| Forced / HI honored at download & naming | 🟡 | flags stored, not honored |
+| Forced / HI honored at download & naming | ✅ | per-language Forced/HI mapped to scoring prefs in `FetchWithProfile` |
 | Default profile auto-assigned to new *arr items | 🟡 | single global default; no auto-assign |
 | Mass-edit (bulk profile assign) | 🔴 | single-item only |
-| Single-language filename option | 🔴 | always `video.<lang>.srt` |
+| Single-language filename option | ✅ | `subtitles.single_language` → `video.srt` |
 | **UTF-8 re-encoding** | ✅ **(this PR)** | `pkg/postprocess.EncodeUTF8` wired into `ProcessFile` |
 | **chmod on written subtitles** | ✅ **(this PR)** | `postprocess.chmod` |
 | **Auto-sync after download** | ✅ **(this PR)** | `postprocess.auto_sync` |
@@ -116,10 +116,11 @@ Ordered by value × tractability. Items marked **done** are landing now.
    Gated behind `scoring.enabled` (off by default). **done.**
 3. Sonarr/Radarr: decode+apply `monitored`, `tags`, `seriesType`; apply path mappings. **done.**
 4. Real `embedded` source (ffmpeg extract) preferred before providers. **done.**
-5. Profile options: **single-language filename done**; honor per-language
-   Forced/HI + cutoff-score still open (needs the scored primitive threaded into
-   the profile-fetch path in `pkg/providers`, which currently can't import the
-   scanner-side scorer — a small refactor is required first).
+5. Profile options — **done**. Single-language filename (`subtitles.single_language`);
+   per-language Forced/HI preferences and the profile `CutoffScore` are now
+   honored in `FetchWithProfile` via a score-gated OpenSubtitles fetch
+   (`scoring.SelectBestResult`), active when `scoring.enabled`. (`pkg/providers`
+   importing `pkg/scoring` is cycle-free, so no scanner refactor was needed.)
 6. Infra: outbound proxy **done**; Plex webhook **done**; external-Whisper
    model/URL/timeout **done**; Apprise notifications **done** (plus subtitle
    events now actually reach all notification channels).

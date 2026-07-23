@@ -142,3 +142,52 @@ transcription path (`pkg/transcriber/whisper_container.go`).
   Why: transcribing a full movie can take a long time on CPU.
   Revise: pass a custom `*http.Client` to `ASRTranscribe`, or make it
   configurable.
+
+---
+
+## W3 + W4 — Windowed extraction & subtitle drift verification
+
+Implemented as the `pkg/subsync` package (`analyze.go`, `verify.go`,
+`measurer.go`) + the `verify [media] [subtitle] [lang]` CLI command
+(`cmd/verify.go`). W3 (wiring the orphaned `audio.ExtractTrackWithDuration`) is
+folded in — the measurer is its first real caller.
+
+- **D4.1 Drift model is a linear fit `offset = slope·t + intercept`.**
+  Why: captures both a constant offset (intercept) and speed-up/slow-down
+  (slope) — a plain median shift, like `pkg/syncer`, cannot see drift.
+  Revise: for non-linear drift (variable framerate, edits) switch to piecewise
+  fitting or per-segment offsets.
+
+- **D4.2 The classifier (`Analyze`) is a pure function; audio/Whisper are
+  injected (`AnchorMeasurer`).**
+  Why: keeps the math fully unit-testable without ffmpeg or Whisper, and lets the
+  measurer target a user-provided or self-hosted server.
+  Revise: n/a — this is a testability boundary; extend via new measurers.
+
+- **D4.3 Anchor↔subtitle matching is by nearest start-time within
+  `maxMatchMs` (3 s), offset = median of matched diffs.**
+  Why: simple and robust for small/moderate offsets; median rejects outliers.
+  KNOWN LIMITATION: an offset larger than ~half the inter-cue gap can match the
+  wrong neighbouring cue; large drift is still caught at earlier anchors where the
+  accumulated offset is smaller.
+  Revise: match by TEXT similarity (compare transcribed text to subtitle text)
+  instead of time — far more robust but needs fuzzy text matching.
+
+- **D4.4 Rate-drift threshold is 5 ms/s; in-sync tolerance is 150 ms;
+  min-confidence 0.5; 10 anchors × 45 s windows, skipping 2 min intro/credits.**
+  Why: defaults that flag real framerate drift (≈40 ms/s for 25↔23.976) while
+  ignoring jitter, and avoid non-dialogue intros/credits.
+  Revise: all are `VerifyOptions` fields / CLI flags.
+
+- **D4.5 `verify` reports and (by exit code) fails when out of sync, but does NOT
+  auto-correct.**
+  Why: verification and correction are separate concerns; correcting via
+  rescale-then-shift (`t' = (1+slope)·t + intercept`) is a follow-up that would
+  replace `pkg/syncer`'s single-median shift.
+  Revise: add a `--fix` flag that applies the fitted transform to the subtitle.
+
+- **D4.6 Transcription for measurement reuses `WhisperTranscribe`
+  (OpenAI-compatible); a self-hosted server is used by pointing its base URL, or
+  by injecting a `TranscribeFunc` backed by `ASRTranscribe` (W2).**
+  Why: one transcription path; the measurer is backend-agnostic via injection.
+  Revise: default the measurer to the container ASR client when configured.

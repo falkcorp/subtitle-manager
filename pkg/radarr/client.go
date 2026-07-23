@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jdfalk/subtitle-manager/pkg/arr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 )
@@ -16,6 +17,9 @@ import (
 type Client struct {
 	BaseURL string
 	APIKey  string
+	// Filters restricts which movies are ingested and remaps paths; Sync
+	// populates it from config when left zero.
+	Filters arr.Filters
 	client  *http.Client
 }
 
@@ -30,6 +34,8 @@ func NewClient(baseURL, apiKey string) *Client {
 
 type movie struct {
 	Title     string `json:"title"`
+	Monitored bool   `json:"monitored"`
+	Tags      []int  `json:"tags"`
 	MovieFile struct {
 		Path string `json:"path"`
 	} `json:"movieFile"`
@@ -59,7 +65,13 @@ func (c *Client) Movies(ctx context.Context) ([]database.MediaItem, error) {
 		if mv.MovieFile.Path == "" {
 			continue
 		}
-		items = append(items, database.MediaItem{Path: mv.MovieFile.Path, Title: mv.Title})
+		if c.Filters.MonitoredOnly && !mv.Monitored {
+			continue
+		}
+		if c.Filters.TagsExcluded(mv.Tags) {
+			continue
+		}
+		items = append(items, database.MediaItem{Path: c.Filters.MapPath(mv.MovieFile.Path), Title: mv.Title})
 	}
 	return items, nil
 }
@@ -67,6 +79,9 @@ func (c *Client) Movies(ctx context.Context) ([]database.MediaItem, error) {
 // Sync fetches the movie library and stores new items in store.
 func Sync(ctx context.Context, c *Client, store database.SubtitleStore) error {
 	logger := logging.GetLogger("radarr")
+	if c.Filters.IsZero() {
+		c.Filters = arr.FiltersFromViper("integrations.radarr")
+	}
 	movies, err := c.Movies(ctx)
 	if err != nil {
 		return err

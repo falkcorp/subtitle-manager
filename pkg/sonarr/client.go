@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jdfalk/subtitle-manager/pkg/arr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 )
@@ -16,6 +17,10 @@ import (
 type Client struct {
 	BaseURL string
 	APIKey  string
+	// Filters, when set, restrict which items are ingested (monitored-only,
+	// excluded series-types/tags) and remap paths. Sync populates it from config
+	// when left zero.
+	Filters arr.Filters
 	client  *http.Client
 }
 
@@ -29,8 +34,12 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 type episode struct {
-	Series struct {
-		Title string `json:"title"`
+	Monitored bool `json:"monitored"`
+	Series    struct {
+		Title      string `json:"title"`
+		Monitored  bool   `json:"monitored"`
+		SeriesType string `json:"seriesType"`
+		Tags       []int  `json:"tags"`
 	} `json:"series"`
 	EpisodeFile struct {
 		Path string `json:"path"`
@@ -63,7 +72,14 @@ func (c *Client) Episodes(ctx context.Context) ([]database.MediaItem, error) {
 		if ep.EpisodeFile.Path == "" {
 			continue
 		}
-		items = append(items, database.MediaItem{Path: ep.EpisodeFile.Path, Title: ep.Series.Title, Season: ep.SeasonNumber, Episode: ep.EpisodeNumber})
+		if c.Filters.MonitoredOnly && (!ep.Monitored || !ep.Series.Monitored) {
+			continue
+		}
+		if c.Filters.TypeExcluded(ep.Series.SeriesType) || c.Filters.TagsExcluded(ep.Series.Tags) {
+			continue
+		}
+		path := c.Filters.MapPath(ep.EpisodeFile.Path)
+		items = append(items, database.MediaItem{Path: path, Title: ep.Series.Title, Season: ep.SeasonNumber, Episode: ep.EpisodeNumber})
 	}
 	return items, nil
 }
@@ -71,6 +87,9 @@ func (c *Client) Episodes(ctx context.Context) ([]database.MediaItem, error) {
 // Sync fetches episodes and stores new items in store.
 func Sync(ctx context.Context, c *Client, store database.SubtitleStore) error {
 	logger := logging.GetLogger("sonarr")
+	if c.Filters.IsZero() {
+		c.Filters = arr.FiltersFromViper("integrations.sonarr")
+	}
 	eps, err := c.Episodes(ctx)
 	if err != nil {
 		return err

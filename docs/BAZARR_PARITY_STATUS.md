@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.2.0 -->
+<!-- version: 1.3.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -123,10 +123,11 @@ Ordered by value × tractability. Items marked **done** are landing now.
 6. Infra: outbound proxy **done**; Plex webhook **done**; external-Whisper
    model/URL/timeout **done**; Apprise notifications **done** (plus subtitle
    events now actually reach all notification channels).
-7. Blacklist persistence; history retention. Still open: `AddToBlacklist` builds
-   a reason/expiry entry then discards it, and expiry is never honored;
-   `MonitoredItem` has no field for it, so real persistence needs a new
-   blacklist table migrated across sqlite/postgres/pebble.
+7. Blacklist persistence + history retention — **done**. History retention
+   (`history.retention_days`) prunes old download records. Blacklist entries
+   (reason + expiry) now persist via a new `BlacklistStore` optional-capability
+   interface implemented across sqlite/postgres/pebble; `IsBlacklisted` honors
+   expiry and `CleanupExpiredBlacklist` actually removes expired entries.
 8. **(Large, separate track)** replace the stub providers with real integrations.
    `napiprojekt` **done** (keyless hash protocol) as the reference; see the
    provider-boundary section above for what is keyless vs. credential-gated vs.

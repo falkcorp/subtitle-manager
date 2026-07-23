@@ -1,3 +1,8 @@
+// file: pkg/database/postgres.go
+// version: 1.1.0
+// guid: 29e61686-4676-4b4a-b4be-b0cb294239a3
+// last-edited: 2026-07-23
+
 package database
 
 import (
@@ -50,6 +55,16 @@ func initPostgresSchema(db *sql.DB) error {
 			provider TEXT NOT NULL,
 			language TEXT NOT NULL,
 			created_at TIMESTAMP NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS blacklist (
+			id TEXT PRIMARY KEY,
+			item_id TEXT,
+			path TEXT,
+			language TEXT,
+			reason TEXT,
+			details TEXT,
+			created_at TIMESTAMP NOT NULL,
+			expires_at TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS search_history (
 			id SERIAL PRIMARY KEY,

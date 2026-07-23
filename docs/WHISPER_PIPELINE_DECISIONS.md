@@ -101,3 +101,44 @@ the `dualsub [input] [target-lang]` CLI command (`cmd/dualsub.go`).
   (google/gpt/grpc); no double-subs-specific backend.**
   Why: reuse the existing, configured translator.
   Revise: pin a backend for double-subs if quality/consistency demands it.
+
+---
+
+## W2 — Self-hosted Whisper transcription client
+
+Implemented `ASRTranscribe` (`pkg/transcriber/asr.go`) and rewired the container
+transcription path (`pkg/transcriber/whisper_container.go`).
+
+- **D2.1 Speak the ASR webservice's native `/asr` protocol, not the OpenAI API.**
+  Why: the self-hosted image (`onerahmet/openai-whisper-asr-webservice`) exposes
+  `POST /asr` with a multipart `audio_file`, not `/audio/transcriptions`. The old
+  stub pointed the OpenAI SDK at the container with a `"dummy-key-for-container"`
+  and discarded the result. `ASRTranscribe` posts the file and returns SRT.
+  Revise: to support a different self-hosted server, add another client function
+  and select on config.
+
+- **D2.2 The container path now WRITES the subtitle (`<media>.<lang>.srt`).**
+  Why: both the container and external-API paths previously transcribed and threw
+  the bytes away, so no subtitle was ever produced. `writeTranscript` writes a
+  sidecar using the same validated path builder as the scanner.
+  Revise: to return bytes instead of writing, or to choose a different output
+  location/format, change `writeTranscript` / the task functions.
+
+- **D2.3 `ENABLE_WHISPER` auto-orchestration stays opt-in (commented in compose).**
+  Why: auto-starting a Whisper container needs the docker socket and (ideally) a
+  GPU; enabling it by default would surprise users. The mechanism works when set.
+  Revise: uncomment `ENABLE_WHISPER=1` in `docker-compose.yml`/`docker-stack.yml`
+  to auto-start the container.
+
+- **D2.4 Kept the OpenAI-compatible external path (`WhisperTranscribe`) as the
+  user-provided-server option; the two container designs are NOT yet unified.**
+  Why: W2 fixed the primary (ASR webservice) path; the second design
+  (`pkg/transcriber/docker.go`, `openai/whisper` CLI) is untouched to keep the
+  change focused.
+  Revise: remove or gate `docker.go` once the ASR path is confirmed in
+  production, per the design doc's "reconcile the two container designs".
+
+- **D2.5 Default ASR HTTP timeout is 30 minutes.**
+  Why: transcribing a full movie can take a long time on CPU.
+  Revise: pass a custom `*http.Client` to `ASRTranscribe`, or make it
+  configurable.

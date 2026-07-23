@@ -191,3 +191,36 @@ folded in — the measurer is its first real caller.
   by injecting a `TranscribeFunc` backed by `ASRTranscribe` (W2).**
   Why: one transcription path; the measurer is backend-agnostic via injection.
   Revise: default the measurer to the container ASR client when configured.
+
+---
+
+## Whisper server configuration (deployment note — no secrets in repo)
+
+The address of the internal Whisper server is intentionally **not** committed. It
+lives only in the uncommitted local config (`~/.subtitle-manager.yaml`, outside
+the repo) under the `whisper:` block, e.g. `whisper.transcribe_url`.
+
+- **D-cfg.1 Server address stays in `~/.subtitle-manager.yaml`, never in the repo.**
+  Why: it is environment-specific and internal; committing an internal IP is
+  leakage. The app already reads `$HOME/.subtitle-manager.yaml` by default.
+  Revise: use `--config` to point elsewhere, or an env var, per deployment.
+
+- **D-cfg.2 The discovered internal Whisper server is a custom FastAPI service
+  (`POST /transcribe` multipart `file` → `{"text","error"}`, plus
+  `/transcribe-batch`, `/health`) running `large-v2` — it returns PLAIN TEXT with
+  no timestamps.**
+  Why (implication): plain text is fine for full-text extraction and for the
+  translation source of double-subs (W5), but the TIMED pipeline — drift
+  verification (W4) and offset sync — needs cue timings, which this endpoint does
+  not provide.
+  Revise / how to make the timed features work: point transcription at an
+  SRT-returning Whisper instead — either the OpenAI-compatible path
+  (`openai_api_url` + `WhisperTranscribe`) or a self-hosted
+  `onerahmet/openai-whisper-asr-webservice` via `ASRTranscribe` (W2). The config's
+  `whisper.image`/`whisper.port` already reference that ASR webservice for the
+  "start our own" path.
+
+- **D-cfg.3 Of the two candidate hosts checked at discovery, one was unreachable
+  (powered off) and the other was live; the live address is recorded only in the
+  local config.**
+  Revise: if the server moves, update `whisper.transcribe_url` in the local config.

@@ -1,5 +1,5 @@
 // file: pkg/scanner/scanner.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
 package scanner
 
@@ -141,18 +141,27 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 		}
 	}
 	if err != nil {
-		logger.Warnf("fetch %s: %v", path, err)
+		// Whisper fallback: transcribe the media when no provider had a subtitle.
+		if fbData, ok := whisperFallback(ctx, path, lang); ok {
+			logger.Infof("whisper fallback produced a subtitle for %s", path)
+			data = fbData
+			providerName = "whisper"
+			matchScore = nil
+			err = nil
+		} else {
+			logger.Warnf("fetch %s: %v", path, err)
 
-		// Send event for subtitle fetch failure
-		events.PublishSubtitleFailed(ctx, events.SubtitleFailedData{
-			FilePath:  path,
-			Language:  lang,
-			Provider:  providerName,
-			Error:     err.Error(),
-			Timestamp: time.Now(),
-		})
+			// Send event for subtitle fetch failure
+			events.PublishSubtitleFailed(ctx, events.SubtitleFailedData{
+				FilePath:  path,
+				Language:  lang,
+				Provider:  providerName,
+				Error:     err.Error(),
+				Timestamp: time.Now(),
+			})
 
-		return err
+			return err
+		}
 	}
 	var wasUpgrade bool
 	if upgrade {

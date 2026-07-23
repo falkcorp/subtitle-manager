@@ -1,5 +1,5 @@
 // file: pkg/webserver/librarypaths.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 17206a5a-f1bc-4f44-acfa-aa3d7f72f59c
 
 package webserver
@@ -64,14 +64,17 @@ func writeLibraryPaths(paths []string) error {
 
 // scanPathAsync scans dir into the media library in the background so newly
 // added / rescanned paths populate MediaItems without blocking the request.
+// The store is opened synchronously (which reads viper config) before the
+// goroutine starts, so the background scan never races with a concurrent
+// viper mutation — e.g. a test's deferred viper.Reset().
 func scanPathAsync(dir string) {
+	logger := logging.GetLogger("library-paths")
+	store, err := database.OpenStoreWithConfig()
+	if err != nil {
+		logger.Warnf("scan %s: open store: %v", dir, err)
+		return
+	}
 	go func() {
-		logger := logging.GetLogger("library-paths")
-		store, err := database.OpenStoreWithConfig()
-		if err != nil {
-			logger.Warnf("scan %s: open store: %v", dir, err)
-			return
-		}
 		defer store.Close()
 		if err := metadata.ScanLibraryProgress(context.Background(), dir, store, nil); err != nil {
 			logger.Warnf("scan %s: %v", dir, err)

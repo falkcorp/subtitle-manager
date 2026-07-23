@@ -63,7 +63,13 @@ type Service struct {
 	TelegramToken  string
 	TelegramChatID string
 	EmailURL       string
-	client         *http.Client
+	// AppriseURL is the notify endpoint of a self-hosted Apprise API server
+	// (for example http://apprise:8000/notify/mykey). It is operator-supplied
+	// infrastructure, so it is validated leniently (any http/https URL) and is
+	// not subject to the strict public-webhook allowlist. Set it directly on
+	// the struct after New.
+	AppriseURL string
+	client     *http.Client
 }
 
 // New creates a Service with the provided endpoints.
@@ -225,6 +231,23 @@ func (s *Service) Send(ctx context.Context, msg string) error {
 		if err == nil {
 			req.Header.Set("Content-Type", "application/json")
 			_, err = s.client.Do(req)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if s.AppriseURL != "" {
+		// Apprise API expects a JSON body with a "body" field (and optionally a
+		// "title"); the configured notification targets live server-side.
+		body, _ := json.Marshal(map[string]string{"body": msg, "title": "subtitle-manager"})
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.AppriseURL, bytes.NewReader(body))
+		if err == nil {
+			req.Header.Set("Content-Type", "application/json")
+			var resp *http.Response
+			resp, err = s.client.Do(req)
+			if resp != nil {
+				resp.Body.Close()
+			}
 		}
 		if err != nil {
 			return err

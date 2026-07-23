@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 1.1.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -84,10 +84,15 @@ engine is. This is the single biggest parity gap and is tracked separately.
 
 Ordered by value × tractability. Items marked **done** are landing now.
 
-1. **Post-processing pipeline** — UTF-8, chmod, auto-sync, custom script. **done (this PR).**
-2. Score-gated auto-download + score-based upgrade (wire `pkg/scoring` into `ProcessFile`).
-3. Sonarr/Radarr: decode+apply `monitored`, `tags`, `seriesType`; apply path mappings.
-4. Real `embedded` source (ffmpeg extract) preferred before providers.
+1. **Post-processing pipeline** — UTF-8, chmod, auto-sync, custom script. **done.**
+2. **Score-gated auto-download + score-based upgrade** — `pkg/scoring` is wired
+   into `ProcessFile` for the OpenSubtitles provider via an optional
+   `scoredProvider` capability: search → score → select best above
+   `scoring.min_score` → download that specific candidate; upgrades compare the
+   new candidate's score against the persisted `DownloadRecord.MatchScore`.
+   Gated behind `scoring.enabled` (off by default). **done.**
+3. Sonarr/Radarr: decode+apply `monitored`, `tags`, `seriesType`; apply path mappings. **done.**
+4. Real `embedded` source (ffmpeg extract) preferred before providers. **done.**
 5. Profile mass-edit; honor Forced/HI + cutoff-score; single-language filename option.
 6. Infra: outbound proxy; Plex webhook; external-Whisper model/timeout; Apprise notifications.
 7. Blacklist persistence; history retention.

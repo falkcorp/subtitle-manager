@@ -92,6 +92,30 @@ func TestSearch(t *testing.T) {
 	}
 }
 
+// TestFetchByResult downloads a specific candidate rather than the first match.
+func TestFetchByResult(t *testing.T) {
+	srv := httptest.NewServer(mockHandler{})
+	defer srv.Close()
+	c := New("")
+	c.APIURL = srv.URL
+	c.HTTPClient = srv.Client()
+
+	var result SearchResult
+	result.Attributes.SubtitleID = "42"
+	data, err := c.FetchByResult(context.Background(), result)
+	if err != nil {
+		t.Fatalf("fetch by result error: %v", err)
+	}
+	if string(data) != "sub data" {
+		t.Fatalf("unexpected data: %s", data)
+	}
+
+	// A result with no subtitle id cannot be downloaded.
+	if _, err := c.FetchByResult(context.Background(), SearchResult{}); err == nil {
+		t.Fatal("expected error for result with no subtitle id")
+	}
+}
+
 // TestNewUsesConfig verifies that viper settings override defaults.
 func TestNewUsesConfig(t *testing.T) {
 	viper.Set("opensubtitles.api_url", "http://api")

@@ -130,10 +130,9 @@ This command evaluates subtitles based on:
 			return fmt.Errorf("failed to find corresponding search result")
 		}
 
-		// Download the selected subtitle using the client's Fetch method
-		// Note: The client's Fetch method will automatically use the first search result
-		// In practice, we would enhance this to download the specific selected subtitle
-		data, err := client.Fetch(ctx, media, lang)
+		// Download the specific selected candidate (not merely the first search
+		// result), so the scoring actually determines what gets written.
+		data, err := client.FetchByResult(ctx, *selectedResult)
 		if err != nil {
 			return fmt.Errorf("download failed: %w", err)
 		}

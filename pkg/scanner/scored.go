@@ -30,6 +30,13 @@ func scoringEnabled() bool {
 	return viper.GetBool("scoring.enabled")
 }
 
+// singleLanguageNaming reports whether subtitles should be written without the
+// language code in the filename ("<base>.srt" rather than "<base>.<lang>.srt"),
+// matching Bazarr's single-language naming option.
+func singleLanguageNaming() bool {
+	return viper.GetBool("subtitles.single_language")
+}
+
 // scoredResult is a downloaded subtitle together with its computed score.
 type scoredResult struct {
 	data    []byte

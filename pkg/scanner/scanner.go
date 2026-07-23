@@ -1,5 +1,5 @@
 // file: pkg/scanner/scanner.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
 package scanner
 
@@ -99,8 +99,9 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 		return err
 	}
 
-	// Construct and validate the output path securely
-	validatedOutputPath, err := security.ValidateSubtitleOutputPath(path, lang)
+	// Construct and validate the output path securely. When single-language
+	// naming is enabled the language code is omitted from the filename.
+	validatedOutputPath, err := security.ValidateSubtitleOutputPathWithOptions(path, lang, singleLanguageNaming())
 	if err != nil {
 		logger.Warnf("invalid subtitle output path: %v", err)
 		return err
@@ -302,7 +303,7 @@ func ProcessFileWithProfile(ctx context.Context, path string, db *sql.DB, upgrad
 	}
 
 	// Construct and validate the output path securely using the actual language found
-	out, err := security.ValidateSubtitleOutputPath(sanitizedPath, actualLang)
+	out, err := security.ValidateSubtitleOutputPathWithOptions(sanitizedPath, actualLang, singleLanguageNaming())
 	if err != nil {
 		logger.Warnf("invalid subtitle output path: %v", err)
 		return err

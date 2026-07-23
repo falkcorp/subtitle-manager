@@ -1,5 +1,5 @@
 // file: pkg/security/security.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
 package security
 
@@ -268,8 +268,19 @@ func ValidateProviderName(provider string) error {
 	return nil
 }
 
-// ValidateSubtitleOutputPath validates and constructs a safe subtitle output path
+// ValidateSubtitleOutputPath validates and constructs a safe subtitle output
+// path of the form "<base>.<lang>.srt".
 func ValidateSubtitleOutputPath(videoPath, lang string) (string, error) {
+	return ValidateSubtitleOutputPathWithOptions(videoPath, lang, false)
+}
+
+// ValidateSubtitleOutputPathWithOptions validates and constructs a safe subtitle
+// output path. When singleLanguage is true the language code is omitted from the
+// filename ("<base>.srt" instead of "<base>.<lang>.srt"), matching Bazarr's
+// "single language" naming option; lang is still validated so it can be recorded
+// in the download history. A single-language layout can only hold one subtitle
+// language per media file.
+func ValidateSubtitleOutputPathWithOptions(videoPath, lang string, singleLanguage bool) (string, error) {
 	// Validate inputs
 	sanitizedVideoPath, err := ValidateAndSanitizePath(videoPath)
 	if err != nil {
@@ -290,7 +301,11 @@ func ValidateSubtitleOutputPath(videoPath, lang string) (string, error) {
 		return "", fmt.Errorf("invalid characters in video filename")
 	}
 
-	subtitlePath := filepath.Join(dir, base+"."+lang+".srt")
+	name := base + "." + lang + ".srt"
+	if singleLanguage {
+		name = base + ".srt"
+	}
+	subtitlePath := filepath.Join(dir, name)
 	subtitlePath = filepath.Clean(subtitlePath)
 
 	// Ensure the output path is still within allowed directories

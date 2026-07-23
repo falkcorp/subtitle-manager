@@ -1,5 +1,5 @@
 // file: pkg/security/path_test.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 0f457ffd-07c4-4ea3-b917-e86abb3ed750
 package security
 
@@ -136,6 +136,40 @@ func TestValidateSubtitleOutputPath(t *testing.T) {
 	_, err = ValidateSubtitleOutputPath("/etc/passwd", "en")
 	if err == nil {
 		t.Error("expected error for path traversal in video path")
+	}
+}
+
+func TestValidateSubtitleOutputPathSingleLanguage(t *testing.T) {
+	dir := t.TempDir()
+	viper.Set("media_directory", dir)
+	defer viper.Reset()
+
+	videoPath := filepath.Join(dir, "movie.mkv")
+	if err := os.WriteFile(videoPath, []byte("test"), 0644); err != nil {
+		t.Fatalf("create video file: %v", err)
+	}
+
+	// singleLanguage=true omits the language code from the filename.
+	output, err := ValidateSubtitleOutputPathWithOptions(videoPath, "en", true)
+	if err != nil {
+		t.Fatalf("expected valid output path, got error: %v", err)
+	}
+	if want := filepath.Join(dir, "movie.srt"); output != want {
+		t.Errorf("expected %s, got %s", want, output)
+	}
+
+	// singleLanguage=false keeps the language code.
+	output, err = ValidateSubtitleOutputPathWithOptions(videoPath, "en", false)
+	if err != nil {
+		t.Fatalf("expected valid output path, got error: %v", err)
+	}
+	if want := filepath.Join(dir, "movie.en.srt"); output != want {
+		t.Errorf("expected %s, got %s", want, output)
+	}
+
+	// Language is still validated even when omitted from the filename.
+	if _, err := ValidateSubtitleOutputPathWithOptions(videoPath, "../en", true); err == nil {
+		t.Error("expected error for invalid language even in single-language mode")
 	}
 }
 

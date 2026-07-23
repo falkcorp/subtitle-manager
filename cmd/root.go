@@ -36,6 +36,7 @@ import (
 	gconfig "github.com/jdfalk/subtitle-manager/pkg/gcommon/config"
 	"github.com/jdfalk/subtitle-manager/pkg/i18n"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/proxy"
 	"github.com/jdfalk/subtitle-manager/pkg/transcriber"
 	"github.com/jdfalk/subtitle-manager/pkg/translator"
 )
@@ -356,6 +357,13 @@ func initConfig() {
 	}
 	if u := viper.GetString("openai_api_url"); u != "" {
 		transcriber.SetBaseURL(u)
+	}
+	// Route all outbound HTTP through a configured proxy when set. Applies to
+	// every client using the default transport (providers, integrations, ...).
+	if p := viper.GetString("proxy_url"); p != "" {
+		if err := proxy.Configure(p); err != nil {
+			logrus.Warnf("invalid proxy_url: %v", err)
+		}
 	}
 	// The transcription model applies to the OpenAI-compatible path only; the
 	// self-hosted whisper.transcribe_url (/asr) server's model is fixed at its

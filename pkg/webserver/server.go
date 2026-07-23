@@ -209,6 +209,11 @@ func Handler(db *sql.DB) (http.Handler, error) {
 	mux.Handle(prefix+"/api/library/tags", authMiddleware(db, "basic", libraryTagsHandler(db)))
 	mux.Handle(prefix+"/api/library/scan", authMiddleware(db, "basic", libraryScanHandler(db)))
 	mux.Handle(prefix+"/api/library/scan/status", authMiddleware(db, "basic", libraryScanStatusHandler()))
+	// Library root paths for the Media Library UI (previously missing, leaving the
+	// library empty and "Add Library Path" broken).
+	mux.Handle(prefix+"/api/library/paths", authMiddleware(db, "basic", libraryPathsHandler()))
+	mux.Handle(prefix+"/api/library/rescan", authMiddleware(db, "basic", libraryRescanHandler()))
+	mux.Handle(prefix+"/api/library/resync", authMiddleware(db, "basic", libraryRescanHandler()))
 	// Whisper pipeline endpoints (library-search bridge, double-subs, drift verify)
 	mux.Handle(prefix+"/api/library/search", authMiddleware(db, "basic", librarySearchHandler()))
 	mux.Handle(prefix+"/api/library/search/status", authMiddleware(db, "basic", librarySearchStatusHandler()))

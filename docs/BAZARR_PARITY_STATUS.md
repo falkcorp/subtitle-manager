@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.4.0 -->
+<!-- version: 1.5.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -7,9 +7,10 @@
 
 Grounded audit of subtitle-manager's backend against
 [`BAZARR_FEATURE_LIST_COMPLETE.md`](BAZARR_FEATURE_LIST_COMPLETE.md), verified by
-reading the code (2026-07-23). Status legend: **✅ Built**, **🟡 Partial**,
-**🔴 Missing**. "Partial" means the plumbing exists but the behaviour is not
-wired into the live path.
+reading the code and **cross-referenced against Bazarr's full upstream release
+history** (2026-07-23; see the Changelog cross-reference section at the end).
+Status legend: **✅ Built**, **🟡 Partial**, **🔴 Missing**. "Partial" means the
+plumbing exists but the behaviour is not wired into the live path.
 
 ## The load-bearing caveat: the provider layer
 
@@ -51,25 +52,28 @@ effort — it is not fully achievable autonomously.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | REST library sync (episodes/movies, host/port/ssl/base/key) | ✅ | `pkg/sonarr/client.go`, `pkg/radarr/client.go` |
+| Configurable *arr request timeout | ✅ | `integrations.{sonarr,radarr}.timeout` (`pkg/arr.Timeout`) |
 | Scheduled sync wired into webserver | 🟡 | `StartContinuousSync` unused; monitor loop doesn't re-pull |
-| Minimum-score threshold applied to *arr downloads | 🟡 | global scorer exists, not applied at download |
-| Monitored-only mode | 🔴 | `monitored` field not even decoded |
-| Excluded tags / series types | 🔴 | not decoded/filtered |
-| Path mappings (arr↔local) applied | 🔴 | import-only stub; never applied |
-| Webhook on import → search | 🟡 | only `Download` event; hardcoded `en`; no profile/score |
+| Minimum-score threshold applied to *arr downloads | ✅ | `scoring.min_score` gate in scored path (when `scoring.enabled`) |
+| Monitored-only mode | ✅ | `arr.Filters.MonitoredOnly` |
+| Excluded tags / series types | ✅ | `arr.Filters` excluded tags/series-types |
+| Path mappings (arr↔local) applied | ✅ | `arr.Filters.PathMappings` |
+| Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; still hardcoded `en` |
+| Notify *arr to rescan after download | 🔴 | needs media→*arr-id tracking we don't keep |
 
 ### Search / download / upgrade engine
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Provider registry breadth | 🔴 | ~52 stubs; 1 real (opensubtitles) |
-| Automatic "wanted" search loop (scheduled) | 🟡 | monitor skeleton exists; no score gate |
+| Provider registry breadth | 🔴 | ~50 stubs; 2 real (opensubtitles, napiprojekt) + embedded |
+| Whisper fallback (transcribe when no provider match) | ✅ | `whisper.fallback_enabled` (`pkg/scanner.whisperFallback`) |
+| Automatic "wanted" search loop (scheduled) | 🟡 | monitor skeleton; score gate now available |
 | Manual search (ranked candidates) | 🟡 | `/api/search`; only opensubtitles implements `Searcher` |
-| Score-gated accept/reject (min-score) | 🟡 | `pkg/scoring` not wired into auto-download |
-| Score-based upgrade | 🔴 | upgrade decided by file size, not score |
+| Score-gated accept/reject (min-score) | ✅ | wired into `ProcessFile` + `FetchWithProfile` |
+| Score-based upgrade | ✅ | compares persisted `DownloadRecord.MatchScore` |
 | Adaptive searching | 🟡 | fixed retry→blacklist; in-memory provider backoff |
 | Parallel provider fetch (core path) | 🟡 | `multi.go` is serial with backoff sleeps |
-| Use embedded tracks as a source | 🟡 | ffmpeg extract exists but not a download source; `embedded` provider is a stub |
-| Ignore PGS/image subtitles | 🔴 | not filtered |
+| Use embedded tracks as a source | ✅ | `embedded` provider extracts muxed tracks via ffmpeg |
+| Ignore PGS/image subtitles | ✅ | `video.SubtitleStream.ImageBased()` skipped by embedded |
 | Desired-languages via profiles | ✅ | `FetchWithProfile` iterates by priority |
 
 ### Post-processing / languages / profiles
@@ -80,14 +84,15 @@ effort — it is not fully achievable autonomously.
 | Default profile auto-assigned to new *arr items | 🟡 | single global default; no auto-assign |
 | Mass-edit (bulk profile assign) | 🔴 | single-item only |
 | Single-language filename option | ✅ | `subtitles.single_language` → `video.srt` |
-| **UTF-8 re-encoding** | ✅ **(this PR)** | `pkg/postprocess.EncodeUTF8` wired into `ProcessFile` |
-| **chmod on written subtitles** | ✅ **(this PR)** | `postprocess.chmod` |
-| **Auto-sync after download** | ✅ **(this PR)** | `postprocess.auto_sync` |
-| **Custom post-download script** | ✅ **(this PR)** | `postprocess.custom_script` |
+| **UTF-8 re-encoding** | ✅ | `pkg/postprocess.EncodeUTF8` wired into `ProcessFile` |
+| **chmod on written subtitles** | ✅ | `postprocess.chmod` |
+| **Auto-sync after download** | ✅ | `postprocess.auto_sync` |
+| **Custom post-download script** | ✅ | `postprocess.custom_script` |
+| Custom post-processing script variables (score/provider) + threshold | ✅ | `SM_PROVIDER`/`SM_SCORE`; `postprocess.score_threshold` |
 | Format conversion on download (ASS/VTT) | 🟡 | astisub writer real but gRPC path stubbed; download emits `.srt` only |
-| Anti-captcha wired to providers | 🟡 | solver exists, never called |
-| History retention/depth | 🟡 | records written; no pruning |
-| Blacklist (per-subtitle) | 🟡 | not persisted; item-level only |
+| Anti-captcha wired to providers | 🟡 | solver exists, never called (moot until providers are real) |
+| History retention/depth | ✅ | `history.retention_days` (`maintenance.PruneDownloadHistory`) |
+| Blacklist (per-subtitle) | ✅ | persisted w/ reason+expiry via `database.BlacklistStore` |
 
 ### Infrastructure / settings
 | Capability | Status | Notes |
@@ -98,10 +103,10 @@ effort — it is not fully achievable autonomously.
 | Metrics/health/logging | ✅ | |
 | Config persistence + settings API | ✅ | `/api/config` + viper WriteConfig |
 | Scheduler with persisted per-task intervals | 🟡 | CLI-flag driven; not config/UI per-job |
-| Outbound proxy (HTTP/Socks) for providers | 🔴 | none |
-| Notifications (Apprise / many channels) | 🟡 | 3 fixed channels; no Apprise |
-| Plex incoming webhook | 🔴 | only Sonarr/Radarr/custom |
-| External-Whisper model/timeout config | 🟡 | selectable only for the local container |
+| Outbound proxy (HTTP/Socks) for providers | ✅ | `proxy_url` → `http.DefaultTransport` (`pkg/proxy`) |
+| Notifications (Apprise / many channels) | ✅ | Apprise + Discord/Telegram/email; **fire on subtitle events** |
+| Plex incoming webhook | ✅ | `POST /api/webhooks/plex` (`library.new`) |
+| External-Whisper URL/model/timeout config | ✅ | `whisper.transcribe_url` (native /asr), model, timeout |
 
 ## Implementation plan (backend)
 
@@ -134,3 +139,43 @@ Ordered by value × tractability. Items marked **done** are landing now.
    provider-boundary section above for what is keyless vs. credential-gated vs.
    scraping-only. The bulk is credential-gated or site-scraping and is not
    fully achievable without operator input.
+
+## Changelog cross-reference (upstream Bazarr release notes)
+
+Cross-referenced against Bazarr's full release history (all releases, ~1,956
+lines of notes) to catch backend features the code-audit matrix above missed.
+Backend items only — pure UI and bugfixes excluded.
+
+### Implemented from the changelog scan
+
+- **Whisper fallback** — transcribe when no provider has a match
+  (`whisper.fallback_enabled`).
+- **Configurable Sonarr/Radarr request timeout** (`integrations.*.timeout`).
+- **Custom post-processing variables** `SM_PROVIDER`/`SM_SCORE` and a
+  **score threshold** (`postprocess.score_threshold`).
+- **Configurable scores** (min-score gate) and **score-based upgrade**.
+- **Outbound proxy**, **Apprise notifications firing on subtitle events**,
+  **Plex webhook**, **provider throttling (basic backoff exists)**.
+
+### Remaining backend gaps (from the changelog)
+
+- 🔴 **Notify Sonarr/Radarr after download** so they index the new subtitle —
+  needs a media→*arr-item-id mapping we don't currently persist.
+- 🔴 **Real-time (SignalR) sync** with Sonarr v3 / Radarr v3 — large; needs a
+  SignalR client. We poll/sync via REST only.
+- 🟡 **Provider throttling** — Bazarr tracks per-provider throttle state and a
+  "throttled providers" view with cooldowns on 429/503/maintenance; we only have
+  simple in-memory backoff.
+- 🟡 **Whisper**: separate connection vs read timeouts; language mapping; audio
+  delay detection in MKV headers via ffprobe. We expose a single timeout.
+- 🟡 **Subsync**: option to use the original-language audio track as the sync
+  reference; ffsubsync progress reporting.
+- 🟡 **Scheduled search & upgrade loop** (incl. Weekly option) driving the
+  wanted/upgrade queues — our monitor skeleton doesn't drive it yet.
+- 🔵 **Anti-captcha** integration — solver exists but is never called; moot until
+  providers are real (blocked with the provider track).
+- 🔵 **Webhook `hostname` anti-poisoning setting** — minor hardening.
+- 🔵 **Provider-specific settings** (SSL toggle, `subx` key, uploader filters,
+  `hi_fallback`) — blocked with their (credential-gated/scraping) providers.
+
+Legend: 🔴 not started · 🟡 partial · 🔵 blocked/low-priority.

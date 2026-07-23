@@ -363,6 +363,11 @@ func StartServer(addr string) error {
 
 	// Start Sonarr/Radarr sync tasks when configured
 	if store, err := database.OpenStoreWithConfig(); err == nil {
+		// Prune download history older than the configured retention (Bazarr's
+		// history-retention). No-op when history.retention_days is unset/<=0.
+		maintenance.StartHistoryPruning(context.Background(), store,
+			viper.GetInt("history.retention_days"),
+			viper.GetString("history.prune_frequency"))
 		if viper.GetBool("integrations.radarr.enabled") {
 			host := viper.GetString("integrations.radarr.host")
 			port := viper.GetString("integrations.radarr.port")

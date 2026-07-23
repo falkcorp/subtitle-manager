@@ -1,3 +1,8 @@
+// file: pkg/maintenance/maintenance.go
+// version: 1.1.0
+// guid: a4cd70e3-111a-4925-9f52-160d4fc3b701
+// last-edited: 2026-07-23
+
 package maintenance
 
 import (
@@ -62,6 +67,49 @@ func StartDatabaseCleanup(ctx context.Context, db *sql.DB, frequency string) {
 	interval := frequencyToDuration(frequency)
 	go scheduler.Run(ctx, interval, func(c context.Context) error {
 		return CleanupDatabase(c, db)
+	})
+}
+
+// PruneDownloadHistory deletes download-history records older than retention.
+// A non-positive retention keeps everything. It returns the number of records
+// pruned. This implements Bazarr's history-retention behaviour.
+func PruneDownloadHistory(ctx context.Context, store database.SubtitleStore, retention time.Duration) (int, error) {
+	if store == nil || retention <= 0 {
+		return 0, nil
+	}
+	records, err := store.ListDownloads()
+	if err != nil {
+		return 0, err
+	}
+	cutoff := time.Now().Add(-retention)
+	pruned := 0
+	for _, r := range records {
+		select {
+		case <-ctx.Done():
+			return pruned, ctx.Err()
+		default:
+		}
+		if r.CreatedAt.Before(cutoff) {
+			if err := store.DeleteDownload(r.File); err != nil {
+				return pruned, err
+			}
+			pruned++
+		}
+	}
+	return pruned, nil
+}
+
+// StartHistoryPruning schedules PruneDownloadHistory to run periodically. It is
+// a no-op when retentionDays is not positive (history kept forever).
+func StartHistoryPruning(ctx context.Context, store database.SubtitleStore, retentionDays int, frequency string) {
+	if retentionDays <= 0 {
+		return
+	}
+	retention := time.Duration(retentionDays) * 24 * time.Hour
+	interval := frequencyToDuration(frequency)
+	go scheduler.Run(ctx, interval, func(c context.Context) error {
+		_, err := PruneDownloadHistory(c, store, retention)
+		return err
 	})
 }
 

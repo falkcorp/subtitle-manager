@@ -57,3 +57,47 @@ Implemented as `scanner.ProcessLibrary` (`pkg/scanner/library.go`) + the
 - **D1.6 Default worker count in the CLI is 4 when `scan_workers` is unset.**
   Why: a sensible parallelism default; `ProcessLibrary` itself clamps `<1` to 1.
   Revise: change the default in `cmd/librarysearch.go` or set `scan_workers`.
+
+---
+
+## W5 — Double-subs (bilingual) generator
+
+Implemented as `subtitles.GenerateDualSubtitles` (`pkg/subtitles/dualsub.go`) +
+the `dualsub [input] [target-lang]` CLI command (`cmd/dualsub.go`).
+
+- **D5.1 Append the translation as a stacked line; keep the original.**
+  Why: the whole point of double-subs is showing both languages. This is the
+  opposite of `TranslateFileToSRT`, which replaces the cue text.
+  Revise: to change ordering (translation on top), swap the append for a prepend.
+
+- **D5.2 Output is stacked-SRT, not styled ASS.**
+  Why: SRT works everywhere and needs no styling engine; the multi-format ASS
+  writer (`pkg/media/server.go`) is currently stubbed. Original renders above,
+  translation below, within one cue.
+  Revise: implement an ASS output path (top/bottom `\an8`/`\an2` styles) once the
+  format writer is finished, and add a `--format ass` flag.
+
+- **D5.3 Translate the whole cue as one unit (all lines joined), not just the
+  first line.**
+  Why: the single-language translator only translates `Lines[0].Items[0]`, which
+  drops multi-line dialogue; `itemText` joins all lines for an accurate
+  translation.
+  Revise: if per-line alignment matters, translate line-by-line instead.
+
+- **D5.4 Default target language is `zh` (Mandarin); default sentinel tag is `eo`
+  (Esperanto).**
+  Why: matches the stated intent — Mandarin double-subs tagged with an
+  unused-language code so players don't confuse them with real tracks.
+  Revise: `--sentinel` and the `target-lang` arg both override; change the
+  defaults in `cmd/dualsub.go`.
+
+- **D5.5 Output is a sidecar file (`<input>.eo.srt`), not a muxed track.**
+  Why: the project only writes sidecar subtitles; there is no container-muxing
+  step. The "player won't confuse it" benefit comes from the filename suffix.
+  Revise: add an ffmpeg mux-back step (`-metadata:s:s language=epo`) if an
+  embedded track is wanted.
+
+- **D5.6 Translation backend is whatever `translate_service` selects
+  (google/gpt/grpc); no double-subs-specific backend.**
+  Why: reuse the existing, configured translator.
+  Revise: pin a backend for double-subs if quality/consistency demands it.

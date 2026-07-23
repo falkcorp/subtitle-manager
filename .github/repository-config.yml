@@ -18,6 +18,13 @@ repository:
   primary_language: 'go' # Auto-detected or specify: go, rust, python, javascript, typescript
   description: 'Subtitle management service'
 
+# Working directories consumed by the CI reusable workflows. The frontend lives
+# in webui/, not the default "web/", so the Frontend CI job must be told where it
+# is (otherwise gha-get-frontend-config defaults to "web" and install fails with
+# "Frontend working directory not found: web").
+working_directories:
+  frontend: webui
+
 # Language Detection and Support
 languages:
   # Detection patterns for automatic language identification

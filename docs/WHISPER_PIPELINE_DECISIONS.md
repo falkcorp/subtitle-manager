@@ -278,3 +278,8 @@ frontend build.
   them is a separate effort. The frontend BUILD is now green; the test suite is
   not. There are no required status checks, so this does not block merges.
   Revise: a dedicated "repair frontend tests" pass.
+
+- **D-web.8 Set `working_directories.frontend: webui` in `repository-config.yml`.**
+  Why: subtitle-manager's frontend is `webui/`, not the CI default `web/`; without
+  this the Frontend CI install fails with "Frontend working directory not found:
+  web". This was a gap in the workflow conversion's `repository-config.yml`.

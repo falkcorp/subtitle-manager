@@ -193,6 +193,7 @@ func Handler(db *sql.DB) (http.Handler, error) {
 	mux.Handle(prefix+"/api/webhooks/sonarr", webhooks.SonarrHandler())
 	mux.Handle(prefix+"/api/webhooks/radarr", webhooks.RadarrHandler())
 	mux.Handle(prefix+"/api/webhooks/custom", webhooks.CustomHandler())
+	mux.Handle(prefix+"/api/webhooks/plex", webhooks.PlexHandler())
 	// Webhook management endpoints
 	mux.Handle(prefix+"/api/webhooks/config", authMiddleware(db, "basic", webhookConfigHandler()))
 	mux.Handle(prefix+"/api/webhooks/test", authMiddleware(db, "basic", webhookTestHandler()))

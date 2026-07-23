@@ -1,5 +1,5 @@
 // file: pkg/video/video.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d
 
 // Package video provides video analysis and processing utilities using ffmpeg and ffprobe.
@@ -203,4 +203,65 @@ func GetSubtitleTracks(videoPath string) ([]map[string]string, error) {
 	}
 
 	return tracks, nil
+}
+
+// SubtitleStream describes one embedded subtitle track of a media file.
+type SubtitleStream struct {
+	// Ordinal is the 0-based index among subtitle streams, suitable for
+	// ffmpeg's "0:s:N" stream selector.
+	Ordinal int
+	// Codec is the ffmpeg codec name, e.g. "subrip", "ass", "hdmv_pgs_subtitle".
+	Codec string
+	// Language is the ISO language tag on the stream (may be empty).
+	Language string
+	// Title is the stream title tag (may be empty).
+	Title string
+}
+
+// ImageBased reports whether the subtitle codec is a bitmap/image format
+// (PGS/VobSub/DVD) that cannot be losslessly converted to text.
+func (s SubtitleStream) ImageBased() bool {
+	switch s.Codec {
+	case "hdmv_pgs_subtitle", "pgssub", "dvd_subtitle", "dvdsub", "xsub":
+		return true
+	default:
+		return false
+	}
+}
+
+// SubtitleStreams lists the embedded subtitle tracks of a media file, including
+// their language tag and codec, using ffprobe.
+func SubtitleStreams(mediaPath string) ([]SubtitleStream, error) {
+	cmd := exec.CommandContext(context.Background(), ffprobePath,
+		"-v", "quiet",
+		"-select_streams", "s",
+		"-print_format", "json",
+		"-show_streams",
+		mediaPath)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffprobe subtitle streams: %w", err)
+	}
+	var res struct {
+		Streams []struct {
+			CodecName string `json:"codec_name"`
+			Tags      struct {
+				Language string `json:"language"`
+				Title    string `json:"title"`
+			} `json:"tags"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &res); err != nil {
+		return nil, fmt.Errorf("parse ffprobe subtitle streams: %w", err)
+	}
+	streams := make([]SubtitleStream, 0, len(res.Streams))
+	for i, s := range res.Streams {
+		streams = append(streams, SubtitleStream{
+			Ordinal:  i,
+			Codec:    s.CodecName,
+			Language: s.Tags.Language,
+			Title:    s.Tags.Title,
+		})
+	}
+	return streams, nil
 }

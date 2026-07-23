@@ -18,6 +18,7 @@ import (
 	"github.com/jdfalk/subtitle-manager/pkg/events"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 	"github.com/jdfalk/subtitle-manager/pkg/metadata"
+	"github.com/jdfalk/subtitle-manager/pkg/postprocess"
 	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/security"
 )
@@ -140,6 +141,8 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 			wasUpgrade = true
 		}
 	}
+	// Post-processing: optionally re-encode to UTF-8 before writing.
+	data = postprocess.EncodeUTF8IfEnabled(data)
 	if err := os.WriteFile(validatedOutputPath, data, 0644); err != nil {
 		logger.Warnf("write %s: %v", validatedOutputPath, err)
 
@@ -185,6 +188,8 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 	if store != nil {
 		_ = store.InsertDownload(&database.DownloadRecord{File: validatedOutputPath, VideoFile: path, Provider: providerName, Language: lang})
 	}
+	// Post-processing: chmod, auto-sync, custom script (all opt-in via config).
+	postprocess.AfterDownload(ctx, validatedOutputPath, path, lang)
 	return nil
 }
 

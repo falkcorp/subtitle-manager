@@ -28,6 +28,7 @@ import (
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 	"github.com/jdfalk/subtitle-manager/pkg/maintenance"
 	"github.com/jdfalk/subtitle-manager/pkg/metrics"
+	"github.com/jdfalk/subtitle-manager/pkg/notifications"
 	"github.com/jdfalk/subtitle-manager/pkg/radarr"
 	"github.com/jdfalk/subtitle-manager/pkg/security"
 	"github.com/jdfalk/subtitle-manager/pkg/selftest"
@@ -1370,6 +1371,39 @@ func startSessionCleanup(db *sql.DB) {
 	}
 }
 
+// notificationsPublisherFromConfig builds an events publisher that delivers
+// subtitle events to the operator's configured notification channels
+// (Discord/Telegram/email/Apprise), or nil when none are configured. Per-kind
+// delivery defaults to on and can be disabled via
+// notifications.notify_on_{download,upgrade,failure}.
+func notificationsPublisherFromConfig() events.EventPublisher {
+	discord := viper.GetString("notifications.discord_webhook")
+	telegramToken := viper.GetString("notifications.telegram_token")
+	telegramChat := viper.GetString("notifications.telegram_chat_id")
+	email := viper.GetString("notifications.email_url")
+	apprise := viper.GetString("notifications.apprise_url")
+	if discord == "" && telegramToken == "" && email == "" && apprise == "" {
+		return nil
+	}
+	svc, err := notifications.New(discord, telegramToken, telegramChat, email)
+	if err != nil {
+		logging.GetLogger("webserver").Warnf("notifications disabled: %v", err)
+		return nil
+	}
+	svc.AppriseURL = apprise
+	np := notifications.NewEventPublisher(svc)
+	if viper.IsSet("notifications.notify_on_download") {
+		np.NotifyOnDownload = viper.GetBool("notifications.notify_on_download")
+	}
+	if viper.IsSet("notifications.notify_on_upgrade") {
+		np.NotifyOnUpgrade = viper.GetBool("notifications.notify_on_upgrade")
+	}
+	if viper.IsSet("notifications.notify_on_failure") {
+		np.NotifyOnFailure = viper.GetBool("notifications.notify_on_failure")
+	}
+	return np
+}
+
 // initializeWebhooks initializes the webhook system and event publisher.
 func initializeWebhooks() {
 	// Initialize the global webhook manager
@@ -1379,8 +1413,14 @@ func initializeWebhooks() {
 	manager := webhooks.GetGlobalManager()
 	publisher := webhooks.NewWebhookEventPublisher(manager)
 
-	// Set it as the global event publisher
-	events.SetGlobalPublisher(publisher)
+	// Compose with a notifications publisher so subtitle events also reach the
+	// operator's configured channels (Discord/Telegram/email/Apprise). When no
+	// channel is configured, notifyPublisher is nil and only webhooks fire.
+	if np := notificationsPublisherFromConfig(); np != nil {
+		events.SetGlobalPublisher(events.NewMultiPublisher(publisher, np))
+	} else {
+		events.SetGlobalPublisher(publisher)
+	}
 
 	// Register incoming webhook handlers with secrets from configuration
 	sonarrSecret := viper.GetString("webhooks.sonarr.secret")

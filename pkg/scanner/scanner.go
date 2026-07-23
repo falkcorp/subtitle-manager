@@ -236,7 +236,7 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 		_ = store.InsertDownload(&database.DownloadRecord{File: validatedOutputPath, VideoFile: path, Provider: providerName, Language: lang, MatchScore: matchScore})
 	}
 	// Post-processing: chmod, auto-sync, custom script (all opt-in via config).
-	postprocess.AfterDownload(ctx, validatedOutputPath, path, lang)
+	postprocess.AfterDownload(ctx, validatedOutputPath, path, lang, postprocess.Info{Provider: providerName, Score: matchScore})
 	return nil
 }
 

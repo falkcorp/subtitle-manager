@@ -224,3 +224,28 @@ the repo) under the `whisper:` block, e.g. `whisper.transcribe_url`.
   (powered off) and the other was live; the live address is recorded only in the
   local config.**
   Revise: if the server moves, update `whisper.transcribe_url` in the local config.
+
+---
+
+## W-web (backend) — REST endpoints for the pipeline
+
+Added `pkg/webserver/pipeline.go`: `/api/library/search` (+ `/status`),
+`/api/dualsub`, `/api/verify`.
+
+- **D-web.1 `verify` takes server-side paths (JSON), not uploads.**
+  Why: uploading a full movie over HTTP is impractical; the library already holds
+  local paths. Paths are validated with `ValidateAndSanitizePath`.
+  Revise: add an upload variant for ad-hoc files if needed.
+
+- **D-web.2 `verify` runs synchronously; `library-search` runs async with a
+  status endpoint.**
+  Why: verify is a single on-demand action (the UI shows a spinner); a library
+  sweep is long-running and multi-item, so it mirrors `library/scan`'s async
+  status pattern.
+  Revise: move verify to the task framework if long verifies block the UI.
+
+- **D-web.3 `dualsub` uploads a subtitle file and streams back the `.eo.srt`.**
+  Why: subtitles are small; mirrors the existing `/api/translate` handler.
+
+- **D-web.4 All three require the `basic` role (same as scan/translate).**
+  Revise: tighten to a dedicated role if desired.

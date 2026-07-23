@@ -1,5 +1,5 @@
 // file: pkg/postprocess/postprocess.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: e05a04c4-5ff1-4ed0-8c91-3b114e2a3d94
 
 // Package postprocess implements the Bazarr-style post-processing pipeline that
@@ -61,11 +61,21 @@ func EncodeUTF8IfEnabled(data []byte) []byte {
 	return EncodeUTF8(data)
 }
 
+// Info carries optional metadata about the download for the custom
+// post-processing script and its score-threshold gate.
+type Info struct {
+	// Provider is the subtitle provider name (may be empty).
+	Provider string
+	// Score is the normalized quality score in [0,1], or nil when unknown.
+	Score *float64
+}
+
 // AfterDownload runs the post-write steps (chmod, auto-sync, custom script) on a
 // subtitle that has just been written for the given media file. Each step is
 // gated by config and errors are logged, not returned, so post-processing never
-// fails a completed download.
-func AfterDownload(ctx context.Context, subtitlePath, mediaPath, lang string) {
+// fails a completed download. info supplies the provider and score exposed to
+// the custom script and the score-threshold gate.
+func AfterDownload(ctx context.Context, subtitlePath, mediaPath, lang string, info Info) {
 	logger := logging.GetLogger("postprocess")
 
 	if mode := viper.GetString("postprocess.chmod"); mode != "" {
@@ -85,10 +95,23 @@ func AfterDownload(ctx context.Context, subtitlePath, mediaPath, lang string) {
 	}
 
 	if script := viper.GetString("postprocess.custom_script"); script != "" {
-		if err := runScript(ctx, script, subtitlePath, mediaPath, lang); err != nil {
+		if scoreBelowThreshold(info.Score) {
+			logger.Debugf("skipping custom script: score below postprocess.score_threshold")
+		} else if err := runScript(ctx, script, subtitlePath, mediaPath, lang, info); err != nil {
 			logger.Warnf("custom script: %v", err)
 		}
 	}
+}
+
+// scoreBelowThreshold reports whether a known score is below the configured
+// postprocess.score_threshold (0-100). An unset threshold, or an unknown score,
+// never gates.
+func scoreBelowThreshold(score *float64) bool {
+	threshold := viper.GetInt("postprocess.score_threshold")
+	if threshold <= 0 || score == nil {
+		return false
+	}
+	return *score*100 < float64(threshold)
 }
 
 // autoSync synchronizes subtitlePath to mediaPath (using embedded subtitles as
@@ -110,12 +133,18 @@ func autoSync(mediaPath, subtitlePath string) error {
 // runScript executes the configured shell command, passing the subtitle, media
 // and language via environment variables (SM_SUBTITLE_PATH / SM_MEDIA_PATH /
 // SM_LANG) so paths are never interpolated into the command string.
-func runScript(ctx context.Context, script, subtitlePath, mediaPath, lang string) error {
+func runScript(ctx context.Context, script, subtitlePath, mediaPath, lang string, info Info) error {
+	score := ""
+	if info.Score != nil {
+		score = strconv.Itoa(int(*info.Score * 100))
+	}
 	cmd := exec.CommandContext(ctx, "sh", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"SM_SUBTITLE_PATH="+subtitlePath,
 		"SM_MEDIA_PATH="+mediaPath,
 		"SM_LANG="+lang,
+		"SM_PROVIDER="+info.Provider,
+		"SM_SCORE="+score,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

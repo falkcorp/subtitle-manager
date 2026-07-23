@@ -62,7 +62,7 @@ func TestAfterDownloadChmodAndScript(t *testing.T) {
 	// Script records the env vars it received.
 	viper.Set("postprocess.custom_script", "printf '%s|%s|%s' \"$SM_SUBTITLE_PATH\" \"$SM_MEDIA_PATH\" \"$SM_LANG\" > "+marker)
 
-	AfterDownload(context.Background(), sub, filepath.Join(dir, "movie.mkv"), "en")
+	AfterDownload(context.Background(), sub, filepath.Join(dir, "movie.mkv"), "en", Info{})
 
 	fi, err := os.Stat(sub)
 	if err != nil {
@@ -78,5 +78,57 @@ func TestAfterDownloadChmodAndScript(t *testing.T) {
 	want := sub + "|" + filepath.Join(dir, "movie.mkv") + "|en"
 	if string(data) != want {
 		t.Fatalf("script env mismatch: got %q want %q", data, want)
+	}
+}
+
+// TestAfterDownloadProviderScoreVars verifies SM_PROVIDER and SM_SCORE are
+// exposed to the custom script.
+func TestAfterDownloadProviderScoreVars(t *testing.T) {
+	defer viper.Reset()
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "movie.en.srt")
+	if err := os.WriteFile(sub, []byte("1\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	marker := filepath.Join(dir, "vars.txt")
+	viper.Set("postprocess.custom_script", "printf '%s|%s' \"$SM_PROVIDER\" \"$SM_SCORE\" > "+marker)
+
+	score := 0.87
+	AfterDownload(context.Background(), sub, filepath.Join(dir, "movie.mkv"), "en", Info{Provider: "opensubtitles", Score: &score})
+
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("script did not run: %v", err)
+	}
+	if string(data) != "opensubtitles|87" {
+		t.Fatalf("unexpected provider/score vars: %q", data)
+	}
+}
+
+// TestAfterDownloadScoreThreshold verifies the custom script is skipped when the
+// score is below postprocess.score_threshold.
+func TestAfterDownloadScoreThreshold(t *testing.T) {
+	defer viper.Reset()
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "movie.en.srt")
+	if err := os.WriteFile(sub, []byte("1\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	marker := filepath.Join(dir, "ran.txt")
+	viper.Set("postprocess.custom_script", "touch "+marker)
+	viper.Set("postprocess.score_threshold", 80)
+
+	// Below threshold → skipped.
+	low := 0.50
+	AfterDownload(context.Background(), sub, filepath.Join(dir, "movie.mkv"), "en", Info{Score: &low})
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("script should be skipped below score threshold")
+	}
+
+	// At/above threshold → runs.
+	high := 0.90
+	AfterDownload(context.Background(), sub, filepath.Join(dir, "movie.mkv"), "en", Info{Score: &high})
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("script should run above threshold: %v", err)
 	}
 }

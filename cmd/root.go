@@ -357,6 +357,12 @@ func initConfig() {
 	if u := viper.GetString("openai_api_url"); u != "" {
 		transcriber.SetBaseURL(u)
 	}
+	// The transcription model applies to the OpenAI-compatible path only; the
+	// self-hosted whisper.transcribe_url (/asr) server's model is fixed at its
+	// own startup and cannot be selected per-request.
+	if m := viper.GetString("whisper.transcribe_model"); m != "" {
+		transcriber.SetWhisperModel(m)
+	}
 	// Initialize Whisper container defaults
 	transcriber.SetDefaultConfig()
 	if u := viper.GetString("anticaptcha.api_url"); u != "" {

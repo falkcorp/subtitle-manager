@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/jdfalk/subtitle-manager/pkg/arr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
@@ -23,12 +22,13 @@ type Client struct {
 	client  *http.Client
 }
 
-// NewClient returns a configured Radarr API client.
+// NewClient returns a configured Radarr API client. The request timeout is read
+// from integrations.radarr.timeout (seconds), defaulting to 30s.
 func NewClient(baseURL, apiKey string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		APIKey:  apiKey,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{Timeout: arr.Timeout("integrations.radarr")},
 	}
 }
 

@@ -8,7 +8,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import { useEffect, useState } from 'react';
 import { apiService } from './services/api.js';
 

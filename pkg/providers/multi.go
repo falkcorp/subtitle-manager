@@ -1,3 +1,7 @@
+// file: pkg/providers/multi.go
+// version: 1.1.0
+// guid: 2f8c1a05-6d43-4b79-9e20-3a7c5d8b0164
+
 package providers
 
 import (
@@ -31,7 +35,14 @@ func FetchFromAll(ctx context.Context, mediaPath, lang, key string) ([]byte, str
 			if ctx.Err() != nil {
 				return nil, "", ctx.Err()
 			}
-			time.Sleep(time.Duration(i+1) * delay)
+			// Context-aware inter-provider delay so a cancelled or bounded
+			// context aborts immediately instead of blocking on a blind sleep
+			// (this matches the instance-based loops below).
+			select {
+			case <-time.After(time.Duration(i+1) * delay):
+			case <-ctx.Done():
+				return nil, "", ctx.Err()
+			}
 		}
 		return nil, "", fmt.Errorf("no subtitle found")
 	}

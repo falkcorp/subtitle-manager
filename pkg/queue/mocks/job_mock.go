@@ -7,7 +7,7 @@ package mocks
 import (
 	"context"
 
-	queue "github.com/falkcorp/gcommon/v2/pkg/queuepb/v2"
+	queue "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/queuepb/v2"
 	queue0 "github.com/jdfalk/subtitle-manager/pkg/queue"
 	mock "github.com/stretchr/testify/mock"
 )

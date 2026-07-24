@@ -1,5 +1,5 @@
 // file: pkg/gcommonlog/logrus_provider.go
-// version: 2.0.0
+// version: 2.0.1
 // guid: a1e4bca3-27a2-4e4a-9d4c-1c2f3b4d5e6f
 
 package gcommonlog
@@ -8,7 +8,7 @@ import (
 	"context"
 	"io"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/sirupsen/logrus"
 )
 

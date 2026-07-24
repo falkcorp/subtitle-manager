@@ -1,5 +1,5 @@
 // file: pkg/database/pb_conversions.go
-// version: 4.0.0
+// version: 4.0.1
 // guid: c9cf2d1a-c284-46f4-90d1-70925cbe8b27
 
 package database
@@ -7,7 +7,7 @@ package database
 import (
 	"time"
 
-	database "github.com/falkcorp/gcommon/v2/pkg/databasepb/v2"
+	database "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/databasepb/v2"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"

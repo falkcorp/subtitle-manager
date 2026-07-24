@@ -1,5 +1,5 @@
 // file: pkg/queue/jobs.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 123e4567-e89b-12d3-a456-426614174001
 package queue
 
@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	queue "github.com/falkcorp/gcommon/v2/pkg/queuepb/v2"
+	queue "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/queuepb/v2"
 	jobpb "github.com/jdfalk/subtitle-manager/pkg/jobpb"
 	"github.com/jdfalk/subtitle-manager/pkg/subtitles"
 	"google.golang.org/protobuf/types/known/anypb"

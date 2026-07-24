@@ -1,5 +1,5 @@
 // file: pkg/database/migration_test.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 7b4d4003-442f-4395-b208-c375162f6fea
 
 package database
@@ -7,7 +7,7 @@ package database
 import (
 	"testing"
 
-	database "github.com/falkcorp/gcommon/v2/pkg/databasepb/v2"
+	database "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/databasepb/v2"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

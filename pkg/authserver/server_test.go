@@ -1,5 +1,5 @@
 // file: pkg/authserver/server_test.go
-// version: 1.2.0
+// version: 1.2.1
 // guid: c5c8d260-2641-45dc-80d2-4dbb941bdb7e
 
 package authserver
@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	authpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	authpb "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	gauth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"github.com/jdfalk/subtitle-manager/pkg/testutil"
 )

@@ -1,5 +1,5 @@
 // file: pkg/monitoring/monitor_test.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 12345678-1234-1234-1234-123456789015
 
 package monitoring
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	gcommon "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	gcommon "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 )
 

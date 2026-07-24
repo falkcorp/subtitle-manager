@@ -1,5 +1,5 @@
 // file: pkg/config/config_test.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: b1c2d3e4-f5g6-h7i8-j9k0-l1m2n3o4p5q6
 
 package config
@@ -7,7 +7,7 @@ package config
 import (
 	"testing"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 )
 
 func TestLogLevelMigration(t *testing.T) {

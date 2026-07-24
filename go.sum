@@ -1,5 +1,9 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260709200747-435963d16310.1 h1:fXh8CsdNpjRr8R5vFdqtIxPt/Lno2IIJlYOdZBIZn0w=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260709200747-435963d16310.1/go.mod h1:tvtbpgaVXZX4g6Pn+AnzFycuRK3MOz5HJfEGeEllXYM=
+buf.build/gen/go/falkcorp/gcommon/grpc/go v1.6.2-20260724201220-436a1c85f680.1 h1:E9vOWFKEGcXyW/Yu8A3Gq1EqlYY/GZvABCfSH9co00A=
+buf.build/gen/go/falkcorp/gcommon/grpc/go v1.6.2-20260724201220-436a1c85f680.1/go.mod h1:nvBXUUm68exBwtYaie7LA6tQ7nVDKXN9R8aiit7PAiA=
+buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go v1.36.11-20260724201220-436a1c85f680.1 h1:lAE0Iw/BvAX7HaGEc4YcCgZdxMKfYLDlBjQr02eebrw=
+buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go v1.36.11-20260724201220-436a1c85f680.1/go.mod h1:dtDgw7/U0x0zlqnHmzIZxPSFrriuxqHEdeD0sYJUpWc=
 cel.dev/expr v0.25.1 h1:1KrZg61W6TWSxuNZ37Xy49ps13NUovb66QLprthtwi4=
 cel.dev/expr v0.25.1/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
@@ -119,8 +123,6 @@ github.com/envoyproxy/go-control-plane/ratelimit v0.1.0 h1:/G9QYbddjL25KvtKTv3an
 github.com/envoyproxy/go-control-plane/ratelimit v0.1.0/go.mod h1:Wk+tMFAFbCXaJPzVVHnPgRKdUdwW/KdbRt94AzgRee4=
 github.com/envoyproxy/protoc-gen-validate v1.3.3 h1:MVQghNeW+LZcmXe7SY1V36Z+WFMDjpqGAGacLe2T0ds=
 github.com/envoyproxy/protoc-gen-validate v1.3.3/go.mod h1:TsndJ/ngyIdQRhMcVVGDDHINPLWB7C82oDArY51KfB0=
-github.com/falkcorp/gcommon/v2 v2.2.0 h1:JA2M4TjrzLGKDiE0t4Zi4bQ2pF4Q32BkfnuqaLRUU0w=
-github.com/falkcorp/gcommon/v2 v2.2.0/go.mod h1:wcMCkqihnHMbpQ2lDDk1UqLbk/k8lySxTUxS5QyZ+FA=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=

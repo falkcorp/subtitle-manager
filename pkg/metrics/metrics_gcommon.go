@@ -1,7 +1,7 @@
 //go:build gcommonmetrics
 
 // file: pkg/metrics/metrics_gcommon.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 0d1e2f3a-4b5c-6d7e-8f9a-0b1c2d3e4f5g
 
 package metrics
@@ -9,7 +9,7 @@ package metrics
 import (
 	"context"
 
-	gmetrics "github.com/falkcorp/gcommon/v2/pkg/metricspb/v2"
+	gmetrics "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/metricspb/v2"
 )
 
 var (

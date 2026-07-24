@@ -1,5 +1,5 @@
 // file: pkg/queue/queue_test.go
-// version: 1.1.1
+// version: 1.1.2
 // guid: 123e4567-e89b-12d3-a456-426614174003
 package queue
 
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	gqueue "github.com/falkcorp/gcommon/v2/pkg/queuepb/v2"
+	gqueue "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/queuepb/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

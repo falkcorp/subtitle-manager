@@ -1,5 +1,5 @@
 // file: pkg/media/client.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 789e4567-e89b-12d3-a456-426614174111
 
 // Package media provides client implementations for media processing services
@@ -13,15 +13,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	mediapb "github.com/falkcorp/gcommon/v2/pkg/mediapb/v2"
+	mediagrpc "buf.build/gen/go/falkcorp/gcommon/grpc/go/mediapb/v2/mediav2grpc"
+	mediapb "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/mediapb/v2"
 )
 
 // Client wraps gRPC clients for media services
 type Client struct {
-	mediaService      mediapb.MediaServiceClient
-	subtitleService   mediapb.SubtitleServiceClient
-	processingService mediapb.MediaProcessingServiceClient
-	audioService      mediapb.AudioServiceClient
+	mediaService      mediagrpc.MediaServiceClient
+	subtitleService   mediagrpc.SubtitleServiceClient
+	processingService mediagrpc.MediaProcessingServiceClient
+	audioService      mediagrpc.AudioServiceClient
 	conn              *grpc.ClientConn
 }
 
@@ -33,10 +34,10 @@ func NewClient(serverAddr string) (*Client, error) {
 	}
 
 	return &Client{
-		mediaService:      mediapb.NewMediaServiceClient(conn),
-		subtitleService:   mediapb.NewSubtitleServiceClient(conn),
-		processingService: mediapb.NewMediaProcessingServiceClient(conn),
-		audioService:      mediapb.NewAudioServiceClient(conn),
+		mediaService:      mediagrpc.NewMediaServiceClient(conn),
+		subtitleService:   mediagrpc.NewSubtitleServiceClient(conn),
+		processingService: mediagrpc.NewMediaProcessingServiceClient(conn),
+		audioService:      mediagrpc.NewAudioServiceClient(conn),
 		conn:              conn,
 	}, nil
 }

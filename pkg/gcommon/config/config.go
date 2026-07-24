@@ -1,5 +1,5 @@
 // file: pkg/gcommon/config/config.go
-// version: 1.2.0
+// version: 1.2.1
 // guid: af6f4b9b-3c1b-4c2e-99f5-d45e6b7c8d9e
 
 package config
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

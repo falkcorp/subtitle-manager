@@ -1,5 +1,5 @@
 // file: pkg/gcommon/subtitle_format.go
-// version: 1.1.0
+// version: 1.1.1
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
 
 package gcommon
@@ -7,7 +7,7 @@ package gcommon
 import (
 	"strings"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 )
 
 // SubtitleFormatHelper provides utilities for working with gcommon subtitle format enums

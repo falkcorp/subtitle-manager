@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.6.0 -->
+<!-- version: 1.7.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-23 -->
+<!-- last-edited: 2026-07-24 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -18,7 +18,8 @@ plumbing exists but the behaviour is not wired into the live path.
 GETs a fictional `https://api.<name>.com/subtitles/<file>/<lang>` endpoint
 (`pkg/providers/*/*.go`). Real integrations: **opensubtitles** (hash + REST),
 **napiprojekt** (keyless hash protocol), **gestdown** (keyless Addic7ed REST
-proxy, TV-only), plus **embedded** (ffmpeg track extraction) and the
+proxy, TV-only), **podnapisi** (keyless advanced-search JSON API, movies + TV),
+plus **embedded** (ffmpeg track extraction) and the
 configurable **generic** / **whisper** HTTP pass-throughs. Bazarr's provider
 breadth comes from Python's `subliminal`; porting dozens of real scrapers to Go
 is a large, separate effort.
@@ -35,11 +36,12 @@ is a large, separate effort.
 Porting the remaining stubs splits into three buckets:
 
 - **Keyless / anonymous (implementable & unit-testable now):** hash- or
-  anonymous-search services that need no account. `napiprojekt` (hash protocol)
-  and `gestdown` (Addic7ed REST proxy, filename→episode via `pkg/metadata`) are
-  done as the reference implementations. A handful of others are theoretically keyless but
-  rely on **fragile HTML scraping of live sites** (e.g. `podnapisi`,
-  `yifysubtitles`, `subscene`), which cannot be implemented correctly or tested
+  anonymous-search services that need no account. `napiprojekt` (hash protocol),
+  `gestdown` (Addic7ed REST proxy, filename→episode via `pkg/metadata`), and
+  `podnapisi` (advanced-search JSON API, movies + TV) are done as the reference
+  implementations. A handful of others are theoretically keyless but
+  rely on **fragile HTML scraping of live sites** (e.g. `yifysubtitles`,
+  `subscene`), which cannot be implemented correctly or tested
   offline without replicating each site's exact markup — high effort, brittle.
 - **Credential-gated (BLOCKED — needs the operator):** the majority require an
   account, API key, or paid tier the agent cannot obtain — e.g. `addic7ed`,
@@ -51,7 +53,8 @@ Porting the remaining stubs splits into three buckets:
   be scoped deliberately, provider by provider.
 
 **Net:** automatic search/download works through **opensubtitles**,
-**napiprojekt**, and **gestdown** (TV episodes) today; `embedded` covers muxed
+**napiprojekt**, **gestdown** (TV episodes), and **podnapisi** (movies + TV)
+today; `embedded` covers muxed
 tracks. Going materially further
 requires either operator-supplied credentials or a deliberate, funded scraping
 effort — it is not fully achievable autonomously.

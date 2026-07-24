@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.5.0 -->
+<!-- version: 1.6.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-23 -->
 
@@ -14,21 +14,30 @@ plumbing exists but the behaviour is not wired into the live path.
 
 ## The load-bearing caveat: the provider layer
 
-**~50 of ~55 registered subtitle providers are non-functional stubs** — each
+**~49 of ~55 registered subtitle providers are non-functional stubs** — each
 GETs a fictional `https://api.<name>.com/subtitles/<file>/<lang>` endpoint
 (`pkg/providers/*/*.go`). Real integrations: **opensubtitles** (hash + REST),
-**napiprojekt** (keyless hash protocol), plus **embedded** (ffmpeg track
-extraction) and the configurable **generic** / **whisper** HTTP pass-throughs.
-Bazarr's provider breadth comes from Python's `subliminal`; porting dozens of
-real scrapers to Go is a large, separate effort.
+**napiprojekt** (keyless hash protocol), **gestdown** (keyless Addic7ed REST
+proxy, TV-only), plus **embedded** (ffmpeg track extraction) and the
+configurable **generic** / **whisper** HTTP pass-throughs. Bazarr's provider
+breadth comes from Python's `subliminal`; porting dozens of real scrapers to Go
+is a large, separate effort.
+
+> **Note for the Phase 2 credential work:** the `opensubtitlescom` package
+> (the `.com` REST v1 provider) is still a *stub* hitting a fictional
+> `api.opensubtitlescom.com` host — despite the build-out prompt calling it
+> "already implemented". The real, working OpenSubtitles integration is the
+> classic `opensubtitles` package. Trust the code, not the prompt's
+> "already implemented" claims, for each Phase 2 provider.
 
 ### The provider boundary (what can be done autonomously vs. what needs you)
 
 Porting the remaining stubs splits into three buckets:
 
 - **Keyless / anonymous (implementable & unit-testable now):** hash- or
-  anonymous-search services that need no account. `napiprojekt` is done as the
-  reference implementation. A handful of others are theoretically keyless but
+  anonymous-search services that need no account. `napiprojekt` (hash protocol)
+  and `gestdown` (Addic7ed REST proxy, filename→episode via `pkg/metadata`) are
+  done as the reference implementations. A handful of others are theoretically keyless but
   rely on **fragile HTML scraping of live sites** (e.g. `podnapisi`,
   `yifysubtitles`, `subscene`), which cannot be implemented correctly or tested
   offline without replicating each site's exact markup — high effort, brittle.
@@ -41,8 +50,9 @@ Porting the remaining stubs splits into three buckets:
   no stable API; porting them is the bulk of the `subliminal` effort and should
   be scoped deliberately, provider by provider.
 
-**Net:** automatic search/download works through **opensubtitles** and
-**napiprojekt** today; `embedded` covers muxed tracks. Going materially further
+**Net:** automatic search/download works through **opensubtitles**,
+**napiprojekt**, and **gestdown** (TV episodes) today; `embedded` covers muxed
+tracks. Going materially further
 requires either operator-supplied credentials or a deliberate, funded scraping
 effort — it is not fully achievable autonomously.
 
@@ -64,7 +74,7 @@ effort — it is not fully achievable autonomously.
 ### Search / download / upgrade engine
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Provider registry breadth | 🔴 | ~50 stubs; 2 real (opensubtitles, napiprojekt) + embedded |
+| Provider registry breadth | 🔴 | ~49 stubs; 3 real (opensubtitles, napiprojekt, gestdown) + embedded |
 | Whisper fallback (transcribe when no provider match) | ✅ | `whisper.fallback_enabled` (`pkg/scanner.whisperFallback`) |
 | Automatic "wanted" search loop (scheduled) | 🟡 | monitor skeleton; score gate now available |
 | Manual search (ranked candidates) | 🟡 | `/api/search`; only opensubtitles implements `Searcher` |

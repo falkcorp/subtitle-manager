@@ -1,5 +1,5 @@
 // file: pkg/gcommon/subtitle_format_test.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6e
 
 package gcommon
@@ -7,7 +7,7 @@ package gcommon
 import (
 	"testing"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/stretchr/testify/assert"
 )
 

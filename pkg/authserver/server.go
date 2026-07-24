@@ -1,5 +1,5 @@
 // file: pkg/authserver/server.go
-// version: 1.1.0
+// version: 1.1.1
 // guid: d14bd9a1-4b55-4b57-bffc-4adc165ebd1a
 
 package authserver
@@ -10,16 +10,17 @@ import (
 	"strconv"
 	"time"
 
-	authpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	commongrpc "buf.build/gen/go/falkcorp/gcommon/grpc/go/commonpb/v2/commonv2grpc"
+	authpb "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	gauth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Server implements authpb.AuthServiceServer using the local database
+// Server implements commongrpc.AuthServiceServer using the local database
 // and gcommonauth helpers.
 type Server struct {
 	DB *sql.DB
-	authpb.UnimplementedAuthServiceServer
+	commongrpc.UnimplementedAuthServiceServer
 }
 
 // NewServer creates a new Server instance.

@@ -1,5 +1,5 @@
 // file: pkg/media/server.go
-// version: 1.2.0
+// version: 1.2.1
 // guid: 9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d
 
 package media
@@ -13,9 +13,10 @@ import (
 	"strings"
 	"time"
 
+	mediagrpc "buf.build/gen/go/falkcorp/gcommon/grpc/go/mediapb/v2/mediav2grpc"
+	media "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/mediapb/v2"
 	"github.com/asticode/go-astisub"
 	"github.com/google/uuid"
-	media "github.com/falkcorp/gcommon/v2/pkg/mediapb/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -28,13 +29,13 @@ import (
 
 // MediaServiceServer implements the media service gRPC server
 type MediaServiceServer struct {
-	media.UnimplementedMediaServiceServer
+	mediagrpc.UnimplementedMediaServiceServer
 	fileStorage *FileStorage
 }
 
 // SubtitleServiceServer implements the subtitle service gRPC server
 type SubtitleServiceServer struct {
-	media.UnimplementedSubtitleServiceServer
+	mediagrpc.UnimplementedSubtitleServiceServer
 	fileStorage *FileStorage
 }
 
@@ -589,10 +590,10 @@ func (s *MediaServiceServer) UploadMedia(ctx context.Context, req *media.UploadM
 
 // NewServer creates a new server instance
 type Server struct {
-	media.UnimplementedMediaServiceServer
-	media.UnimplementedSubtitleServiceServer
-	media.UnimplementedMediaProcessingServiceServer
-	media.UnimplementedAudioServiceServer
+	mediagrpc.UnimplementedMediaServiceServer
+	mediagrpc.UnimplementedSubtitleServiceServer
+	mediagrpc.UnimplementedMediaProcessingServiceServer
+	mediagrpc.UnimplementedAudioServiceServer
 
 	// Configuration
 	mediaRoot    string

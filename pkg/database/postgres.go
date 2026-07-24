@@ -1,5 +1,5 @@
 // file: pkg/database/postgres.go
-// version: 1.1.0
+// version: 1.1.1
 // guid: 29e61686-4676-4b4a-b4be-b0cb294239a3
 // last-edited: 2026-07-23
 
@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	_ "github.com/lib/pq"
 )
 

@@ -1,5 +1,5 @@
 // file: pkg/gcommon/config/config_test.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: af6f4b9b-3c1b-4c2e-99f5-d45e6b7c8d9f
 
 package config
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"

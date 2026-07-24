@@ -1,5 +1,5 @@
 // file: pkg/authserver/oauth_flow_test.go
-// version: 1.2.0
+// version: 1.2.1
 // guid: e8f7d6c5-b4a3-9281-7f6e-5d4c3b2a1908
 
 package authserver
@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	authpb "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	authpb "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	gauth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"github.com/jdfalk/subtitle-manager/pkg/testutil"
 )

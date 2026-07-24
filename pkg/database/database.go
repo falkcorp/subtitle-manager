@@ -52,7 +52,7 @@ import (
 	"strconv"
 	"time"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/spf13/viper"
 )
 

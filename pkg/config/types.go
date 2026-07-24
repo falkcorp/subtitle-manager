@@ -1,5 +1,5 @@
 // file: pkg/config/types.go
-// version: 1.1.0
+// version: 1.1.1
 // guid: a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6
 
 package config
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 )
 
 // LogLevel is now an alias for gcommon LogLevel to maintain compatibility

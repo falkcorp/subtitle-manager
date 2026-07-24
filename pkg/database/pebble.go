@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/cockroachdb/pebble"
 	"github.com/google/uuid"
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	profilesPkg "github.com/jdfalk/subtitle-manager/pkg/profiles"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

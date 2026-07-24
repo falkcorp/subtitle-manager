@@ -1,5 +1,5 @@
 // file: pkg/gcommonlog/logrus_provider_test.go
-// version: 2.0.0
+// version: 2.0.1
 // guid: 3456b7c8-9d0e-4f12-8b34-5a6c7d8e9f01
 package gcommonlog
 
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 )
 
 // TestLogrusProvider verifies that the provider writes log messages and fields.

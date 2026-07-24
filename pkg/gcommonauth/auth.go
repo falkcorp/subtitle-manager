@@ -1,5 +1,5 @@
 // file: pkg/gcommonauth/auth.go
-// version: 2.0.0
+// version: 2.0.1
 // guid: ec8f6814-42cc-41ab-956a-a0ee798664a4
 package gcommonauth
 
@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/google/uuid"
-	common "github.com/falkcorp/gcommon/v2/pkg/commonpb/v2"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

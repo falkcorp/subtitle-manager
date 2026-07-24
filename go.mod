@@ -3,6 +3,8 @@ module github.com/jdfalk/subtitle-manager
 go 1.25.0
 
 require (
+	buf.build/gen/go/falkcorp/gcommon/grpc/go v1.6.2-20260724201220-436a1c85f680.1
+	buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go v1.36.11-20260724201220-436a1c85f680.1
 	cloud.google.com/go/storage v1.60.0
 	cloud.google.com/go/translate v1.12.7
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
@@ -11,7 +13,6 @@ require (
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
-	github.com/falkcorp/gcommon/v2 v2.2.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.11.1
@@ -86,6 +87,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect

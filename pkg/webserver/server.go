@@ -138,12 +138,30 @@ func setupHandler(db *sql.DB) http.Handler {
 
 // Handler returns an http.Handler that serves the embedded web UI.
 func Handler(db *sql.DB) (http.Handler, error) {
+	mux, _, err := newMux(db)
+	if err != nil {
+		return nil, err
+	}
+	return securityHeadersMiddleware(mux), nil
+}
+
+// newMux builds the route table and returns it with the configured base-URL
+// prefix.
+//
+// It is split out from Handler so tests can ask http.ServeMux.Handler which
+// pattern a given path matches. That is the only reliable way to assert an API
+// route is mounted: an unmounted /api/... path is absorbed by the SPA
+// catch-all, and what that returns depends on the build — 200 with index.html
+// when webui/dist is populated, 404 when it is empty in tests. Asserting on the
+// response therefore silently passes in CI while the route is broken in
+// production.
+func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	// Initialize webhook system
 	initializeWebhooks()
 
 	f, err := fs.Sub(webui.FS, "dist")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	prefix := strings.Trim(viper.GetString("base_url"), "/")
 	if prefix != "" {
@@ -256,7 +274,27 @@ func Handler(db *sql.DB) (http.Handler, error) {
 	mux.Handle(prefix+"/api/series/", authMiddleware(db, "basic", universalTagsHandler(db)))
 	mux.Handle(prefix+"/api/languages/", authMiddleware(db, "admin", universalTagsHandler(db)))
 
-	// Language profiles management
+	// Language profiles management.
+	//
+	// These handlers existed and were unit-tested but were never mounted, so
+	// every request fell through to the SPA catch-all below and returned
+	// index.html with a 200. The frontend's `res.ok` check passed, the
+	// subsequent res.json() threw, and the Languages settings page silently
+	// rendered as empty. Permission is "basic" to match /api/config rather
+	// than the "admin" used for tags: language profiles are settings the
+	// media pages also read to render profile dropdowns.
+	mux.Handle(prefix+"/api/profiles", authMiddleware(db, "basic", profilesHandler(db)))
+	mux.Handle(prefix+"/api/profiles/", authMiddleware(db, "basic", profilesHandler(db)))
+	mux.Handle(prefix+"/api/media/profile/", authMiddleware(db, "basic", mediaProfilesHandler(db)))
+
+	// The frontend calls /api/language-profiles; the handler and its ID
+	// extraction are written against /api/profiles. Alias rather than
+	// duplicate, so a single implementation serves both spellings.
+	mux.Handle(prefix+"/api/language-profiles", authMiddleware(db, "basic",
+		rewritePrefix("/api/language-profiles", "/api/profiles", profilesHandler(db))))
+	mux.Handle(prefix+"/api/language-profiles/", authMiddleware(db, "basic",
+		rewritePrefix("/api/language-profiles", "/api/profiles", profilesHandler(db))))
+
 	// Prometheus metrics endpoint (no authentication required for monitoring)
 	mux.Handle(prefix+"/metrics", promhttp.Handler())
 
@@ -266,7 +304,7 @@ func Handler(db *sql.DB) (http.Handler, error) {
 
 	fsHandler := spaFileServer(f)
 	mux.Handle(prefix+"/", staticFileMiddleware(http.StripPrefix(prefix+"/", fsHandler)))
-	return securityHeadersMiddleware(mux), nil
+	return mux, prefix, nil
 }
 
 // StartServer starts an HTTP server on the given address serving the embedded UI.

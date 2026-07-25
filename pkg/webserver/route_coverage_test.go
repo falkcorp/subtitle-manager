@@ -38,6 +38,21 @@ var frontendAPIPaths = []string{
 	"/api/providers/status",
 }
 
+// knownMissingAPIPaths are paths the web UI calls that have no backend handler
+// at all — not merely unmounted, unwritten.
+//
+// They are listed rather than omitted so this file records the real state of
+// the contract: frontendAPIPaths above is a curated list of routes that should
+// pass, and without this second list a green run would read as "the frontend's
+// API surface is covered" when it means "these ten are". Each entry is skipped
+// with its caller; delete the entry when the handler lands.
+var knownMissingAPIPaths = map[string]string{
+	"/api/wanted":             "Wanted.jsx — Bazarr's wanted list; needs a handler over monitored_items",
+	"/api/bulk-operation":     "MediaLibrary.jsx — bulk media operations",
+	"/api/library/rescan-all": "App.jsx — rescan every library path",
+	"/api/notifications/test": "NotificationSettings.jsx — send a test notification",
+}
+
 // TestFrontendAPIPathsAreMounted verifies no frontend-called API path falls
 // through to the SPA catch-all.
 //
@@ -57,15 +72,23 @@ func TestFrontendAPIPathsAreMounted(t *testing.T) {
 	}
 	catchAll := prefix + "/"
 
+	assertMounted := func(t *testing.T, p string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, prefix+p, nil)
+		if _, pattern := mux.Handler(req); pattern == catchAll {
+			t.Errorf("%s matched the SPA catch-all %q instead of an API route; "+
+				"the web UI calls this path, so it returns index.html with a 200 "+
+				"and the page silently renders empty", p, catchAll)
+		}
+	}
+
 	for _, p := range frontendAPIPaths {
-		t.Run(p, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, prefix+p, nil)
-			_, pattern := mux.Handler(req)
-			if pattern == catchAll {
-				t.Errorf("%s matched the SPA catch-all %q instead of an API route; "+
-					"the web UI calls this path, so it returns index.html with a 200 "+
-					"and the page silently renders empty", p, catchAll)
-			}
+		t.Run(p, func(t *testing.T) { assertMounted(t, p) })
+	}
+
+	for p, why := range knownMissingAPIPaths {
+		t.Run("missing"+p, func(t *testing.T) {
+			t.Skipf("no handler exists: %s", why)
 		})
 	}
 }

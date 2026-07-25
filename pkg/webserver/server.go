@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-07-25
 

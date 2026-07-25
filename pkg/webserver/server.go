@@ -1,6 +1,7 @@
 // file: pkg/webserver/server.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
+// last-edited: 2026-07-25
 
 package webserver
 
@@ -21,6 +22,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/jdfalk/subtitle-manager/pkg/arrnotify"
 	"github.com/jdfalk/subtitle-manager/pkg/bazarr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/events"
@@ -1419,13 +1421,23 @@ func initializeWebhooks() {
 	manager := webhooks.GetGlobalManager()
 	publisher := webhooks.NewWebhookEventPublisher(manager)
 
-	// Compose with a notifications publisher so subtitle events also reach the
-	// operator's configured channels (Discord/Telegram/email/Apprise). When no
-	// channel is configured, notifyPublisher is nil and only webhooks fire.
+	// Compose with the optional subscribers. Each is nil when unconfigured, and
+	// NewMultiPublisher drops nils, so an operator with neither still gets plain
+	// webhook delivery.
+	//   - notifications: subtitle events reach Discord/Telegram/email/Apprise.
+	//   - arrnotify: Sonarr/Radarr are told to rescan the title so the new
+	//     subtitle shows up without waiting for their own scheduled scan.
+	subscribers := []events.EventPublisher{publisher}
 	if np := notificationsPublisherFromConfig(); np != nil {
-		events.SetGlobalPublisher(events.NewMultiPublisher(publisher, np))
-	} else {
+		subscribers = append(subscribers, np)
+	}
+	if ap := arrnotify.NewPublisherFromConfig(); ap != nil {
+		subscribers = append(subscribers, ap)
+	}
+	if len(subscribers) == 1 {
 		events.SetGlobalPublisher(publisher)
+	} else {
+		events.SetGlobalPublisher(events.NewMultiPublisher(subscribers...))
 	}
 
 	// Register incoming webhook handlers with secrets from configuration

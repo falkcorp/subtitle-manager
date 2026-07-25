@@ -1,5 +1,5 @@
 // file: pkg/webserver/profiles.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 0a9b8c7d-6e5f-1a2b-4c3d-7e6f8a9b0c1d
 // last-edited: 2026-07-25
 
@@ -84,12 +84,11 @@ func profilesHandler(db *sql.DB) http.Handler {
 // handleListProfiles returns all language profiles.
 // GET /api/profiles
 func handleListProfiles(w http.ResponseWriter, r *http.Request, db *sql.DB) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	profiles, err := store.ListLanguageProfiles()
 	if err != nil {
@@ -125,12 +124,11 @@ func handleCreateProfile(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		return
 	}
 
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	if err := store.CreateLanguageProfile(ConvertProfilesToDatabase(&profile)); err != nil {
 		http.Error(w, "Failed to create profile", http.StatusInternalServerError)
@@ -145,12 +143,11 @@ func handleCreateProfile(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 // handleGetProfile returns a specific language profile.
 // GET /api/profiles/{id}
 func handleGetProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, profileID string) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	profile, err := store.GetLanguageProfile(profileID)
 	if err != nil {
@@ -185,12 +182,11 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, pro
 		return
 	}
 
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	if err := store.UpdateLanguageProfile(ConvertProfilesToDatabase(&profile)); err != nil {
 		http.Error(w, "Failed to update profile", http.StatusInternalServerError)
@@ -204,12 +200,11 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, pro
 // handleDeleteProfile deletes a language profile.
 // DELETE /api/profiles/{id}
 func handleDeleteProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, profileID string) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	// Check if this is the default profile
 	defaultProfile, err := store.GetDefaultLanguageProfile()
@@ -229,12 +224,11 @@ func handleDeleteProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, pro
 // handleSetDefaultProfile sets a profile as the default.
 // POST /api/profiles/{id}/default
 func handleSetDefaultProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, profileID string) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	if err := store.SetDefaultLanguageProfile(profileID); err != nil {
 		http.Error(w, "Failed to set default profile", http.StatusInternalServerError)
@@ -276,12 +270,11 @@ func mediaProfilesHandler(db *sql.DB) http.Handler {
 // handleGetMediaProfile returns the profile assigned to a media item.
 // GET /api/media/profile/{id}
 func handleGetMediaProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, mediaID string) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	profile, err := store.GetMediaProfile(mediaID)
 	if err != nil {
@@ -310,12 +303,11 @@ func handleAssignMediaProfile(w http.ResponseWriter, r *http.Request, db *sql.DB
 		return
 	}
 
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	// Verify profile exists
 	_, err = store.GetLanguageProfile(request.ProfileID)
@@ -339,12 +331,11 @@ func handleAssignMediaProfile(w http.ResponseWriter, r *http.Request, db *sql.DB
 // handleRemoveMediaProfile removes profile assignment from a media item.
 // DELETE /api/media/profile/{id}
 func handleRemoveMediaProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, mediaID string) {
-	store, err := database.OpenStoreWithConfig()
+	store, err := database.GetSharedStore()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer store.Close()
 
 	if err := store.RemoveProfileFromMedia(mediaID); err != nil {
 		http.Error(w, "Failed to remove profile assignment", http.StatusInternalServerError)
@@ -428,4 +419,3 @@ func rewritePrefix(from, to string, h http.Handler) http.Handler {
 		h.ServeHTTP(w, r2)
 	})
 }
-

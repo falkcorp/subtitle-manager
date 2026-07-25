@@ -1,6 +1,7 @@
 // file: pkg/webserver/profiles_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 1b0c9d8e-7f6e-2a3b-5c4d-8f7e9a0b1c2d
+// last-edited: 2026-07-25
 
 package webserver
 
@@ -9,28 +10,55 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/jdfalk/subtitle-manager/pkg/profiles"
+	"github.com/spf13/viper"
 )
 
+// useTempProfileStore points the profile handlers at a throwaway SQLite
+// database for the duration of the test.
+//
+// The handlers open their own store via database.OpenStoreWithConfig rather
+// than using the *sql.DB passed to them, so the backend has to be configured
+// through viper. The previous tests worked around this by asserting the 500
+// that a missing store produced — locking in a failure rather than testing
+// behaviour, which is why they inverted and started failing once the store
+// opened successfully.
+func useTempProfileStore(t *testing.T) {
+	t.Helper()
+	prevBackend := viper.GetString("db_backend")
+	prevPath := viper.GetString("db_path")
+	t.Cleanup(func() {
+		viper.Set("db_backend", prevBackend)
+		viper.Set("db_path", prevPath)
+	})
+	viper.Set("db_backend", "sqlite")
+	viper.Set("db_path", filepath.Join(t.TempDir(), "profiles.db"))
+}
+
 func TestProfilesHandlerList(t *testing.T) {
-	// This test would require SQLite support which is not available in the test environment
-	// We'll create a basic structure test instead
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
 	handler := profilesHandler(nil)
 
-	req, err := http.NewRequest("GET", "/api/profiles", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	req := httptest.NewRequest(http.MethodGet, "/api/profiles", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	// Expect internal server error due to no SQLite support, but handler should not panic
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected status %d, got %d (body: %s)",
+			http.StatusOK, rr.Code, rr.Body.String())
+	}
+
+	// An empty store must still yield valid JSON the UI can iterate over.
+	var got []profiles.LanguageProfile
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("response is not a JSON profile array: %v (body: %s)",
+			err, rr.Body.String())
 	}
 }
 
@@ -50,20 +78,36 @@ func TestProfilesHandlerCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
 	handler := profilesHandler(nil)
 
-	req, err := http.NewRequest("POST", "/api/profiles", bytes.NewBuffer(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	req := httptest.NewRequest(http.MethodPost, "/api/profiles", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	// Expect internal server error due to no SQLite support, but handler should not panic
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	if rr.Code != http.StatusOK && rr.Code != http.StatusCreated {
+		t.Fatalf("Expected 200 or 201, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
+
+	// The created profile must come back from a subsequent list, otherwise the
+	// write silently went nowhere.
+	listReq := httptest.NewRequest(http.MethodGet, "/api/profiles", nil)
+	listRR := httptest.NewRecorder()
+	handler.ServeHTTP(listRR, listReq)
+
+	var got []profiles.LanguageProfile
+	if err := json.Unmarshal(listRR.Body.Bytes(), &got); err != nil {
+		t.Fatalf("list response is not a JSON profile array: %v", err)
+	}
+	for _, p := range got {
+		if p.Name == "Test Profile" {
+			return
+		}
+	}
+	t.Errorf("created profile %q not present in list (got %d profiles)",
+		"Test Profile", len(got))
 }
 
 func TestProfilesHandlerInvalidJSON(t *testing.T) {
@@ -130,19 +174,22 @@ func TestProfilesHandlerValidation(t *testing.T) {
 }
 
 func TestMediaProfilesHandler(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
 	handler := mediaProfilesHandler(nil)
 
-	req, err := http.NewRequest("GET", "/api/media/profile/123", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	req := httptest.NewRequest(http.MethodGet, "/api/media/profile/123", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	// Expect internal server error due to no SQLite support, but handler should not panic
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	// Media 123 has no assignment. Any answer is acceptable except a 5xx: the
+	// handler must resolve the store and report "no assignment" rather than
+	// fall over. Asserting the exact code would pin down an unspecified
+	// not-found representation.
+	if rr.Code >= 500 {
+		t.Errorf("unassigned media returned server error %d (body: %s)",
+			rr.Code, rr.Body.String())
 	}
 }
 

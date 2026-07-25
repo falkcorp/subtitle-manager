@@ -368,6 +368,11 @@ cookies.txt
 # Task logs
 logs/
 
+# Protobuf output staged by release tooling. The generated .pb.go files are
+# committed under pkg/, so anything dropped here is transient; leaving it
+# untracked made goreleaser abort with "git is in a dirty state".
+proto-generated/
+
 # >>> jdfalk managed ignore block (sync-gitignore.py) >>>
 # AI agent scratch / state (may contain PII, machine paths, secrets)
 .claude/notes/

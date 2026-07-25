@@ -1,6 +1,7 @@
 // file: pkg/webserver/pipeline.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 6e57ab8d-480a-41c5-8d2f-3eab3a966511
+// last-edited: 2026-07-25
 
 package webserver
 
@@ -72,12 +73,12 @@ func librarySearchHandler() http.Handler {
 
 		go func() {
 			logger := logging.GetLogger("library-search")
-			store, err := database.OpenStoreWithConfig()
+			// Shared, so not closed here: see database.GetSharedStore.
+			store, err := database.GetSharedStore()
 			if err != nil {
 				finishLibrarySearch(err)
 				return
 			}
-			defer store.Close()
 			workers := viper.GetInt("scan_workers")
 			if workers < 1 {
 				workers = 4

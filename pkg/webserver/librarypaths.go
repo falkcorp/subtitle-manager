@@ -1,6 +1,7 @@
 // file: pkg/webserver/librarypaths.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 17206a5a-f1bc-4f44-acfa-aa3d7f72f59c
+// last-edited: 2026-07-25
 
 package webserver
 
@@ -69,13 +70,13 @@ func writeLibraryPaths(paths []string) error {
 // viper mutation — e.g. a test's deferred viper.Reset().
 func scanPathAsync(dir string) {
 	logger := logging.GetLogger("library-paths")
-	store, err := database.OpenStoreWithConfig()
+	// Shared, so not closed by the goroutine: see database.GetSharedStore.
+	store, err := database.GetSharedStore()
 	if err != nil {
 		logger.Warnf("scan %s: open store: %v", dir, err)
 		return
 	}
 	go func() {
-		defer store.Close()
 		if err := metadata.ScanLibraryProgress(context.Background(), dir, store, nil); err != nil {
 			logger.Warnf("scan %s: %v", dir, err)
 		}

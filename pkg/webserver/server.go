@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-07-25
 
@@ -402,7 +402,11 @@ func StartServer(addr string) error {
 		viper.GetString("db_cleanup_frequency"))
 
 	// Start Sonarr/Radarr sync tasks when configured
-	if store, err := database.OpenStoreWithConfig(); err == nil {
+	// The shared store, not a private one: this handle lives for the process
+	// lifetime, and on Pebble it holds an exclusive file lock. Opening it
+	// privately here is what made every per-request store open in the handlers
+	// fail with a 500 on Pebble while working on SQLite.
+	if store, err := database.GetSharedStore(); err == nil {
 		// Prune download history older than the configured retention (Bazarr's
 		// history-retention). No-op when history.retention_days is unset/<=0.
 		maintenance.StartHistoryPruning(context.Background(), store,

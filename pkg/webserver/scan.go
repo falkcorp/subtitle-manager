@@ -1,4 +1,8 @@
 // file: pkg/webserver/scan.go
+// version: 1.1.0
+// guid: c025a40c-894d-401d-a68d-a27b7f66c3b6
+// last-edited: 2026-07-25
+
 package webserver
 
 import (
@@ -216,14 +220,14 @@ func libraryScanHandler(db *sql.DB) http.Handler {
 		libStatus = libScanStatus{Running: true, Files: []string{}}
 		libMu.Unlock()
 		go func() {
-			store, err := database.OpenStoreWithConfig()
+			// Shared, so not closed here: see database.GetSharedStore.
+			store, err := database.GetSharedStore()
 			if err != nil {
 				libMu.Lock()
 				libStatus.Running = false
 				libMu.Unlock()
 				return
 			}
-			defer store.Close()
 			cb := func(f string) {
 				libMu.Lock()
 				libStatus.Completed++

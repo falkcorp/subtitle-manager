@@ -1,7 +1,5 @@
 import {
   Add as AddIcon,
-  CheckBox as CheckBoxIcon,
-  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   Delete as DeleteIcon,
   Download as DownloadIcon,
   FilterList as FilterIcon,
@@ -75,6 +73,7 @@ export default function Wanted({ backendAvailable = true }) {
   const [lang, setLang] = useState('en');
   const [results, setResults] = useState([]);
   const [wanted, setWanted] = useState([]);
+  const [wantedError, setWantedError] = useState('');
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -199,30 +198,44 @@ export default function Wanted({ backendAvailable = true }) {
     }
   };
 
-  const add = async url => {
+  // The wanted list tracks *media files* that are missing subtitles, matching
+  // Bazarr. It previously held subtitle download URLs bookmarked from search
+  // results, which is a different concept that Bazarr has no equivalent of and
+  // that no backend ever implemented.
+  const reloadWanted = async () => {
+    const res = await fetch('/api/wanted');
+    if (res.ok) {
+      setWanted((await res.json()) || []);
+    }
+  };
+
+  const add = async (mediaPath, languages) => {
     try {
       const res = await fetch('/api/wanted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ path: mediaPath, languages }),
       });
       if (res.ok) {
-        setWanted([...wanted, url]);
+        await reloadWanted();
+      } else {
+        setWantedError(`Could not monitor ${mediaPath}`);
       }
     } catch (error) {
       console.error('Failed to add to wanted list:', error);
+      setWantedError(`Could not monitor ${mediaPath}`);
     }
   };
 
-  const remove = async url => {
+  const remove = async mediaPath => {
     try {
       const res = await fetch('/api/wanted', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ path: mediaPath }),
       });
       if (res.ok) {
-        setWanted(wanted.filter(item => item !== url));
+        setWanted(wanted.filter(item => item.path !== mediaPath));
       }
     } catch (error) {
       console.error('Failed to remove from wanted list:', error);
@@ -502,6 +515,22 @@ export default function Wanted({ backendAvailable = true }) {
                   >
                     {searching ? 'Searching...' : 'Search'}
                   </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddIcon />}
+                    onClick={() => add(path.trim(), [lang])}
+                    disabled={
+                      !path.trim() ||
+                      wanted.some(item => item.path === path.trim())
+                    }
+                    fullWidth
+                    size="small"
+                    sx={{ mt: 1 }}
+                  >
+                    {wanted.some(item => item.path === path.trim())
+                      ? 'Monitored'
+                      : 'Monitor this file'}
+                  </Button>
                 </Grid>
               </Grid>
 
@@ -769,24 +798,6 @@ export default function Wanted({ backendAvailable = true }) {
                                   <PreviewIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Add to Wanted">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => add(result.downloadUrl)}
-                                  disabled={wanted.includes(result.downloadUrl)}
-                                  color={
-                                    wanted.includes(result.downloadUrl)
-                                      ? 'success'
-                                      : 'default'
-                                  }
-                                >
-                                  {wanted.includes(result.downloadUrl) ? (
-                                    <CheckBoxIcon fontSize="small" />
-                                  ) : (
-                                    <AddIcon fontSize="small" />
-                                  )}
-                                </IconButton>
-                              </Tooltip>
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -807,13 +818,23 @@ export default function Wanted({ backendAvailable = true }) {
                 <WantedIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Wanted List ({wanted.length})
               </Typography>
+              {wantedError && (
+                <Alert
+                  severity="error"
+                  onClose={() => setWantedError('')}
+                  sx={{ mb: 1 }}
+                >
+                  {wantedError}
+                </Alert>
+              )}
               {loading ? (
                 <Box display="flex" justifyContent="center" p={2}>
                   <CircularProgress size={24} />
                 </Box>
               ) : wanted.length === 0 ? (
                 <Alert severity="info">
-                  No items in wanted list. Add subtitles from search results.
+                  Nothing is being monitored. Use &ldquo;Monitor this
+                  file&rdquo; to have subtitles searched for automatically.
                 </Alert>
               ) : (
                 <Paper
@@ -821,20 +842,56 @@ export default function Wanted({ backendAvailable = true }) {
                   sx={{ maxHeight: 400, overflow: 'auto' }}
                 >
                   <List dense>
-                    {wanted.map((url, index) => (
-                      <ListItem key={index} divider={index < wanted.length - 1}>
+                    {wanted.map((item, index) => (
+                      <ListItem
+                        key={item.id || item.path}
+                        divider={index < wanted.length - 1}
+                      >
                         <ListItemText
                           primary={
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontFamily: 'monospace',
-                                fontSize: '0.75rem',
-                                wordBreak: 'break-all',
-                              }}
+                            <Tooltip title={item.path}>
+                              <Typography variant="body2" noWrap>
+                                {item.path.split('/').pop()}
+                              </Typography>
+                            </Tooltip>
+                          }
+                          secondary={
+                            <Box
+                              component="span"
+                              display="flex"
+                              gap={0.5}
+                              alignItems="center"
+                              flexWrap="wrap"
+                              mt={0.5}
                             >
-                              {url}
-                            </Typography>
+                              {(item.languages || []).map(code => (
+                                <Chip
+                                  key={code}
+                                  label={code.toUpperCase()}
+                                  size="small"
+                                />
+                              ))}
+                              <Chip
+                                label={item.status}
+                                size="small"
+                                color={
+                                  item.status === 'found'
+                                    ? 'success'
+                                    : item.status === 'failed' ||
+                                        item.status === 'blacklisted'
+                                      ? 'error'
+                                      : 'default'
+                                }
+                              />
+                              {item.retry_count > 0 && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {item.retry_count}/{item.max_retries} tries
+                                </Typography>
+                              )}
+                            </Box>
                           }
                         />
                         <ListItemSecondaryAction>
@@ -842,7 +899,7 @@ export default function Wanted({ backendAvailable = true }) {
                             edge="end"
                             size="small"
                             color="error"
-                            onClick={() => remove(url)}
+                            onClick={() => remove(item.path)}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>

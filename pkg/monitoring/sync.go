@@ -1,6 +1,7 @@
 // file: pkg/monitoring/sync.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 12345678-1234-1234-1234-123456789013
+// last-edited: 2026-07-25
 
 package monitoring
 
@@ -70,6 +71,17 @@ func (m *EpisodeMonitor) SyncFromRadarr(ctx context.Context, opts SyncOptions) e
 	}
 
 	return nil
+}
+
+// AddToMonitoring adds a single media item to the monitoring ("wanted") list,
+// merging languages if the path is already monitored.
+//
+// Exported for callers outside this package — the web server's /api/wanted
+// handler, which adds a path the operator picked by hand rather than one
+// discovered by a Sonarr/Radarr sync. For a manual add, only Path need be set;
+// MediaID stays empty, as there is no media_items row to link to.
+func (m *EpisodeMonitor) AddToMonitoring(mediaItem database.MediaItem, opts SyncOptions) error {
+	return m.addToMonitoring(mediaItem, opts)
 }
 
 // addToMonitoring adds a media item to the monitoring system.

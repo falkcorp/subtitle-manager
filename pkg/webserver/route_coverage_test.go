@@ -1,5 +1,5 @@
 // file: pkg/webserver/route_coverage_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 6b2c9d41-8f37-4a52-9c60-1d4e7a8b3f05
 // last-edited: 2026-07-25
 
@@ -36,6 +36,7 @@ var frontendAPIPaths = []string{
 	"/api/system",
 	"/api/library/browse",
 	"/api/providers/status",
+	"/api/wanted",
 }
 
 // knownMissingAPIPaths are paths the web UI calls that have no backend handler
@@ -47,7 +48,6 @@ var frontendAPIPaths = []string{
 // API surface is covered" when it means "these ten are". Each entry is skipped
 // with its caller; delete the entry when the handler lands.
 var knownMissingAPIPaths = map[string]string{
-	"/api/wanted":             "Wanted.jsx — Bazarr's wanted list; needs a handler over monitored_items",
 	"/api/bulk-operation":     "MediaLibrary.jsx — bulk media operations",
 	"/api/library/rescan-all": "App.jsx — rescan every library path",
 	"/api/notifications/test": "NotificationSettings.jsx — send a test notification",

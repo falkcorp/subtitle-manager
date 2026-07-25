@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-07-25
 
@@ -283,6 +283,7 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	// rendered as empty. Permission is "basic" to match /api/config rather
 	// than the "admin" used for tags: language profiles are settings the
 	// media pages also read to render profile dropdowns.
+	mux.Handle(prefix+"/api/wanted", authMiddleware(db, "basic", wantedHandler()))
 	mux.Handle(prefix+"/api/profiles", authMiddleware(db, "basic", profilesHandler(db)))
 	mux.Handle(prefix+"/api/profiles/", authMiddleware(db, "basic", profilesHandler(db)))
 	mux.Handle(prefix+"/api/media/profile/", authMiddleware(db, "basic", mediaProfilesHandler(db)))
@@ -481,6 +482,8 @@ func StartServer(addr string) error {
 	logger.Info("starting self test task")
 	selftest.StartPeriodic(context.Background(), db,
 		viper.GetString("selftest_frequency"))
+
+	startMonitoring(context.Background())
 
 	logger.Infof("listening on %s", addr)
 	return http.ListenAndServe(addr, h)

@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.7.0 -->
+<!-- version: 1.8.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-24 -->
+<!-- last-edited: 2026-07-25 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -72,12 +72,12 @@ effort — it is not fully achievable autonomously.
 | Excluded tags / series types | ✅ | `arr.Filters` excluded tags/series-types |
 | Path mappings (arr↔local) applied | ✅ | `arr.Filters.PathMappings` |
 | Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; still hardcoded `en` |
-| Notify *arr to rescan after download | 🔴 | needs media→*arr-id tracking we don't keep |
+| Notify *arr to rescan after download | ✅ | `pkg/arrnotify`; id resolved from path at event time (see note below) |
 
 ### Search / download / upgrade engine
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Provider registry breadth | 🔴 | ~49 stubs; 3 real (opensubtitles, napiprojekt, gestdown) + embedded |
+| Provider registry breadth | 🔴 | ~49 stubs; 4 real (opensubtitles, napiprojekt, gestdown, podnapisi) + embedded |
 | Whisper fallback (transcribe when no provider match) | ✅ | `whisper.fallback_enabled` (`pkg/scanner.whisperFallback`) |
 | Automatic "wanted" search loop (scheduled) | 🟡 | monitor skeleton; score gate now available |
 | Manual search (ranked candidates) | 🟡 | `/api/search`; only opensubtitles implements `Searcher` |
@@ -172,8 +172,27 @@ Backend items only — pure UI and bugfixes excluded.
 
 ### Remaining backend gaps (from the changelog)
 
-- 🔴 **Notify Sonarr/Radarr after download** so they index the new subtitle —
-  needs a media→*arr-item-id mapping we don't currently persist.
+- ✅ **Notify Sonarr/Radarr after download** so they index the new subtitle —
+  implemented in `pkg/arrnotify` as an `events.EventPublisher` subscriber, using
+  the same commands Bazarr sends (`RescanSeries`/`seriesId`,
+  `RescanMovie`/`movieId` on `POST /api/v3/command`). Enabled by default for any
+  enabled *arr; opt out with `integrations.{sonarr,radarr}.rescan_after_download: false`.
+
+  **Design note.** The earlier claim that this "needs a media→*arr-item-id
+  mapping we don't persist" overstated the gap. The id is resolved from the
+  media path at event time instead: the *arr's own folder listing is fetched
+  (cached for 5 minutes, since a library scan can emit hundreds of downloads)
+  and matched by longest containing folder. Matching happens in
+  subtitle-manager's path space — `Filters.MapPath` is applied to the *arr's
+  folders rather than inverted, because `MapPath` is longest-prefix-wins and so
+  not reliably invertible. Ambiguous matches are skipped rather than guessed.
+
+  Persisting `SeriesID`/`MovieID` on `database.MediaItem` was considered and
+  rejected for now: `media_items` is written by hand-rolled SQL in ~15 places
+  across sqlite/postgres/pebble with no migration framework, making a column
+  addition disproportionately wide. The accepted cost is that a rescan is lost
+  (logged, not retried) when the *arr is unreachable at that moment. If that
+  proves to matter, persisting the id becomes a focused follow-up.
 - 🔴 **Real-time (SignalR) sync** with Sonarr v3 / Radarr v3 — large; needs a
   SignalR client. We poll/sync via REST only.
 - 🟡 **Provider throttling** — Bazarr tracks per-provider throttle state and a

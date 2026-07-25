@@ -1,6 +1,7 @@
 # file: .github/workflows/release.yml
-# version: 2.0.1
+# version: 2.1.0
 # guid: 8b4d6c2a-1f5e-4a8b-9c3d-7e2f5a8b1c4d
+# last-edited: 2026-07-25
 
 name: Release
 
@@ -69,4 +70,10 @@ jobs:
       draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft == 'true' || false }}
       prerelease: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.prerelease == 'true' }}
       stable: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.stable == 'true' || false }}
+      # This repository commits its generated .pb.go files (25 of them, under
+      # pkg/), and `go build ./...` succeeds from a clean checkout. Regenerating
+      # protobuf at release time is therefore redundant, and it broke releases
+      # two ways: the generator needs Go >= 1.25 while the action runs 1.23, and
+      # its output directory left the tree dirty so goreleaser refused to build.
+      protobuf-disabled: true
     secrets: inherit

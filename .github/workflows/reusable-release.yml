@@ -1,6 +1,7 @@
 # file: .github/workflows/reusable-release.yml
-# version: 2.14.5
+# version: 2.15.0
 # guid: 7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e
+# last-edited: 2026-07-25
 
 name: Reusable Release Coordinator
 
@@ -59,6 +60,14 @@ on:
         default: false
       protobuf-enabled:
         description: 'Force enable Protobuf builds'
+        required: false
+        type: boolean
+        default: false
+      protobuf-disabled:
+        description: >-
+          Force disable protobuf generation during release. Set this when the
+          repository commits its generated .pb.go files, so regenerating at
+          release time is redundant work that can only introduce skew.
         required: false
         type: boolean
         default: false
@@ -302,12 +311,14 @@ jobs:
           echo "tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
           echo "full-version=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
 
-  # Protocol Buffer Generation (if needed)
+  # Protocol Buffer Generation (if needed). Language detection turns this on for
+  # any repo containing .proto files, which is wrong for repos that commit their
+  # generated code — protobuf-disabled opts those out.
   build-protobuf:
     name: Generate Protocol Buffers
     runs-on: ubuntu-latest
     needs: [detect-languages]
-    if: ${{ needs.detect-languages.outputs.protobuf-needed == 'true' }}
+    if: ${{ !inputs.protobuf-disabled && needs.detect-languages.outputs.protobuf-needed == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -321,6 +332,12 @@ jobs:
     name: Build Go Components
     runs-on: ubuntu-latest
     needs: [detect-languages, build-protobuf]
+    # always() is deliberate and must stay: build-protobuf is *skipped* (not
+    # successful) whenever protobuf-disabled is set or no .proto files exist,
+    # and a skipped dependency would otherwise block this job. It is fail-open
+    # with respect to a *failed* build-protobuf, which is safe because the
+    # create-release job below gates on !failure() -- a failed generation can
+    # waste a build here but can never publish a release built on stale protos.
     if: |
       always() &&
       needs.detect-languages.outputs.has-go == 'true' &&
@@ -362,7 +379,7 @@ jobs:
       - name: Build Go
         uses: falkcorp/gha-release-go@e6b2fa793ea1f43d6baee44c77c6047b5abe7f15 # v2.0.1 (GORELEASER_CURRENT_TAG pin)
         with:
-          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+          protobuf-artifacts: ${{ !inputs.protobuf-disabled && needs.detect-languages.outputs.protobuf-needed == 'true' }}
           release-version: ${{ needs.detect-languages.outputs.release-tag }}
           system-packages: ${{ inputs.system-packages }}
           pre-build-script: ${{ inputs.pre-build-script }}
@@ -387,7 +404,7 @@ jobs:
       - name: Build Python
         uses: falkcorp/gha-release-python@f3105cab8ecca34051c16c989cc809b19ae5a297 # v2.0.0
         with:
-          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+          protobuf-artifacts: ${{ !inputs.protobuf-disabled && needs.detect-languages.outputs.protobuf-needed == 'true' }}
 
   # Rust Build
   build-rust:
@@ -406,7 +423,7 @@ jobs:
       - name: Build Rust
         uses: falkcorp/gha-release-rust@fcee6b67fc61c0da24d890d850793ccae981ccbf # v2.0.0
         with:
-          protobuf-artifacts: ${{ needs.detect-languages.outputs.protobuf-needed }}
+          protobuf-artifacts: ${{ !inputs.protobuf-disabled && needs.detect-languages.outputs.protobuf-needed == 'true' }}
           release-version: ${{ needs.detect-languages.outputs.release-tag }}
 
   # Frontend Build

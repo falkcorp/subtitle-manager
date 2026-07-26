@@ -234,6 +234,10 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	mux.Handle(prefix+"/api/webhooks/test", authMiddleware(db, "basic", webhookTestHandler()))
 	mux.Handle(prefix+"/api/webhooks/history", authMiddleware(db, "basic", webhookHistoryHandler()))
 	mux.Handle(prefix+"/api/webhooks/event-types", authMiddleware(db, "basic", webhookEventTypesHandler()))
+	// Test-notification endpoint for the settings page. Trailing slash: the UI
+	// calls /api/notifications/test/{type}, and ServeMux treats a trailing-slash
+	// pattern as a subtree match.
+	mux.Handle(prefix+"/api/notifications/test/", authMiddleware(db, "basic", notificationTestHandler()))
 	mux.Handle(prefix+"/api/translate", authMiddleware(db, "basic", translateHandler()))
 	mux.Handle(prefix+"/api/sync/batch", authMiddleware(db, "basic", syncBatchHandler()))
 	// New search API endpoints
@@ -1450,20 +1454,14 @@ func startSessionCleanup(db *sql.DB) {
 // delivery defaults to on and can be disabled via
 // notifications.notify_on_{download,upgrade,failure}.
 func notificationsPublisherFromConfig() events.EventPublisher {
-	discord := viper.GetString("notifications.discord_webhook")
-	telegramToken := viper.GetString("notifications.telegram_token")
-	telegramChat := viper.GetString("notifications.telegram_chat_id")
-	email := viper.GetString("notifications.email_url")
-	apprise := viper.GetString("notifications.apprise_url")
-	if discord == "" && telegramToken == "" && email == "" && apprise == "" {
-		return nil
-	}
-	svc, err := notifications.New(discord, telegramToken, telegramChat, email)
+	svc, err := notificationServiceFromConfig()
 	if err != nil {
 		logging.GetLogger("webserver").Warnf("notifications disabled: %v", err)
 		return nil
 	}
-	svc.AppriseURL = apprise
+	if svc == nil || len(svc.Channels()) == 0 {
+		return nil
+	}
 	np := notifications.NewEventPublisher(svc)
 	if viper.IsSet("notifications.notify_on_download") {
 		np.NotifyOnDownload = viper.GetBool("notifications.notify_on_download")

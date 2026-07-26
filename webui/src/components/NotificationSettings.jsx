@@ -1,4 +1,7 @@
 // file: webui/src/components/NotificationSettings.jsx
+// version: 1.1.0
+// guid: 2f7a4c81-b930-4d5e-a6c2-08e4f159db73
+// last-edited: 2026-07-26
 import {
   Delete as DeleteIcon,
   Chat as DiscordIcon,
@@ -96,43 +99,60 @@ export default function NotificationSettings({
   // Load configuration values when provided
   useEffect(() => {
     if (config) {
+      // Settings live under the `notifications` key, which is where the Go
+      // runtime reads them from. Older builds of this page saved them at the
+      // top level instead, where nothing read them, so fall back to the bare
+      // key: a configuration saved before that fix still populates the form
+      // rather than appearing blank.
+      const n = config.notifications || {};
+      const get = (key, fallback) => {
+        const v = n[key] !== undefined ? n[key] : config[key];
+        return v === undefined ? fallback : v;
+      };
+
       // Email
-      setEmailEnabled(config.email_enabled || false);
-      setSmtpHost(config.smtp_host || '');
-      setSmtpPort(config.smtp_port || 587);
-      setSmtpUsername(config.smtp_username || '');
-      setSmtpPassword(config.smtp_password || '');
-      setSmtpFrom(config.smtp_from || '');
-      setSmtpTo(config.smtp_to || '');
-      setSmtpTLS(config.smtp_tls !== false);
+      setEmailEnabled(get('email_enabled', false));
+      setSmtpHost(get('smtp_host', ''));
+      setSmtpPort(get('smtp_port', 587));
+      setSmtpUsername(get('smtp_username', ''));
+      setSmtpPassword(get('smtp_password', ''));
+      setSmtpFrom(get('smtp_from', ''));
+      setSmtpTo(get('smtp_to', ''));
+      setSmtpTLS(get('smtp_tls', true) !== false);
 
       // Discord
-      setDiscordEnabled(config.discord_enabled || false);
-      setDiscordWebhook(config.discord_webhook || '');
-      setDiscordUsername(config.discord_username || 'Subtitle Manager');
-      setDiscordAvatar(config.discord_avatar || '');
+      setDiscordEnabled(get('discord_enabled', false));
+      setDiscordWebhook(get('discord_webhook', ''));
+      setDiscordUsername(get('discord_username', 'Subtitle Manager'));
+      setDiscordAvatar(get('discord_avatar', ''));
 
       // Telegram
-      setTelegramEnabled(config.telegram_enabled || false);
-      setTelegramToken(config.telegram_token || '');
-      setTelegramChatId(config.telegram_chat_id || '');
+      setTelegramEnabled(get('telegram_enabled', false));
+      setTelegramToken(get('telegram_token', ''));
+      setTelegramChatId(get('telegram_chat_id', ''));
 
       // Push
-      setPushEnabled(config.push_enabled || false);
-      setPushoverToken(config.pushover_token || '');
-      setPushoverUser(config.pushover_user || '');
+      setPushEnabled(get('push_enabled', false));
+      setPushoverToken(get('pushover_token', ''));
+      setPushoverUser(get('pushover_user', ''));
 
       // Webhook
-      setWebhookEnabled(config.webhook_enabled || false);
-      setWebhookUrl(config.webhook_url || '');
-      setWebhookMethod(config.webhook_method || 'POST');
-      setWebhookHeaders(config.webhook_headers || '');
+      setWebhookEnabled(get('webhook_enabled', false));
+      setWebhookUrl(get('webhook_url', ''));
+      setWebhookMethod(get('webhook_method', 'POST'));
+      setWebhookHeaders(get('webhook_headers', ''));
     }
   }, [config]);
 
-  // Persist updated configuration
+  // Persist updated configuration.
+  //
+  // Keys are sent dotted ("notifications.smtp_host") because POST /api/config
+  // hands each key straight to viper.Set, which treats a dot as nesting. This
+  // page previously sent bare keys, so everything it saved landed at the top
+  // level of the config while the Go runtime read `notifications.*` — saving
+  // reported success and no notification was ever delivered.
   const handleSave = () => {
-    const newConfig = {
+    const settings = {
       email_enabled: emailEnabled,
       smtp_host: smtpHost,
       smtp_port: parseInt(smtpPort, 10),
@@ -161,6 +181,10 @@ export default function NotificationSettings({
       webhook_headers: webhookHeaders,
     };
 
+    const newConfig = {};
+    for (const [key, value] of Object.entries(settings)) {
+      newConfig[`notifications.${key}`] = value;
+    }
     onSave(newConfig);
   };
 

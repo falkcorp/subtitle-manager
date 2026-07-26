@@ -1,7 +1,7 @@
 // file: pkg/webserver/wanted.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 7a3c5e19-4b28-4d06-9f71-2c8e0a45b3d7
-// last-edited: 2026-07-25
+// last-edited: 2026-07-26
 
 package webserver
 
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
@@ -257,10 +258,24 @@ func wantedHandler() http.Handler {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			// Match on the cleaned path. POST stores the path returned by
+			// ValidateAndSanitizePath, which is filepath.Clean-ed, so a caller
+			// passing an equivalent-but-unclean path ("/media/./a.mkv") would
+			// otherwise match nothing and get a 204 having deleted nothing.
+			//
+			// Deliberately only Clean, not the full ValidateAndSanitizePath:
+			// items synced from Sonarr/Radarr carry that server's paths, which
+			// need not lie under GetAllowedBaseDirs. Enforcing the allowlist
+			// here would make those items permanently undeletable. The allowlist
+			// guards filesystem access, and this branch performs none — it is a
+			// key match against rows the store already holds.
+			clean := filepath.Clean(q.Path)
 			mon := monitoring.NewEpisodeMonitor(monitorInterval(), nil, nil, store,
 				monitorMaxRetries(), false)
-			if err := mon.RemoveFromMonitoring(q.Path); err != nil {
-				logger.Warnf("remove %s: %v", q.Path, err)
+			// 204 whether or not a row matched: DELETE is idempotent, and the UI
+			// only ever sends a path it just read back from GET.
+			if err := mon.RemoveFromMonitoring(clean); err != nil {
+				logger.Warnf("remove %s: %v", clean, err)
 				http.Error(w, "failed to remove wanted item", http.StatusInternalServerError)
 				return
 			}

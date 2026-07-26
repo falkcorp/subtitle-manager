@@ -1,7 +1,7 @@
 // file: pkg/webserver/route_coverage_test.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 6b2c9d41-8f37-4a52-9c60-1d4e7a8b3f05
-// last-edited: 2026-07-25
+// last-edited: 2026-07-26
 
 package webserver
 
@@ -37,6 +37,7 @@ var frontendAPIPaths = []string{
 	"/api/library/browse",
 	"/api/providers/status",
 	"/api/wanted",
+	"/api/library/rescan-all",
 }
 
 // knownMissingAPIPaths are paths the web UI calls that have no backend handler
@@ -48,9 +49,22 @@ var frontendAPIPaths = []string{
 // API surface is covered" when it means "these ten are". Each entry is skipped
 // with its caller; delete the entry when the handler lands.
 var knownMissingAPIPaths = map[string]string{
-	"/api/bulk-operation":     "MediaLibrary.jsx — bulk media operations",
-	"/api/library/rescan-all": "App.jsx — rescan every library path",
-	"/api/notifications/test": "NotificationSettings.jsx — send a test notification",
+	// Not merely unmounted — there is no caller either. MediaLibrary.jsx defines
+	// handleBulkOperation and toggleFileSelection, but nothing in the component
+	// references them: there is no selection checkbox and no bulk toolbar. So
+	// this is dead frontend code rather than a working feature missing its
+	// backend, and writing a handler would mean inventing a request contract no
+	// UI actually sends. Build the selection UI and the endpoint together, or
+	// delete the dead functions.
+	"/api/bulk-operation": "MediaLibrary.jsx — bulk media operations; no UI invokes it",
+	// NotificationSettings.jsx calls /api/notifications/test/{type}. Held back
+	// deliberately: the settings page saves through POST /api/config, which
+	// viper.Set()s flat keys ("discord_webhook"), while the runtime reads
+	// namespaced ones ("notifications.discord_webhook"). A test button on top of
+	// that would report "not configured" straight after a successful save, or
+	// worse, report success for a channel that never fires in production. The
+	// key bridge and the endpoint have to land together.
+	"/api/notifications/test": "NotificationSettings.jsx — blocked on the config key namespace mismatch",
 }
 
 // TestFrontendAPIPathsAreMounted verifies no frontend-called API path falls

@@ -1,7 +1,7 @@
 // file: pkg/webserver/wanted_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 2d90f4a7-6b13-4c85-a0e2-9f38c714b6de
-// last-edited: 2026-07-25
+// last-edited: 2026-07-26
 
 package webserver
 
@@ -116,6 +116,44 @@ func TestWantedRoundTrip(t *testing.T) {
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/wanted", nil))
 	if n := len(decodeWanted(t, rr.Body.Bytes())); n != 0 {
 		t.Errorf("expected the list to be empty after DELETE, got %d items", n)
+	}
+}
+
+// TestWantedDeleteMatchesUncleanPath verifies DELETE normalises the path before
+// matching.
+//
+// POST stores the ValidateAndSanitizePath result, which is filepath.Clean-ed.
+// Matching the raw request path meant an equivalent-but-unclean spelling
+// ("/media/./a.mkv") matched no row, and the caller still got a 204 — a delete
+// that reported success having removed nothing.
+func TestWantedDeleteMatchesUncleanPath(t *testing.T) {
+	media := useWantedStore(t)
+	h := wantedHandler()
+
+	post := httptest.NewRequest(http.MethodPost, "/api/wanted",
+		strings.NewReader(`{"path":`+jsonStr(media)+`,"languages":["en"]}`))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, post)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("POST: got %d (body %s)", rr.Code, rr.Body.String())
+	}
+
+	// Same file, spelled with a redundant "." element.
+	// filepath.Join would clean it back out, so build the string directly.
+	dir, base := filepath.Split(media)
+	unclean := dir + "./" + base
+
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, "/api/wanted",
+		strings.NewReader(`{"path":`+jsonStr(unclean)+`}`)))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("DELETE: got %d (body %s)", rr.Code, rr.Body.String())
+	}
+
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/wanted", nil))
+	if n := len(decodeWanted(t, rr.Body.Bytes())); n != 0 {
+		t.Errorf("item survived DELETE via %q: %d still monitored", unclean, n)
 	}
 }
 

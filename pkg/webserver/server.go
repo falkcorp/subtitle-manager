@@ -1,7 +1,7 @@
 // file: pkg/webserver/server.go
-// version: 1.4.0
+// version: 1.5.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
-// last-edited: 2026-07-25
+// last-edited: 2026-07-26
 
 package webserver
 
@@ -236,6 +236,11 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	mux.Handle(prefix+"/api/library/paths", authMiddleware(db, "basic", libraryPathsHandler()))
 	mux.Handle(prefix+"/api/library/rescan", authMiddleware(db, "basic", libraryRescanHandler()))
 	mux.Handle(prefix+"/api/library/resync", authMiddleware(db, "basic", libraryRescanHandler()))
+	// rescan-all is the name App.jsx's global "Rescan Library" button calls.
+	// libraryRescanHandler already rescans every configured path, so this is an
+	// alias rather than a new behaviour — the same relationship /api/library/resync
+	// already has to /api/library/rescan.
+	mux.Handle(prefix+"/api/library/rescan-all", authMiddleware(db, "basic", libraryRescanHandler()))
 	// Whisper pipeline endpoints (library-search bridge, double-subs, drift verify)
 	mux.Handle(prefix+"/api/library/search", authMiddleware(db, "basic", librarySearchHandler()))
 	mux.Handle(prefix+"/api/library/search/status", authMiddleware(db, "basic", librarySearchStatusHandler()))

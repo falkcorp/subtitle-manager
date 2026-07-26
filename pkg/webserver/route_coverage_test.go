@@ -38,6 +38,7 @@ var frontendAPIPaths = []string{
 	"/api/providers/status",
 	"/api/wanted",
 	"/api/library/rescan-all",
+	"/api/notifications/test/discord",
 }
 
 // knownMissingAPIPaths are paths the web UI calls that have no backend handler
@@ -64,7 +65,8 @@ var knownMissingAPIPaths = map[string]string{
 	// that would report "not configured" straight after a successful save, or
 	// worse, report success for a channel that never fires in production. The
 	// key bridge and the endpoint have to land together.
-	"/api/notifications/test": "NotificationSettings.jsx — blocked on the config key namespace mismatch",
+	"/api/bulk-operation":     "MediaLibrary.jsx — bulk media operations",
+	"/api/library/rescan-all": "App.jsx — rescan every library path",
 }
 
 // TestFrontendAPIPathsAreMounted verifies no frontend-called API path falls

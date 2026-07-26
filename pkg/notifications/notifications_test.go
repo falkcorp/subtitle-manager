@@ -74,8 +74,60 @@ func TestSMTPNotifier(t *testing.T) {
 	if addr != "smtp:25" || from != "a@example.com" || len(to) != 1 || to[0] != "b@example.com" {
 		t.Fatalf("unexpected params")
 	}
-	if string(body) != "Subject: Subtitle Manager\r\n\r\nhi there" {
-		t.Fatalf("unexpected body: %s", body)
+	// From/To/MIME headers are required by many MTAs; a Subject-only message is
+	// widely rejected as spam.
+	head, text, ok := strings.Cut(string(body), "\r\n\r\n")
+	if !ok {
+		t.Fatalf("message has no header/body separator: %q", body)
+	}
+	for _, want := range []string{
+		"From: a@example.com",
+		"To: b@example.com",
+		"Subject: Subtitle Manager",
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+	} {
+		if !strings.Contains(head, want) {
+			t.Errorf("header block is missing %q:\n%s", want, head)
+		}
+	}
+	if text != "hi there" {
+		t.Errorf("body = %q, want the message unmodified", text)
+	}
+}
+
+// TestSMTPNotifierRejectsHeaderInjection verifies the message body cannot
+// introduce headers, and that a CR/LF smuggled into an address cannot either.
+//
+// The body is placed after the blank line that terminates the headers, so
+// newlines in it start body lines rather than headers. The addresses are the
+// fields where injection would actually matter, so those are stripped.
+func TestSMTPNotifierRejectsHeaderInjection(t *testing.T) {
+	var body []byte
+	n := SMTPNotifier{
+		Addr: "smtp:25",
+		From: "a@example.com\r\nBcc: attacker@example.com",
+		To:   []string{"b@example.com"},
+		Send: func(_ string, _ smtp.Auth, _ string, _ []string, msg []byte) error {
+			body = msg
+			return nil
+		},
+	}
+	if err := n.Notify(context.Background(), "line one\r\nBcc: other@example.com"); err != nil {
+		t.Fatalf("notify: %v", err)
+	}
+
+	// Injection means a new header *line*. The smuggled text surviving inside
+	// the From value is inert, so assert on line starts rather than substring
+	// presence.
+	head, _, _ := strings.Cut(string(body), "\r\n\r\n")
+	for _, line := range strings.Split(head, "\r\n") {
+		if strings.HasPrefix(strings.ToLower(line), "bcc:") {
+			t.Errorf("a Bcc header line was injected:\n%s", head)
+		}
+	}
+	if strings.Count(head, "\r\n") != 4 {
+		t.Errorf("header block does not have exactly the 5 intended headers:\n%s", head)
 	}
 }
 

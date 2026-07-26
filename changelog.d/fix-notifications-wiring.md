@@ -91,3 +91,15 @@ webhook previously suppressed delivery to every channel configured after it; all
 channels are now attempted and the first error returned. Response bodies are
 also drained and closed — three of the four delivery paths leaked their
 connection on every notification.
+
+#### SMTP messages now carry From, To and MIME headers
+
+`SMTPNotifier` previously sent only a `Subject`. Messages without `From`/`To` and
+a content type are widely rejected or filed as spam, so the notifier that had
+never been wired in would likely have failed in practice even once connected.
+
+Header values are stripped of CR/LF so an address taken from configuration
+cannot introduce a header line. The message body needs no such treatment: it is
+placed after the blank line that terminates the headers, so newlines in it start
+body lines, and Go's SMTP client dot-stuffs the body so a lone `.` cannot end
+the DATA command early.

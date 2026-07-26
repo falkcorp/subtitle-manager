@@ -152,6 +152,37 @@ func notificationServiceFromConfig() (*notifications.Service, error) {
 	return svc, nil
 }
 
+// maxTestMessage bounds the test message. It is a fixed banner in the UI; the
+// field exists so the text can be varied, not so arbitrary payloads can be
+// relayed through the operator's notification channels.
+const maxTestMessage = 500
+
+// sanitizeTestMessage constrains the caller-supplied test message to a single
+// line of printable text.
+//
+// The message is relayed verbatim to an external provider — a webhook body, a
+// Telegram parameter, an SMTP message body — so it is untrusted input crossing
+// into another system's parser. Collapsing line breaks and dropping other
+// control characters keeps it from carrying structure into any of them,
+// independent of what each provider's encoder happens to do.
+func sanitizeTestMessage(msg string) string {
+	msg = strings.Map(func(r rune) rune {
+		switch {
+		case r == '\r' || r == '\n' || r == '\t':
+			return ' '
+		case r < 0x20 || r == 0x7f:
+			return -1
+		}
+		return r
+	}, msg)
+	// Collapse whitespace runs so a CRLF does not leave a double space.
+	msg = strings.Join(strings.Fields(msg), " ")
+	if len(msg) > maxTestMessage {
+		msg = msg[:maxTestMessage]
+	}
+	return msg
+}
+
 // notificationTestHandler sends a test notification on a single channel.
 //
 //	POST /api/notifications/test/{type}
@@ -219,7 +250,8 @@ func notificationTestHandler() http.Handler {
 		var q reqBody
 		// An absent or unparseable body is not fatal; the message is cosmetic.
 		_ = json.NewDecoder(r.Body).Decode(&q)
-		if strings.TrimSpace(q.Message) == "" {
+		q.Message = sanitizeTestMessage(q.Message)
+		if q.Message == "" {
 			q.Message = "Test notification from Subtitle Manager"
 		}
 

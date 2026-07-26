@@ -285,3 +285,26 @@ func TestNotificationTestHandlerRejectsUnsafeWebhook(t *testing.T) {
 		})
 	}
 }
+
+// TestSanitizeTestMessage covers the boundary validation on the caller-supplied
+// test message, which is relayed verbatim into an external provider's parser.
+func TestSanitizeTestMessage(t *testing.T) {
+	for name, tc := range map[string]struct{ in, want string }{
+		"plain text survives":        {"hello there", "hello there"},
+		"newlines become spaces":     {"a\r\nBcc: x@y.z", "a Bcc: x@y.z"},
+		"other control chars go":     {"a\x00\x07b", "ab"},
+		"surrounding space trimmed":  {"  hi  ", "hi"},
+		"empty stays empty":          {"", ""},
+		"whitespace only is emptied": {" \r\n ", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := sanitizeTestMessage(tc.in); got != tc.want {
+				t.Errorf("sanitizeTestMessage(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+
+	if got := sanitizeTestMessage(strings.Repeat("x", maxTestMessage+50)); len(got) != maxTestMessage {
+		t.Errorf("length = %d, want it capped at %d", len(got), maxTestMessage)
+	}
+}

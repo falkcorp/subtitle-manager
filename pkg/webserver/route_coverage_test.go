@@ -58,15 +58,6 @@ var knownMissingAPIPaths = map[string]string{
 	// UI actually sends. Build the selection UI and the endpoint together, or
 	// delete the dead functions.
 	"/api/bulk-operation": "MediaLibrary.jsx — bulk media operations; no UI invokes it",
-	// NotificationSettings.jsx calls /api/notifications/test/{type}. Held back
-	// deliberately: the settings page saves through POST /api/config, which
-	// viper.Set()s flat keys ("discord_webhook"), while the runtime reads
-	// namespaced ones ("notifications.discord_webhook"). A test button on top of
-	// that would report "not configured" straight after a successful save, or
-	// worse, report success for a channel that never fires in production. The
-	// key bridge and the endpoint have to land together.
-	"/api/bulk-operation":     "MediaLibrary.jsx — bulk media operations",
-	"/api/library/rescan-all": "App.jsx — rescan every library path",
 }
 
 // TestFrontendAPIPathsAreMounted verifies no frontend-called API path falls

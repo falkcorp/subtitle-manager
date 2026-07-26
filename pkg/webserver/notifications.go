@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/smtp"
+	"path"
 	"strings"
 	"time"
 
@@ -176,8 +177,15 @@ func notificationTestHandler() http.Handler {
 			return
 		}
 
-		name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/notifications/test"), "/")
-		if name == "" {
+		// path.Base rather than TrimPrefix of a literal "/api/notifications/test":
+		// the route is mounted at prefix+"/api/notifications/test/", where prefix
+		// comes from base_url. Behind a subpath the incoming path is
+		// "/sm/api/notifications/test/discord", which the literal prefix does not
+		// match — every channel would resolve as unknown and the feature would be
+		// dead for anyone running under a base URL. A channel name never contains
+		// a slash, so the last segment is exactly it.
+		name := path.Base(r.URL.Path)
+		if name == "" || name == "." || name == "/" || name == "test" {
 			http.Error(w, "no notification channel given", http.StatusBadRequest)
 			return
 		}

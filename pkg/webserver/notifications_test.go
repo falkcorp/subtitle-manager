@@ -165,6 +165,32 @@ func TestNotificationTestHandler(t *testing.T) {
 	}
 }
 
+// TestNotificationTestHandlerUnderBaseURL verifies the channel is still parsed
+// when the server runs under a base_url.
+//
+// The route is mounted at prefix+"/api/notifications/test/". Stripping the
+// literal "/api/notifications/test" would match nothing once prefix is
+// non-empty, so every channel would resolve as unknown and the feature would be
+// dead for anyone behind a subpath — while every test using an empty prefix
+// passed.
+func TestNotificationTestHandlerUnderBaseURL(t *testing.T) {
+	useNotifyConfig(t, map[string]any{
+		"notifications.discord_webhook": "",
+		"discord_webhook":               "",
+	})
+	rr := httptest.NewRecorder()
+	notificationTestHandler().ServeHTTP(rr, httptest.NewRequest(
+		http.MethodPost, "/subtitles/api/notifications/test/discord",
+		strings.NewReader(`{"message":"hi"}`)))
+
+	// discord is a known channel that happens to be unconfigured here, so the
+	// correct answer is "not configured" (400). "unknown channel" would also be
+	// a 400, so assert on the text to tell the two apart.
+	if body := rr.Body.String(); strings.Contains(body, "unknown notification channel") {
+		t.Errorf("channel not parsed under a base_url: %s", body)
+	}
+}
+
 // TestNotificationTestHandlerDelivers verifies a configured channel actually
 // sends, and that a rejecting provider is reported as a failure.
 //

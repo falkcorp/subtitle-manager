@@ -70,6 +70,20 @@ have made this endpoint an SSRF primitive, since it fetches an operator-supplied
 URL on demand. There are tests for the link-local metadata address, private
 addresses, plain HTTP and non-allowlisted hosts.
 
+#### Settings that are saved but still have no effect
+
+Now that the page writes where the runtime reads, three fields it collects are
+persisted but not yet consumed, and are called out rather than left looking
+functional:
+
+- `smtp_tls` — `SMTPNotifier` uses `smtp.SendMail`, which negotiates STARTTLS
+  opportunistically. The behaviour is right; the switch does not control it.
+- `discord_username` and `discord_avatar` — Discord webhooks accept `username`
+  and `avatar_url` overrides, but the payload does not send them yet.
+
+Pushover and generic-webhook fields on that page are likewise persisted with no
+sender behind them; see the `501` responses above.
+
 ### Changed
 
 `Service.Send` no longer stops at the first failing channel. A single broken

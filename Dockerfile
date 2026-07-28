@@ -2,7 +2,7 @@
 # Optimized multi-stage Dockerfile to reduce build times from ~20min to ~3-5min
 
 # Stage 1: Node.js build stage (can be cached separately)
-FROM node:25-bookworm AS node-builder
+FROM node:26-bookworm AS node-builder
 WORKDIR /src/webui
 
 # Copy package files first for better caching
@@ -18,7 +18,7 @@ COPY webui/ ./
 RUN npm run build
 
 # Stage 2: Go dependencies (can be cached separately)
-FROM golang:1.26.0-bookworm AS go-deps
+FROM golang:1.26.5-bookworm AS go-deps
 WORKDIR /src
 
 # Install build dependencies
@@ -64,7 +64,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
     fi
 
 # Stage 4: Final runtime image
-FROM golang:1.26.0-bookworm AS final
+FROM golang:1.26.5-bookworm AS final
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

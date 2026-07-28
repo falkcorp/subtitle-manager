@@ -19,7 +19,7 @@ on:
 
 jobs:
   burndown:
-    uses: falkcorp/github-common/.github/workflows/reusable-burndown.yml@1a52124c9513b0fd05734602734704d81e2cc7ad
+    uses: falkcorp/github-common/.github/workflows/reusable-burndown.yml@d0c3326b96557c8ea9117c1c196b628e5e028186
     with:
       mode: ${{ inputs.mode || 'dry-run' }}
     secrets: inherit

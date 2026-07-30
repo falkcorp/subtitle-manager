@@ -46,9 +46,14 @@ func TestLanguageProfileSQLiteIntegration(t *testing.T) {
 	defer store.Close()
 
 	// Test inserting a language profile
+	// A distinct ID: the store creates a default profile on initialisation, and
+	// DefaultLanguageProfile() carries that same ID, so inserting it verbatim
+	// hit "UNIQUE constraint failed: language_profiles.id". The test means to
+	// insert a NEW profile, not to re-insert the built-in one.
 	profile := profiles.DefaultLanguageProfile()
+	profile.ID = "test-profile"
 	profile.Name = "Test Profile"
-	// Remove Description field (not present)
+	profile.IsDefault = false
 
 	err = store.CreateLanguageProfile(profile)
 	if err != nil {
@@ -61,11 +66,24 @@ func TestLanguageProfileSQLiteIntegration(t *testing.T) {
 		t.Fatalf("failed to list language profiles: %v", err)
 	}
 
-	if len(profilesList) != 1 {
-		t.Errorf("expected 1 profile, got %d", len(profilesList))
+	// The store creates a built-in default profile on initialisation, so the
+	// list is never empty. Assert the inserted profile is present rather than
+	// that it is the only one — "exactly 1" encoded an assumption about an
+	// empty store that has not held since the default profile was introduced.
+	var retrieved *profiles.LanguageProfile
+	for i := range profilesList {
+		if profilesList[i].ID == profile.ID {
+			retrieved = &profilesList[i]
+			break
+		}
 	}
-
-	retrieved := profilesList[0]
+	if retrieved == nil {
+		names := make([]string, 0, len(profilesList))
+		for _, p := range profilesList {
+			names = append(names, p.ID)
+		}
+		t.Fatalf("inserted profile %q not found in %v", profile.ID, names)
+	}
 	if retrieved.Name != "Test Profile" {
 		t.Errorf("Profile name mismatch: got %s, want %s", retrieved.Name, profile.Name)
 	}

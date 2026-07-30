@@ -5,6 +5,7 @@
 package database
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -337,7 +338,12 @@ func TestSQLiteAvailability(t *testing.T) {
 	if hasSQLite {
 		// When SQLite is available, it should work
 		t.Run("SQLite backend should work when available", func(t *testing.T) {
-			store, err := OpenStore(tempDir, "sqlite")
+			// A file path, not a directory: OpenStore routes "sqlite" to
+			// OpenSQLStore, which opens the path as a database file. Only the
+			// pebble backend treats its argument as a directory. Passing
+			// tempDir here failed with "unable to open database file: is a
+			// directory" — a test bug, not a product one.
+			store, err := OpenStore(filepath.Join(tempDir, "test.db"), "sqlite")
 			require.NoError(t, err, "SQLite backend should work when HasSQLite() returns true")
 			defer store.Close()
 

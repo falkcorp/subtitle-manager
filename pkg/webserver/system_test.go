@@ -2,8 +2,11 @@ package webserver
 
 import (
 	"encoding/json"
+	"github.com/spf13/viper"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	auth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
@@ -67,6 +70,19 @@ func TestSystemHandlers(t *testing.T) {
 		t.Fatalf("no info")
 	}
 
+	// Point the handler at a fixture. The default path is resolved relative to
+	// the process working directory and no announcements.json is committed, so
+	// this previously asserted against a file that never existed and the
+	// endpoint answered 404 on every deployment as well as in this test.
+	annFile := filepath.Join(t.TempDir(), "announcements.json")
+	if err := os.WriteFile(annFile,
+		[]byte(`[{"date":"2026-07-30","message":"hello"}]`), 0o600); err != nil {
+		t.Fatalf("write announcements: %v", err)
+	}
+	prevAnn := viper.Get("announcements_file")
+	viper.Set("announcements_file", annFile)
+	defer viper.Set("announcements_file", prevAnn)
+
 	req3, _ := http.NewRequest("GET", srv.URL+"/api/announcements", nil)
 	req3.Header.Set("X-API-Key", keyObj.GetId())
 	r3, err := srv.Client().Do(req3)
@@ -78,8 +94,36 @@ func TestSystemHandlers(t *testing.T) {
 		t.Fatalf("failed to decode request body: %v", err)
 	}
 	r3.Body.Close()
-	if len(ann) == 0 {
-		t.Fatalf("no announcements")
+	if len(ann) != 1 || ann[0]["message"] != "hello" {
+		t.Fatalf("announcements = %v, want the fixture contents", ann)
+	}
+}
+
+// TestAnnouncementsMissingFileIsEmptyList verifies an absent file is "no
+// announcements" rather than an error.
+//
+// The handler returned 404 when the file was missing, which is the state of
+// every deployment: none is committed, and the default path is resolved
+// relative to the process working directory. The frontend then treated a
+// working install as a broken endpoint.
+func TestAnnouncementsMissingFileIsEmptyList(t *testing.T) {
+	prev := viper.Get("announcements_file")
+	viper.Set("announcements_file", filepath.Join(t.TempDir(), "absent.json"))
+	defer viper.Set("announcements_file", prev)
+
+	rr := httptest.NewRecorder()
+	announcementsHandler().ServeHTTP(rr,
+		httptest.NewRequest(http.MethodGet, "/api/announcements", nil))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for an absent announcements file", rr.Code)
+	}
+	var ann []map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &ann); err != nil {
+		t.Fatalf("body is not JSON (%v): %s", err, rr.Body.String())
+	}
+	if len(ann) != 0 {
+		t.Errorf("got %v, want an empty list", ann)
 	}
 }
 

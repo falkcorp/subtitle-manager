@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/jdfalk/subtitle-manager/pkg/backups"
 	"github.com/jdfalk/subtitle-manager/pkg/errors"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
@@ -97,7 +99,9 @@ func startTaskHandler() http.Handler {
 			http.Error(w, "Invalid task name", http.StatusBadRequest)
 			return
 		}
-		t := tasks.Start(r.Context(), name, func(ctx context.Context) error {
+		// See scan.go: r.Context() is cancelled when the handler returns, which
+		// would kill this task immediately. WithoutCancel detaches it.
+		t := tasks.Start(context.WithoutCancel(r.Context()), name, func(ctx context.Context) error {
 			// Simulate a short running task
 			for i := 0; i <= 10; i++ {
 				tasks.Update(name, i*10)
@@ -189,15 +193,31 @@ func releasesHandler() http.Handler {
 }
 
 // announcementsHandler returns messages from announcements.json.
+//
+// An absent file means "no announcements", not an error, so it answers with an
+// empty list. It previously returned 404, which is how this endpoint behaved on
+// every deployment: no announcements.json is committed, and the path below is
+// resolved relative to the **process working directory**, so even adding one to
+// the repository would only work when the binary happened to run two levels
+// below it. Making the location configurable is the real fix; until then, an
+// empty list is the honest answer and callers get valid JSON either way.
 func announcementsHandler() http.Handler {
 	type ann struct {
 		Date    string `json:"date"`
 		Message string `json:"message"`
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := os.Open(filepath.Join("..", "..", "announcements.json"))
+		path := viper.GetString("announcements_file")
+		if path == "" {
+			path = filepath.Join("..", "..", "announcements.json")
+		}
+		f, err := os.Open(path)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
+			if !os.IsNotExist(err) {
+				logging.GetLogger("webserver").Warnf("announcements %s: %v", path, err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
 			return
 		}
 		defer f.Close()

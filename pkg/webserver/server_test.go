@@ -505,17 +505,31 @@ func TestTranslate(t *testing.T) {
 	defer db.Close()
 
 	// Mock the Google Translate API
+	// One translation per input string, as the real API returns.
+	//
+	// This mock previously returned a single fixed translation regardless of
+	// how many texts were sent. testdata/simple.srt has two cues, so the
+	// translator rejected the response with "expected 2 translations, got 1"
+	// and the handler answered 500 — with the error discarded, so nothing said
+	// why.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		queries := r.Form["q"]
+		translations := make([]map[string]string, 0, len(queries))
+		for _, q := range queries {
+			translations = append(translations, map[string]string{
+				"translatedText": "hola " + q,
+			})
+		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"data": {
-				"translations": [
-					{
-						"translatedText": "1\n00:00:01,000 --> 00:00:04,000\nhola mundo\n\n"
-					}
-				]
-			}
-		}`))
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"translations": translations},
+		}); err != nil {
+			t.Errorf("encode mock response: %v", err)
+		}
 	}))
 	defer ts.Close()
 	translator.SetGoogleAPIURL(ts.URL)
@@ -880,7 +894,24 @@ func TestTranslateUpload(t *testing.T) {
 	// Mock the Google Translate API
 	srvTrans := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":{"translations":[{"translatedText":"hola"}]}}`))
+		// One translation per input string, as the real API returns; a single
+		// fixed translation fails the translator's count check for any
+		// subtitle with more than one cue.
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		translations := make([]map[string]string, 0, len(r.Form["q"]))
+		for _, q := range r.Form["q"] {
+			translations = append(translations, map[string]string{
+				"translatedText": "hola " + q,
+			})
+		}
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"translations": translations},
+		}); err != nil {
+			t.Errorf("encode mock response: %v", err)
+		}
 	}))
 	defer srvTrans.Close()
 	translator.SetGoogleAPIURL(srvTrans.URL)

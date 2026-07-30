@@ -41,7 +41,14 @@ func TestExtractCmdStoresRecord(t *testing.T) {
 		viper.Set("db_backend", origBackend)
 	}()
 
-	if err := extractCmd.RunE(extractCmd, []string{"video.mkv", out}); err != nil {
+	// An absolute path: the extract command validates its input through
+	// security.ValidateAndSanitizePath, which rejects relative paths. The test
+	// predates that hardening and still passed a bare "video.mkv".
+	media := filepath.Join(dir, "video.mkv")
+	if err := os.WriteFile(media, []byte("fake media"), 0644); err != nil {
+		t.Fatalf("write media: %v", err)
+	}
+	if err := extractCmd.RunE(extractCmd, []string{media, out}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -58,7 +65,7 @@ func TestExtractCmdStoresRecord(t *testing.T) {
 		t.Fatalf("expected 1 record, got %d", len(recs))
 	}
 	r := recs[0]
-	if r.File != out || r.VideoFile != "video.mkv" || !r.Embedded {
+	if r.File != out || r.VideoFile != media || !r.Embedded {
 		t.Fatalf("unexpected record %+v", r)
 	}
 }

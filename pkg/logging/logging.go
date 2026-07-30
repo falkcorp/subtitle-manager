@@ -26,6 +26,23 @@ var (
 // GetLogger returns a logger for the given component. It reads the log level
 // from the configuration key "log_levels.<component>". If not set, the global
 // "log-level" is used.
+// SetHook installs h as the global log hook and discards the logger cache so
+// existing components pick it up.
+//
+// Setting the Hook variable directly is not enough, and the failure is silent.
+// GetLogger memoises one logger per component and calls AddHook when it first
+// builds that logger, so a hook installed afterwards is attached to nothing —
+// any component whose logger already exists keeps logging past it. Tests that
+// installed a memory hook to capture output therefore passed in isolation and
+// failed once a sibling test had already caused the same component's logger to
+// be created.
+func SetHook(h *MemoryHook) {
+	mu.Lock()
+	defer mu.Unlock()
+	Hook = h
+	clear(loggers)
+}
+
 func GetLogger(component string) *logrus.Entry {
 	mu.Lock()
 	defer mu.Unlock()

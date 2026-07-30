@@ -107,7 +107,16 @@ func TestSyncLogsConflicts(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	logging.Hook = logging.NewMemoryHook(10)
+	// A large buffer, and the previous hook restored afterwards.
+	//
+	// logging.Hook is a package-level global shared by every test in this
+	// package, and NewMemoryHook is a ring buffer. At capacity 10 this test
+	// passed in isolation and failed in a full package run: log lines from
+	// other tests' still-running goroutines evicted the conflict line before
+	// it was read. Leaving the hook installed also leaked it into later tests.
+	prevHook := logging.Hook
+	logging.SetHook(logging.NewMemoryHook(1000))
+	t.Cleanup(func() { logging.SetHook(prevHook) })
 	c := NewClient(srv.URL, "")
 	if err := Sync(context.Background(), c, store); err != nil {
 		t.Fatalf("sync: %v", err)

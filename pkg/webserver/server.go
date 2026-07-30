@@ -1,7 +1,7 @@
 // file: pkg/webserver/server.go
 // version: 1.5.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
-// last-edited: 2026-07-26
+// last-edited: 2026-07-30
 
 package webserver
 
@@ -31,6 +31,7 @@ import (
 	"github.com/jdfalk/subtitle-manager/pkg/maintenance"
 	"github.com/jdfalk/subtitle-manager/pkg/metrics"
 	"github.com/jdfalk/subtitle-manager/pkg/notifications"
+	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/radarr"
 	"github.com/jdfalk/subtitle-manager/pkg/security"
 	"github.com/jdfalk/subtitle-manager/pkg/selftest"
@@ -138,6 +139,11 @@ func setupHandler(db *sql.DB) http.Handler {
 
 // Handler returns an http.Handler that serves the embedded web UI.
 func Handler(db *sql.DB) (http.Handler, error) {
+	// Populate the provider instance registry from configuration before any
+	// request can be served. Without this the registry stays empty and every
+	// search ignores the operator's provider settings entirely.
+	providers.LoadFromConfig()
+
 	mux, _, err := newMux(db)
 	if err != nil {
 		return nil, err
@@ -1001,9 +1007,9 @@ func providersHandler() http.Handler {
 		switch r.Method {
 		case http.MethodGet:
 			// Get list of all available providers from the registry
-			providers := getAvailableProviders()
+			available := getAvailableProviders()
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(providers); err != nil {
+			if err := json.NewEncoder(w).Encode(available); err != nil {
 				http.Error(w, "Failed to encode providers", http.StatusInternalServerError)
 				return
 			}
@@ -1034,6 +1040,15 @@ func providersHandler() http.Handler {
 					return
 				}
 			}
+
+			// Re-read the registry so the change takes effect now rather than
+			// at the next restart. Saving settings that the running process
+			// never picks up is the failure mode this repo has already had
+			// twice (notification keys written under a namespace nothing read;
+			// routes that returned 200 from the SPA catch-all having done
+			// nothing) — a save that silently does nothing is worse than an
+			// error, because it reports success.
+			providers.LoadFromConfig()
 
 			w.WriteHeader(http.StatusNoContent)
 		default:

@@ -71,6 +71,13 @@ func TestHandler(t *testing.T) {
 // side routing works on refresh.
 func TestSPAIndexFallback(t *testing.T) {
 	skipIfNoSQLite(t)
+	// The single-page-app fallback serves webui/dist/index.html, which only
+	// exists after `npm run build`. Without it this fails with a 404 that looks
+	// like a routing bug — a Go test with a silent dependency on a frontend
+	// build. Skipping says so instead.
+	if _, err := os.Stat(filepath.Join("..", "..", "webui", "dist", "index.html")); err != nil {
+		t.Skip("webui/dist not built; run `npm run build` in webui/ to exercise the SPA fallback")
+	}
 	db, err := database.Open(":memory:")
 	testutil.MustNoError(t, "open db", err)
 	defer db.Close()

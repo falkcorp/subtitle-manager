@@ -1,4 +1,7 @@
 // file: pkg/webserver/tags.go
+// version: 1.1.0
+// guid: 5321afeb-275b-4923-a773-52d629dfa245
+// last-edited: 2026-07-30
 package webserver
 
 import (
@@ -6,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/tagging"
@@ -82,7 +84,7 @@ func tagsHandler(db *sql.DB) http.Handler {
 // tagItemHandler updates or deletes a tag by ID with enhanced metadata support.
 func tagItemHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/tags/")
+		idStr := pathSegment(r, "/api/tags/")
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -142,7 +144,7 @@ func tagItemHandler(db *sql.DB) http.Handler {
 func universalTagsHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL: /api/{entityType}/{id}/tags
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/"), "/")
+		parts := pathSegments(r, "/api/")
 		if len(parts) < 3 || parts[2] != "tags" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -246,7 +248,7 @@ func bulkTagsHandler(db *sql.DB) http.Handler {
 // userTagsHandler manages tag assignments for a user (legacy compatibility wrapper).
 func userTagsHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/users/"), "/")
+		parts := pathSegments(r, "/api/users/")
 		if len(parts) < 2 || parts[1] != "tags" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -317,7 +319,7 @@ func userTagsHandler(db *sql.DB) http.Handler {
 // mediaTagsHandler manages tag assignments for a media item (legacy compatibility wrapper).
 func mediaTagsHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/media/"), "/")
+		parts := pathSegments(r, "/api/media/")
 		if len(parts) < 2 || parts[1] != "tags" {
 			w.WriteHeader(http.StatusNotFound)
 			return

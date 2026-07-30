@@ -1,7 +1,7 @@
 // file: pkg/webserver/profiles.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 0a9b8c7d-6e5f-1a2b-4c3d-7e6f8a9b0c1d
-// last-edited: 2026-07-25
+// last-edited: 2026-07-30
 
 package webserver
 
@@ -29,7 +29,7 @@ import (
 func profilesHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL path: /api/profiles or /api/profiles/{id} or /api/profiles/{id}/default
-		path := strings.TrimPrefix(r.URL.Path, "/api/profiles")
+		path := strings.TrimPrefix(apiPath(r), "/api/profiles")
 
 		if path == "" || path == "/" {
 			// Handle collection operations
@@ -246,13 +246,11 @@ func handleSetDefaultProfile(w http.ResponseWriter, r *http.Request, db *sql.DB,
 func mediaProfilesHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL path: /api/media/profile/{id}
-		path := strings.TrimPrefix(r.URL.Path, "/api/media/profile/")
-		if path == "" {
+		mediaID := pathSegment(r, "/api/media/profile/")
+		if mediaID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		mediaID := strings.Split(path, "/")[0]
 
 		switch r.Method {
 		case http.MethodGet:

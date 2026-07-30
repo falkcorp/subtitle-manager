@@ -41,6 +41,7 @@ import {
 } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from './services/api.js';
 
 /**
  * MediaLibrary provides integrated media file and subtitle management.
@@ -188,7 +189,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const loadCurrentDirectory = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/library/browse?path=${encodeURIComponent(currentPath)}`
       );
       if (response.ok) {
@@ -212,7 +213,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
     if (backendAvailable) {
       const pollTasks = async () => {
         try {
-          const response = await fetch('/api/tasks');
+          const response = await apiFetch('/api/tasks');
           if (response.ok) {
             const data = await response.json();
             setTasks(data || {});
@@ -235,7 +236,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
     if (!backendAvailable) return;
 
     try {
-      const response = await fetch('/api/library/paths');
+      const response = await apiFetch('/api/library/paths');
       if (response.ok) {
         const data = await response.json();
         setLibraryPaths(data.paths || []);
@@ -256,7 +257,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
     if (!newLibraryPath.trim()) return;
 
     try {
-      const response = await fetch('/api/library/paths', {
+      const response = await apiFetch('/api/library/paths', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: newLibraryPath.trim() }),
@@ -285,7 +286,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const handleResyncFromSonarr = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/library/resync', {
+      const response = await apiFetch('/api/library/resync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: currentPath }),
@@ -435,7 +436,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const handleRescanDisk = async () => {
     try {
       setProgress({ type: 'rescan', file: 'library', progress: 0 });
-      const response = await fetch('/api/library/rescan', {
+      const response = await apiFetch('/api/library/rescan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: currentPath }),
@@ -460,7 +461,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const handleResyncFromArr = async () => {
     try {
       setProgress({ type: 'resync', file: 'external services', progress: 0 });
-      const response = await fetch('/api/library/resync', {
+      const response = await apiFetch('/api/library/resync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: currentPath }),
@@ -590,7 +591,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
     setProgress({ type, file: `${files.length} files`, progress: 0 });
 
     try {
-      await fetch('/api/bulk-operation', {
+      await apiFetch('/api/bulk-operation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

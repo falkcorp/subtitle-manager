@@ -39,6 +39,7 @@ import {
   Select,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../services/api.js';
 
 // Common language options
 const COMMON_LANGUAGES = [
@@ -91,7 +92,7 @@ export default function LanguagesSettings({ backendAvailable = true }) {
   const loadProfiles = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/language-profiles');
+      const response = await apiFetch('/api/language-profiles');
       if (!response.ok) {
         throw new Error(`Failed to load profiles: ${response.statusText}`);
       }
@@ -133,7 +134,7 @@ export default function LanguagesSettings({ backendAvailable = true }) {
     }
 
     try {
-      const response = await fetch(`/api/language-profiles/${profileId}`, {
+      const response = await apiFetch(`/api/language-profiles/${profileId}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

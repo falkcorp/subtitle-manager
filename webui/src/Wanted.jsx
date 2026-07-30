@@ -55,6 +55,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { apiFetch } from './services/api.js';
 
 /**
  * Wanted provides an interface for searching subtitles and maintaining
@@ -132,7 +133,7 @@ export default function Wanted({ backendAvailable = true }) {
     const loadWanted = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/wanted');
+        const res = await apiFetch('/api/wanted');
         if (res.ok) {
           const data = await res.json();
           setWanted(data || []);
@@ -171,7 +172,7 @@ export default function Wanted({ backendAvailable = true }) {
         ...(releaseGroup && { releaseGroup }),
       };
 
-      const response = await fetch('/api/search', {
+      const response = await apiFetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(searchRequest),
@@ -203,7 +204,7 @@ export default function Wanted({ backendAvailable = true }) {
   // results, which is a different concept that Bazarr has no equivalent of and
   // that no backend ever implemented.
   const reloadWanted = async () => {
-    const res = await fetch('/api/wanted');
+    const res = await apiFetch('/api/wanted');
     if (res.ok) {
       setWanted((await res.json()) || []);
     }
@@ -211,7 +212,7 @@ export default function Wanted({ backendAvailable = true }) {
 
   const add = async (mediaPath, languages) => {
     try {
-      const res = await fetch('/api/wanted', {
+      const res = await apiFetch('/api/wanted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: mediaPath, languages }),
@@ -229,7 +230,7 @@ export default function Wanted({ backendAvailable = true }) {
 
   const remove = async mediaPath => {
     try {
-      const res = await fetch('/api/wanted', {
+      const res = await apiFetch('/api/wanted', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: mediaPath }),
@@ -286,7 +287,7 @@ export default function Wanted({ backendAvailable = true }) {
   // Preview handler
   const handlePreview = async result => {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/search/preview?url=${encodeURIComponent(result.downloadUrl)}&provider=${result.provider}&lang=${result.language}`
       );
       if (response.ok) {

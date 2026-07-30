@@ -59,6 +59,7 @@ import './App.css';
 import OfflineInfo from './OfflineInfo.jsx';
 import LoadingComponent from './components/LoadingComponent.jsx';
 import { apiService, getBasePath } from './services/api.js';
+import { apiFetch } from './services/api.js';
 
 // Lazy load components for better performance
 const Dashboard = lazy(() => import('./Dashboard.jsx'));
@@ -437,7 +438,7 @@ function App() {
     if (!backendAvailable) return;
 
     try {
-      const response = await fetch('/api/library/rescan-all', {
+      const response = await apiFetch('/api/library/rescan-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -590,7 +591,7 @@ function App() {
 
   const login = async () => {
     const form = new URLSearchParams({ username, password });
-    const res = await fetch('/api/login', { method: 'POST', body: form });
+    const res = await apiFetch('/api/login', { method: 'POST', body: form });
     if (res.ok) {
       setStatus('logged in');
       setAuthed(true);

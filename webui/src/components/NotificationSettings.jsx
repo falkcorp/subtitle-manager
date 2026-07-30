@@ -32,6 +32,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../services/api.js';
 
 /**
  * NotificationSettings displays card-based configuration for various
@@ -167,7 +168,7 @@ export default function NotificationSettings({
   const testNotification = async type => {
     setTestDialog({ open: true, type, loading: true });
     try {
-      const response = await fetch(`/api/notifications/test/${type}`, {
+      const response = await apiFetch(`/api/notifications/test/${type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -21,6 +21,12 @@ vi.mock('../services/api.js', () => ({
     delete: vi.fn(),
   },
   getBasePath: () => '',
+  // App calls apiFetch for the endpoints it has not migrated to apiService.
+  // A module mock must export it too, or the component calls undefined.
+  // Delegating to global.fetch keeps this file's existing fetch-based
+  // assertions meaningful.
+  apiFetch: (url, options) =>
+    options === undefined ? fetch(url) : fetch(url, options),
 }));
 
 describe('App component', () => {

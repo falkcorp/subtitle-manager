@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
+import { apiFetch } from './services/api.js';
 
 /**
  * TagManagement displays existing tags and allows creation/deletion.
@@ -38,7 +39,7 @@ export default function TagManagement({ backendAvailable = true }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/tags');
+      const res = await apiFetch('/api/tags');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTags(Array.isArray(data) ? data : []);
@@ -52,7 +53,7 @@ export default function TagManagement({ backendAvailable = true }) {
   const addTag = async () => {
     if (!newTag) return;
     try {
-      const res = await fetch('/api/tags', {
+      const res = await apiFetch('/api/tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTag }),
@@ -76,7 +77,7 @@ export default function TagManagement({ backendAvailable = true }) {
 
   const saveEdit = async () => {
     try {
-      const res = await fetch(`/api/tags/${editId}`, {
+      const res = await apiFetch(`/api/tags/${editId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editName }),
@@ -103,7 +104,7 @@ export default function TagManagement({ backendAvailable = true }) {
   const deleteTag = async id => {
     if (!window.confirm('Delete this tag?')) return;
     try {
-      const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/tags/${id}`, { method: 'DELETE' });
       if (res.ok) {
         loadTags();
       } else {

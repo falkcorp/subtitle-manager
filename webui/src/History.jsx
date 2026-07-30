@@ -24,6 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { apiFetch } from './services/api.js';
 
 /**
  * History displays translation and download history with optional language filtering.
@@ -38,7 +39,7 @@ export default function History({ backendAvailable = true }) {
 
   useEffect(() => {
     if (backendAvailable) {
-      fetch('/api/history')
+      apiFetch('/api/history')
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();

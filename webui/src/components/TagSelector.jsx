@@ -13,6 +13,7 @@ import {
   ListItemText,
 } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
+import { apiFetch } from '../services/api.js';
 
 /**
  * TagSelector allows assigning tags to a media item identified by path.
@@ -28,7 +29,7 @@ export default function TagSelector({ path }) {
   const loadTags = useCallback(async () => {
     if (!path) return;
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/library/tags?path=${encodeURIComponent(path)}`
       );
       if (res.ok) {
@@ -42,7 +43,7 @@ export default function TagSelector({ path }) {
 
   const loadAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/tags');
+      const res = await apiFetch('/api/tags');
       if (res.ok) {
         const data = await res.json();
         setAllTags(Array.isArray(data) ? data : []);
@@ -58,7 +59,7 @@ export default function TagSelector({ path }) {
 
   const toggleTag = async (tagId, checked) => {
     try {
-      await fetch('/api/library/tags', {
+      await apiFetch('/api/library/tags', {
         method: checked ? 'POST' : 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, tag_id: tagId }),

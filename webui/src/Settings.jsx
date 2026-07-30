@@ -37,6 +37,7 @@ import ProviderCard from './components/ProviderCard.jsx';
 import ProviderConfigDialog from './components/ProviderConfigDialog.jsx';
 import BackButton from './components/BackButton.jsx';
 import { apiService } from './services/api.js';
+import { apiFetch } from './services/api.js';
 
 // Lazy load settings components for better performance
 const AuthSettings = lazy(() => import('./components/AuthSettings.jsx'));
@@ -229,7 +230,7 @@ export default function Settings({ backendAvailable = true }) {
    */
   const handleProviderToggle = async (providerName, enabled) => {
     try {
-      const response = await fetch(`/api/providers/${providerName}`, {
+      const response = await apiFetch(`/api/providers/${providerName}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled }),
@@ -261,11 +262,14 @@ export default function Settings({ backendAvailable = true }) {
    */
   const handleProviderSave = async provider => {
     try {
-      const response = await fetch(`/api/providers/${provider.name}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(provider.config),
-      });
+      const response = await apiFetch(
+        `/api/providers/${provider.name}/config`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(provider.config),
+        }
+      );
 
       if (response.ok) {
         setProviders(prev =>
@@ -291,7 +295,7 @@ export default function Settings({ backendAvailable = true }) {
    */
   const saveSettings = async values => {
     try {
-      const response = await fetch('/api/config', {
+      const response = await apiFetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -330,7 +334,7 @@ export default function Settings({ backendAvailable = true }) {
     setImportLoading(true);
     setImportError('');
     try {
-      const res = await fetch('/api/bazarr/preview', {
+      const res = await apiFetch('/api/bazarr/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: bazarrURL, api_key: bazarrAPIKey }),
@@ -361,7 +365,7 @@ export default function Settings({ backendAvailable = true }) {
       const keys = Object.keys(selectedSettings).filter(
         k => selectedSettings[k]
       );
-      const response = await fetch('/api/bazarr/import', {
+      const response = await apiFetch('/api/bazarr/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

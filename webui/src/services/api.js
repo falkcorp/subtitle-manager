@@ -38,6 +38,35 @@ export function getBasePath() {
 const API_BASE_URL = import.meta?.env?.VITE_API_URL || getBasePath();
 
 /**
+ * Path-prefixing fetch for callers that need raw fetch semantics.
+ *
+ * Components that call `fetch('/api/...')` directly send a path with no
+ * installation prefix, so under a server `base_url` of `/sm` the browser
+ * requests `/api/tags` rather than `/sm/api/tags`. That path has no route, so
+ * the single-page-app catch-all answers with `index.html` and a 200 — the
+ * component then fails trying to parse HTML as JSON, or silently renders
+ * nothing. The server-side path handling cannot help: the request never
+ * reaches the right route to begin with.
+ *
+ * This is deliberately NOT apiClient. apiClient injects
+ * `Content-Type: application/json`, which would corrupt the callers that post
+ * FormData (file uploads) or expect a non-JSON response. apiFetch only fixes
+ * the URL and otherwise behaves exactly like fetch, so it is a safe 1:1
+ * substitution.
+ *
+ * @param {string} url - Path beginning with `/`, or an absolute URL.
+ * @param {RequestInit} [options] - Passed through to fetch untouched.
+ * @returns {Promise<Response>}
+ */
+export function apiFetch(url, options) {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+  // Preserve fetch's call arity. Always passing a second argument would turn
+  // fetch(url) into fetch(url, undefined), which is behaviourally identical but
+  // changes what a spy records — enough to break callers' tests for no reason.
+  return options === undefined ? fetch(fullUrl) : fetch(fullUrl, options);
+}
+
+/**
  * Enhanced fetch wrapper with error handling and logging
  * @param {string} url - The endpoint URL
  * @param {RequestInit} options - Fetch options

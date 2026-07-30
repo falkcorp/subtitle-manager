@@ -29,6 +29,7 @@ import {
   VisibilityOff as HideIcon,
 } from '@mui/icons-material';
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../services/api.js';
 
 /**
  * Enhanced AuthSettings with card-based UI for each authentication method.
@@ -137,7 +138,7 @@ export default function AuthSettings({
 
   const generateGithubCredentials = async () => {
     try {
-      const response = await fetch('/api/oauth/github/generate', {
+      const response = await apiFetch('/api/oauth/github/generate', {
         method: 'POST',
       });
       if (response.ok) {
@@ -153,7 +154,7 @@ export default function AuthSettings({
 
   const regenerateGithubSecret = async () => {
     try {
-      const response = await fetch('/api/oauth/github/regenerate', {
+      const response = await apiFetch('/api/oauth/github/regenerate', {
         method: 'POST',
       });
       if (response.ok) {

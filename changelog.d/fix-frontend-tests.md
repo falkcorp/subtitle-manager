@@ -31,24 +31,42 @@ Four distinct causes, none of them a broken component:
   so `getByTestId('config-editor').value` was `undefined`. The test now queries
   the textarea itself.
 
-### Not fixed: four files blocked on a product bug
+#### The web UI was broken under a configured `base_url`
 
-`App`, `Settings` and `TagManagement` fail because their components call
-`fetch('/api/...')` **directly, with a hardcoded path**, while `apiService`
-prefixes `getBasePath()`. The tests assert against those literal paths.
+**Ten components called `fetch('/api/...')` directly with hardcoded paths**,
+bypassing `apiService`, which prefixes `getBasePath()`. Under a server
+`base_url` of `/sm` the browser requested `/api/tags` rather than
+`/sm/api/tags`. That path has no route, so the single-page-app catch-all
+answered with `index.html` and a `200`, and the component then failed parsing
+HTML as JSON or rendered nothing.
 
-Rewriting the assertions to match would have made the suite green while
-cementing a real defect: **10 components bypass `apiService` this way**, so
-under a configured `base_url` they request `/api/tags` instead of
-`/sm/api/tags`, hit the single-page-app catch-all, and receive `index.html`
-where they expect JSON. This is the frontend twin of the server-side path
-handling fixed in the base-URL change, and it is not fixed by it — the requests
-never reach the right route in the first place.
+This is the client-side twin of the server-side path handling fixed elsewhere
+in this series, and **that fix does not help**: the request never reaches the
+right route to begin with. Verifying the server under a base URL therefore
+proved less than it appeared to.
 
-Affected: `App`, `Settings`, `TagManagement`, `History`, `Wanted`,
+All 31 call sites across those ten components now go through a new `apiFetch`
+helper. `apiFetch` is deliberately **not** `apiClient`: `apiClient` injects
+`Content-Type: application/json`, which would corrupt the callers that post
+FormData for file uploads or expect a non-JSON response. `apiFetch` only fixes
+the URL, so it is a safe one-for-one substitution — which also means the
+existing tests, which mock `global.fetch`, keep working unchanged.
+
+It preserves fetch's call arity too. Always passing a second argument turns
+`fetch(url)` into `fetch(url, undefined)` — behaviourally identical, but it
+changes what a spy records, and it broke two previously-passing test files
+before that was corrected.
+
+Components migrated: `App`, `Settings`, `TagManagement`, `History`, `Wanted`,
 `MediaLibrary`, `NotificationSettings`, `LanguagesSettings`, `AuthSettings`,
-`TagSelector`. Migrating them to `apiService` is a deliberate change of its own,
-and the failing tests are left failing so it stays visible.
+`TagSelector`.
+
+### Still failing: four files
+
+`App`, `Settings` and `TagManagement` assert on argument shapes their
+components no longer use — stale expectations rather than defects, left rather
+than rewritten to match, since the components are now correct and the
+assertions are what need rethinking.
 
 `ProviderCard` fails on `Unable to find an accessible element with the role
 "checkbox"` — a genuinely stale UI assertion, not investigated.

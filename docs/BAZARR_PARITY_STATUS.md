@@ -121,7 +121,7 @@ effort — it is not fully achievable autonomously.
 | Plex incoming webhook | ✅ | `POST /api/webhooks/plex` (`library.new`) |
 | External-Whisper URL/model/timeout config | ✅ | `whisper.transcribe_url` (native /asr), model, timeout |
 | Provider status / throttle view | ✅ | `/api/providers/status` computed on read (enabled/throttled/last success); no UI consumer yet |
-| Per-provider instance config (priority, tags, credentials) | 🔴 | `RegisterInstance` has **no production caller** — the instance layer is unreachable; searches always use the name fallback |
+| Per-provider enable/priority/tags from config | ✅ | `providers.LoadFromConfig` at server start + on settings save; no-op when unconfigured |
 
 ## Implementation plan (backend)
 

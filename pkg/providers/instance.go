@@ -64,6 +64,38 @@ func RegisterInstance(inst Instance) {
 	instances[inst.ID] = inst
 }
 
+// SetInstances replaces the entire instance registry.
+//
+// Reloading configuration needs replacement, not merging: RegisterInstance
+// only ever adds or updates, so a provider the operator has just disabled (or
+// deleted) in the config file would linger in the registry forever and keep
+// being consulted by searches. Passing nil empties the registry.
+func SetInstances(insts []Instance) {
+	instancesMu.Lock()
+	defer instancesMu.Unlock()
+	instances = make(map[string]Instance, len(insts))
+	for _, inst := range insts {
+		instances[inst.ID] = inst
+	}
+}
+
+// byPriority orders instances highest priority first, breaking ties by ID.
+//
+// The tiebreak is load-bearing, not cosmetic. sort.Slice is not stable and the
+// input comes from a map, whose iteration order Go randomises per process, so
+// equal-priority providers would be consulted in a different order on every
+// restart. Configuration does not require a priority — LoadFromConfig leaves it
+// at zero when unset — so equal priorities are the common case, not an edge
+// one.
+func byPriority(out []Instance) {
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Priority != out[j].Priority {
+			return out[i].Priority > out[j].Priority
+		}
+		return out[i].ID < out[j].ID
+	})
+}
+
 // Instances returns all registered provider instances ordered by priority.
 func Instances() []Instance {
 	instancesMu.RLock()
@@ -74,7 +106,7 @@ func Instances() []Instance {
 			out = append(out, inst)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Priority > out[j].Priority })
+	byPriority(out)
 	return out
 }
 
@@ -86,7 +118,7 @@ func ListInstances() []Instance {
 	for _, inst := range instances {
 		out = append(out, inst)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Priority > out[j].Priority })
+	byPriority(out)
 	return out
 }
 
@@ -150,6 +182,6 @@ func InstancesByTags(tm interface {
 			out = append(out, inst)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Priority > out[j].Priority })
+	byPriority(out)
 	return out, nil
 }

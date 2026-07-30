@@ -346,11 +346,33 @@ func TestProviderContextHandling(t *testing.T) {
 	})
 
 	t.Run("context_timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		// An ALREADY-PASSED deadline, so no timer goroutine is ever created.
+		//
+		// This test used context.WithTimeout(ctx, 1ms) and then slept 2ms.
+		// That leaves a real race, not merely a slow-machine artefact: a
+		// pending deadline is delivered by context's own timer goroutine,
+		// which writes to the context's internals when it fires, while
+		// testify's mock formats every argument with fmt.Sprintf when
+		// recording the call — and formatting a context reads those same
+		// internals by reflection. CI caught exactly that:
+		//
+		//	Write at ... context.(*timerCtx).cancel  <- WithDeadlineCause.func2
+		//	Previous read at ... testify/mock.callString -> fmt.Sprintf
+		//
+		// The 2ms sleep usually let the timer win the race, which is why this
+		// passed locally and reddened CI intermittently. Waiting on Done()
+		// would shrink the window but not close it — cancel() is still
+		// unlocking the context's mutex as the test proceeds.
+		//
+		// context.WithDeadline cancels synchronously, on the calling
+		// goroutine, when the deadline has already passed. Nothing concurrent
+		// ever touches this context, so there is no window to lose.
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
 		defer cancel()
 
-		// Sleep a bit to ensure timeout
-		time.Sleep(2 * time.Millisecond)
+		if ctx.Err() == nil {
+			t.Fatal("precondition: a past deadline should already be expired")
+		}
 
 		mockProvider.On("Fetch", mock.MatchedBy(func(ctx context.Context) bool {
 			select {

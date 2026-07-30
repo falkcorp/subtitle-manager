@@ -252,6 +252,20 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	mux.Handle(prefix+"/api/search/history", authMiddleware(db, "basic", searchHistoryHandler(db)))
 	// New API endpoints for modern UI
 	mux.Handle(prefix+"/api/providers", authMiddleware(db, "basic", providersHandler()))
+	// The provider-selection list for the "add provider" dialog.
+	//
+	// ProviderConfigDialog.jsx has always called this, and there was no handler
+	// for it. Note what that actually meant: the path did NOT fall through to
+	// the single-page-app catch-all, because "/api/providers/" is registered as
+	// a subtree for universalTagsHandler — so the request was answered by the
+	// *tag* handler. The dialog assigned that response to state and crashed on
+	// "availableProviders.map is not a function", which reads as a React bug
+	// rather than a routing one.
+	//
+	// This must stay registered before/independent of that subtree: an exact
+	// pattern wins over a subtree in http.ServeMux, which is what makes this
+	// one line sufficient.
+	mux.Handle(prefix+"/api/providers/available", authMiddleware(db, "basic", availableProvidersHandler()))
 	mux.Handle(prefix+"/api/library/browse", authMiddleware(db, "basic", libraryBrowseHandler()))
 	mux.Handle(prefix+"/api/library/tags", authMiddleware(db, "basic", libraryTagsHandler(db)))
 	mux.Handle(prefix+"/api/library/scan", authMiddleware(db, "basic", libraryScanHandler(db)))
@@ -1115,6 +1129,25 @@ type Subtitle struct {
 	Language string `json:"language"`
 	Path     string `json:"path"`
 	Format   string `json:"format"`
+}
+
+// availableProvidersHandler returns every provider the system knows about, for
+// the UI's provider-selection list.
+//
+// Separate from providersHandler, which serves the same data on GET /api/providers
+// but also accepts POST to save configuration. The frontend asks for these at
+// different moments and the split keeps the selection list a plain read.
+func availableProvidersHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(getAvailableProviders()); err != nil {
+			http.Error(w, "Failed to encode providers", http.StatusInternalServerError)
+		}
+	})
 }
 
 // getAvailableProviders returns a slice of every provider known to the system

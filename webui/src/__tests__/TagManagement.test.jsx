@@ -18,10 +18,9 @@ describe('TagManagement component', () => {
 
     render(<TagManagement />);
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/tags'),
-        expect.any(Object)
-      )
+      // The initial load is a bare GET — apiFetch preserves fetch's arity, so
+      // it is a single-argument call and asserting a second one never matches.
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/tags'))
     );
     expect(await screen.findByText('english')).toBeInTheDocument();
   });
@@ -34,10 +33,9 @@ describe('TagManagement component', () => {
 
     render(<TagManagement />);
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/tags'),
-        expect.any(Object)
-      )
+      // The initial load is a bare GET — apiFetch preserves fetch's arity, so
+      // it is a single-argument call and asserting a second one never matches.
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/tags'))
     );
 
     fetch.mockResolvedValueOnce({ ok: true });

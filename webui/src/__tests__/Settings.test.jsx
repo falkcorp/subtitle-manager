@@ -8,7 +8,19 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import Settings from '../Settings.jsx';
+
+// Settings calls useNavigate, which throws outside a Router. Rendering it bare
+// failed every test in this file with "useNavigate() may be used only in the
+// context of a <Router> component" — the component grew routing after these
+// tests were written.
+const renderSettings = () =>
+  render(
+    <MemoryRouter>
+      <Settings />
+    </MemoryRouter>
+  );
 
 // Mock the API service
 vi.mock('../services/api.js', () => ({
@@ -57,6 +69,17 @@ describe('Settings component', () => {
             ]),
         });
       }
+      // ProviderConfigDialog loads this through apiService.get, not fetch, so
+      // mocking global.fetch for it (as this file also does) never reached the
+      // component — it fell through to the catch-all below and received an
+      // object where an array was expected.
+      if (url === '/api/providers/available') {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([{ name: 'opensubtitles' }, { name: 'subscene' }]),
+        });
+      }
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
@@ -74,7 +97,7 @@ describe('Settings component', () => {
   });
   test('loads settings and renders tabs', async () => {
     await act(async () => {
-      render(<Settings />);
+      renderSettings();
     });
 
     // Wait for the settings to load and tabs to appear
@@ -106,7 +129,7 @@ describe('Settings component', () => {
 
   test('shows only enabled providers', async () => {
     await act(async () => {
-      render(<Settings />);
+      renderSettings();
     });
 
     await waitFor(() => {
@@ -118,7 +141,7 @@ describe('Settings component', () => {
 
   test('add provider dialog lists all providers', async () => {
     await act(async () => {
-      render(<Settings />);
+      renderSettings();
     });
 
     const addButton = screen.getByText('Add Provider');
@@ -141,7 +164,7 @@ describe('Settings component', () => {
 
   test('import dialog allows entering Bazarr details', async () => {
     await act(async () => {
-      render(<Settings />);
+      renderSettings();
     });
 
     const importButton = screen.getByText('Import from Bazarr');
@@ -170,7 +193,7 @@ describe('Settings component', () => {
     });
 
     await act(async () => {
-      render(<Settings />);
+      renderSettings();
     });
 
     expect(await screen.findByText('Permission denied')).toBeInTheDocument();

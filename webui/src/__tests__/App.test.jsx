@@ -63,7 +63,14 @@ describe('App component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Subtitle Manager')).toBeInTheDocument();
+      // The login heading renders t('app.title'), so its text depends on
+      // whether i18n has been initialised in the test environment — asserting
+      // the translated string made this test a check on translation setup
+      // rather than on the login form. The subtitle beneath it is a literal
+      // and identifies the same screen unambiguously.
+      expect(
+        screen.getByText(/sign in to access your subtitle management/i)
+      ).toBeInTheDocument();
     });
   });
 

@@ -409,7 +409,7 @@ func TestProviderStatusReflectsConfiguredProviders(t *testing.T) {
 	// any check; LastSuccess is what actually distinguishes a working provider
 	// from a stub, and it must stay zero until something really worked.
 	for id, s := range got {
-		if !s.LastSuccess.IsZero() {
+		if s.LastSuccess != nil {
 			t.Errorf("%s reports a last success though nothing has run", id)
 		}
 	}

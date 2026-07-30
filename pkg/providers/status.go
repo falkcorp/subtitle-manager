@@ -1,5 +1,5 @@
 // file: pkg/providers/status.go
-// version: 2.0.0
+// version: 2.1.0
 // guid: f23c08ee-e040-4796-b45c-5b550e7b8282
 // last-edited: 2026-07-30
 
@@ -35,14 +35,25 @@ type Status struct {
 	Available bool `json:"available"`
 	// Throttled is true while the provider is in backoff after a failure.
 	Throttled bool `json:"throttled"`
-	// RetryAfter is when the backoff expires. Zero when not throttled.
-	RetryAfter time.Time `json:"retry_after,omitempty"`
-	// LastSuccess is when this instance last returned a subtitle. Zero means
-	// it has never succeeded — which, for the many providers that are still
-	// stubs, is the honest answer and needs no hardcoded list to produce.
-	LastSuccess time.Time `json:"last_success,omitempty"`
-	// LastFailure is when this instance last failed.
-	LastFailure time.Time `json:"last_failure,omitempty"`
+	// RetryAfter is when the backoff expires, or nil when not throttled.
+	//
+	// A pointer, not a time.Time: encoding/json's omitempty does NOT apply to
+	// structs, so a zero time.Time is serialised as "0001-01-01T00:00:00Z"
+	// rather than omitted. A client checking whether the field is present would
+	// see one on every provider.
+	RetryAfter *time.Time `json:"retry_after,omitempty"`
+	// LastSuccess is when this instance last returned a subtitle, or nil when
+	// it never has — which, for the many providers that are still stubs, is the
+	// honest answer and needs no hardcoded list to produce.
+	//
+	// Pointers for the same reason as RetryAfter: with a plain time.Time these
+	// serialised as "0001-01-01T00:00:00Z" on every provider, so the field that
+	// is supposed to separate a working provider from a stub was present
+	// everywhere and distinguished nothing. Caught by querying a running
+	// server; the Go-level tests asserted on IsZero() and never saw the JSON.
+	LastSuccess *time.Time `json:"last_success,omitempty"`
+	// LastFailure is when this instance last failed, or nil if it never has.
+	LastFailure *time.Time `json:"last_failure,omitempty"`
 	// CheckedAt is when this snapshot was computed.
 	CheckedAt time.Time `json:"checked_at"`
 }
@@ -156,17 +167,24 @@ func List() map[string]Status {
 		o := outcomes[inst.ID]
 
 		s := Status{
-			Name:        inst.Name,
-			InstanceID:  inst.ID,
-			Enabled:     inst.Enabled,
-			Throttled:   throttled,
-			Available:   inst.Enabled && !throttled,
-			LastSuccess: o.lastSuccess,
-			LastFailure: o.lastFailure,
-			CheckedAt:   now,
+			Name:       inst.Name,
+			InstanceID: inst.ID,
+			Enabled:    inst.Enabled,
+			Throttled:  throttled,
+			Available:  inst.Enabled && !throttled,
+			CheckedAt:  now,
+		}
+		if !o.lastSuccess.IsZero() {
+			t := o.lastSuccess
+			s.LastSuccess = &t
+		}
+		if !o.lastFailure.IsZero() {
+			t := o.lastFailure
+			s.LastFailure = &t
 		}
 		if throttled {
-			s.RetryAfter = until
+			u := until
+			s.RetryAfter = &u
 		}
 		out[inst.ID] = s
 	}

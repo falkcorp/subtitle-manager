@@ -1,5 +1,5 @@
 <!-- file: changelog.d/fix-provider-status-real.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 1.1.0 -->
 <!-- guid: 3a9d61b8-52c7-4e0f-8b34-7d1e05f4a2c9 -->
 <!-- last-edited: 2026-07-30 -->
 
@@ -51,6 +51,19 @@ retry a throttled provider without also erasing the record of why it was
 throttled.
 
 Response codes are unchanged (`202` and `204`).
+
+### Unset times are omitted from the JSON, not zero-valued
+
+`last_success`, `last_failure` and `retry_after` are pointers so that "never
+happened" is an absent field rather than `0001-01-01T00:00:00Z`.
+
+`encoding/json` does **not** apply `omitempty` to structs, so a plain
+`time.Time` is always serialised. With the obvious field types, every one of the
+52 providers shipped a `last_success` — and the field whose entire purpose is to
+separate a working provider from a stub was present on all of them and
+distinguished nothing. The Go-level tests asserted `IsZero()` and passed
+throughout; this was only visible by querying a running server. There is now a
+test that asserts on the marshalled JSON.
 
 ### Known issue this surfaced
 

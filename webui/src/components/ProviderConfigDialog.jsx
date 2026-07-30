@@ -54,9 +54,16 @@ export default function ProviderConfigDialog({
   const loadAvailableProviders = async () => {
     try {
       const response = await apiService.get('/api/providers/available');
-      if (response.ok) {
+      if (response?.ok) {
         const providers = await response.json();
-        setAvailableProviders(providers);
+        // Guard the shape rather than trusting it. /api/providers/available
+        // has no handler registered on the server, so the request falls
+        // through to the single-page-app catch-all and comes back as
+        // index.html with a 200 — response.ok is true and the body is not an
+        // array. Assigning it straight to state crashed the dialog on
+        // `availableProviders.map is not a function`, which reads as a React
+        // bug rather than a missing route.
+        setAvailableProviders(Array.isArray(providers) ? providers : []);
       } else {
         setAvailableProviders([]);
       }

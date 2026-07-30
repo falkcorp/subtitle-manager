@@ -61,12 +61,36 @@ Components migrated: `App`, `Settings`, `TagManagement`, `History`, `Wanted`,
 `MediaLibrary`, `NotificationSettings`, `LanguagesSettings`, `AuthSettings`,
 `TagSelector`.
 
-### Still failing: four files
+### The remaining four files
 
-`App`, `Settings` and `TagManagement` assert on argument shapes their
-components no longer use — stale expectations rather than defects, left rather
-than rewritten to match, since the components are now correct and the
-assertions are what need rethinking.
+All now pass. The suite is **24 files / 56 tests green**, from 11 files and 20
+tests failing on `main`. Their causes:
+
+- **`TagManagement`** asserted a two-argument `fetch` call for what is a bare
+  GET. `apiFetch` preserves fetch's arity, so it is a one-argument call.
+- **`ProviderCard`** looked for `role="checkbox"`; MUI's `Switch` renders
+  `role="switch"`.
+- **`Settings`** rendered the component without a Router, so every test in the
+  file died on `useNavigate() may be used only in the context of a <Router>` —
+  the component grew routing after the tests were written.
+- **`App`** asserted the login heading reads "Subtitle Manager", but it renders
+  `t('app.title')`, so the assertion depended on whether i18n was initialised
+  rather than on the login form. It now matches the literal subtitle beneath it.
+
+### A missing route found on the way
+
+`/api/providers/available` **has no handler registered**, so the request falls
+through to the single-page-app catch-all and returns `index.html` with a `200`.
+`ProviderConfigDialog` assigned that straight to state and crashed on
+`availableProviders.map is not a function` — which reads as a React bug rather
+than a missing route.
+
+The component now checks the shape before using it, so a wrong response
+degrades to an empty list instead of a crash. **That is a guard, not a fix:**
+the route still needs mounting server-side, and the "add provider" dialog will
+list nothing until it is. It is also not in `route_coverage_test.go`'s path
+list, which is hand-curated — so the guard built to catch exactly this class of
+bug missed it.
 
 `ProviderCard` fails on `Unable to find an accessible element with the role
 "checkbox"` — a genuinely stale UI assertion, not investigated.

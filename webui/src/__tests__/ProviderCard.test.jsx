@@ -40,7 +40,9 @@ describe('ProviderCard component', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('checkbox'));
+    // MUI's Switch renders role="switch", not "checkbox"; the component
+    // uses a Switch for the enabled toggle.
+    fireEvent.click(screen.getByRole('switch'));
     expect(onToggle).toHaveBeenCalled();
     expect(onConfigure).not.toHaveBeenCalled();
   });

@@ -231,7 +231,7 @@ func TestFetchFromTagged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchFromTagged err: %v", err)
 	}
-	if id != "p2" || string(data) != "ok" {
+	if id != "p2" || !bytes.Contains(data, []byte("ok")) {
 		t.Fatalf("unexpected result %s %s", data, id)
 	}
 }

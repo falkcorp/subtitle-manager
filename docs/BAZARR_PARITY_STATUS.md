@@ -120,6 +120,8 @@ effort — it is not fully achievable autonomously.
 | Notifications (Apprise / many channels) | ✅ | Apprise + Discord/Telegram/email; **fire on subtitle events** |
 | Plex incoming webhook | ✅ | `POST /api/webhooks/plex` (`library.new`) |
 | External-Whisper URL/model/timeout config | ✅ | `whisper.transcribe_url` (native /asr), model, timeout |
+| Provider status / throttle view | ✅ | `/api/providers/status` computed on read (enabled/throttled/last success); no UI consumer yet |
+| Per-provider instance config (priority, tags, credentials) | 🔴 | `RegisterInstance` has **no production caller** — the instance layer is unreachable; searches always use the name fallback |
 
 ## Implementation plan (backend)
 

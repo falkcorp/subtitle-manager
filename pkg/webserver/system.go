@@ -1,6 +1,7 @@
 // file: pkg/webserver/system.go
-// version: 1.0.1
+// version: 1.1.0
 // guid: 37c23ec8-b8b9-4086-be5c-8058fee3fd54
+// last-edited: 2026-07-30
 
 package webserver
 
@@ -122,15 +123,23 @@ func providerStatusHandler() http.Handler {
 	})
 }
 
-// providerRefreshHandler refreshes status information for all providers.
+// providerRefreshHandler clears provider throttling so backed-off providers
+// are retried immediately.
+//
+// It used to call providers.Refresh with a hardcoded []string{"opensubtitles",
+// "subscene"}, which marked exactly those two names Available without checking
+// anything — so the endpoint reported a stub provider as healthy and omitted
+// every real one. Availability is now computed on read, leaving nothing to
+// refresh; clearing throttles is the useful action that remains, and matches
+// Bazarr's "reset provider throttling".
 func providerRefreshHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		providers.Refresh(r.Context(), []string{"opensubtitles", "subscene"})
+		providers.ResetThrottling()
 		w.WriteHeader(http.StatusAccepted)
 	})
 }
 
-// providerResetHandler clears provider status data.
+// providerResetHandler clears the recorded provider success/failure history.
 func providerResetHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		providers.Reset()

@@ -1,3 +1,8 @@
+// file: pkg/webserver/system_test.go
+// version: 1.1.0
+// guid: 8a41f7c2-3d95-4e60-b1a8-92f5c0d3e714
+// last-edited: 2026-07-30
+
 package webserver
 
 import (
@@ -8,6 +13,7 @@ import (
 
 	auth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/testutil"
 )
 
@@ -355,5 +361,56 @@ func TestErrorDashboardEndpoints(t *testing.T) {
 			t.Fatalf("%s: %v %d", path, err, r.StatusCode)
 		}
 		r.Body.Close()
+	}
+}
+
+// TestProviderStatusReflectsConfiguredProviders asserts the *content* of the
+// status endpoint, not just that it returns 200.
+//
+// TestProviderEndpoints above checks status codes and is gated behind
+// skipIfNoSQLite, so it does not run in CI. The defect this guards against was
+// invisible to a status-code check anyway: the endpoint returned a cheerful
+// 200 with a body listing two hardcoded provider names as available, one of
+// them a non-functional stub, and omitting every provider actually configured.
+func TestProviderStatusReflectsConfiguredProviders(t *testing.T) {
+	// No instances are configured in this process, which is also the state of
+	// every real deployment: nothing in the server calls RegisterInstance. The
+	// endpoint must therefore report the registered provider names rather than
+	// an empty object.
+
+	rr := httptest.NewRecorder()
+	providerStatusHandler().ServeHTTP(rr,
+		httptest.NewRequest(http.MethodGet, "/api/providers/status", nil))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+
+	var got map[string]providers.Status
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v (body %s)", err, rr.Body.String())
+	}
+
+	if len(got) == 0 {
+		t.Fatal("status is empty; the endpoint reports nothing on a default install")
+	}
+
+	// A real provider must be present...
+	real, ok := got["opensubtitles"]
+	if !ok {
+		t.Fatalf("opensubtitles missing from status: %d entries", len(got))
+	}
+	if real.Name != "opensubtitles" {
+		t.Errorf("got %+v, want the opensubtitles entry", real)
+	}
+
+	// ...and a provider that has never run must not claim to have succeeded.
+	// The old implementation marked its two hardcoded names Available without
+	// any check; LastSuccess is what actually distinguishes a working provider
+	// from a stub, and it must stay zero until something really worked.
+	for id, s := range got {
+		if !s.LastSuccess.IsZero() {
+			t.Errorf("%s reports a last success though nothing has run", id)
+		}
 	}
 }

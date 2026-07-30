@@ -71,7 +71,7 @@ effort — it is not fully achievable autonomously.
 | Monitored-only mode | ✅ | `arr.Filters.MonitoredOnly` |
 | Excluded tags / series types | ✅ | `arr.Filters` excluded tags/series-types |
 | Path mappings (arr↔local) applied | ✅ | `arr.Filters.PathMappings` |
-| Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; still hardcoded `en` |
+| Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; language now configurable (`languages.default`), still not per-series profile |
 | Notify *arr to rescan after download | ✅ | `pkg/arrnotify`; id resolved from path at event time (see note below) |
 
 ### Search / download / upgrade engine

@@ -1,7 +1,7 @@
 // file: pkg/webhooks/plex.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: d6b1f39c-4e07-4a52-9c8b-2f0a7d54e916
-// last-edited: 2026-07-23
+// last-edited: 2026-07-30
 
 package webhooks
 
@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/profiles"
 )
 
 // plexPayload is the subset of a Plex webhook payload we care about. Plex sends
@@ -83,9 +84,11 @@ func PlexHandler() http.Handler {
 			return
 		}
 
+		// Plex already had its own language setting; fall back to the global
+		// default rather than English so all three webhook sources agree.
 		lang := viper.GetString("webhooks.plex.language")
 		if lang == "" {
-			lang = "en"
+			lang = profiles.DefaultLanguage()
 		}
 
 		handle(w, r, event{Path: file, Lang: lang})

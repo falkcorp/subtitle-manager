@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -245,5 +247,48 @@ func TestCustomHandlerHandleErrors(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
+	}
+}
+
+// TestNoHardcodedLanguage guards against a hardcoded language literal
+// returning to the webhook handlers.
+//
+// A behavioural test here would be vacuous: with no provider configured
+// nothing is downloaded whatever language is requested, so an assertion on the
+// handler's result passes with the bug present. The property that actually
+// matters is that these call sites ask for the configured default rather than
+// a literal, and that is visible in the source.
+//
+// pkg/profiles carries the real behavioural tests for how the default is
+// resolved.
+func TestNoHardcodedLanguage(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+
+	// ProcessFile(ctx, path, <literal>, ...) — the shape that pinned every
+	// import to English regardless of configuration.
+	bad := regexp.MustCompile(`ProcessFile\([^)]*,\s*"[a-z]{2}(-[A-Za-z]{2,4})?"`)
+
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+			if bad.MatchString(line) {
+				t.Errorf("%s:%d passes a hardcoded language to ProcessFile; a "+
+					"non-English library would silently get English subtitles. "+
+					"Use profiles.DefaultLanguage():\n\t%s",
+					f, i+1, strings.TrimSpace(line))
+			}
+		}
 	}
 }

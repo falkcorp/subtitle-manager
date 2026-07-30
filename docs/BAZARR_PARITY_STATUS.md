@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.8.0 -->
+<!-- version: 1.9.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-25 -->
+<!-- last-edited: 2026-07-30 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -198,7 +198,7 @@ Backend items only — pure UI and bugfixes excluded.
 - 🟡 **Provider throttling** — Bazarr tracks per-provider throttle state and a
   "throttled providers" view with cooldowns on 429/503/maintenance; we only have
   simple in-memory backoff.
-- 🟡 **Whisper**: separate connection vs read timeouts; language mapping; audio
+- 🟡 **Whisper**: connect vs total timeout now split (`whisper.connect_timeout`); language mapping; audio
   delay detection in MKV headers via ffprobe. We expose a single timeout.
 - 🟡 **Subsync**: option to use the original-language audio track as the sync
   reference; ffsubsync progress reporting.

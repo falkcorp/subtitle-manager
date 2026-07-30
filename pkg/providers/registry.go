@@ -1,8 +1,14 @@
+// file: pkg/providers/registry.go
+// version: 1.1.0
+// guid: 85c2d092-08c4-4009-b9ec-502f12ae3794
+// last-edited: 2026-07-30
+
 package providers
 
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/jdfalk/subtitle-manager/pkg/providers/addic7ed"
 	"github.com/jdfalk/subtitle-manager/pkg/providers/animekalesi"
@@ -112,9 +118,20 @@ var factories = map[string]func() Provider{
 	"zimuku":           func() Provider { return zimuku.New() },
 }
 
+// factoriesMu guards factories.
+//
+// The map was unguarded while providers were only ever consulted one at a
+// time. FetchFromAll now queries several concurrently, so Get is called from
+// multiple goroutines and the map needs a lock — concurrent reads alone are
+// safe, but RegisterFactory writes it, and Go's race detector (correctly)
+// flags the combination.
+var factoriesMu sync.RWMutex
+
 // RegisterFactory adds a provider factory to the registry. Primarily used in tests
 // to register mock providers.
 func RegisterFactory(name string, f func() Provider) {
+	factoriesMu.Lock()
+	defer factoriesMu.Unlock()
 	factories[name] = f
 }
 
@@ -123,7 +140,10 @@ func Get(name, _ string) (Provider, error) {
 	if name == "opensubtitles" {
 		return opensubtitles.New(""), nil
 	}
-	if f, ok := factories[name]; ok {
+	factoriesMu.RLock()
+	f, ok := factories[name]
+	factoriesMu.RUnlock()
+	if ok {
 		return f(), nil
 	}
 	return nil, fmt.Errorf("unknown provider %s", name)
@@ -131,11 +151,13 @@ func Get(name, _ string) (Provider, error) {
 
 // All returns the list of known provider names in alphabetical order.
 func All() []string {
+	factoriesMu.RLock()
 	names := make([]string, 0, len(factories)+1)
 	names = append(names, "opensubtitles")
 	for n := range factories {
 		names = append(names, n)
 	}
+	factoriesMu.RUnlock()
 	sort.Strings(names)
 	return names
 }

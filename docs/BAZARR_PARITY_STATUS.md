@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.8.0 -->
+<!-- version: 1.9.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-25 -->
+<!-- last-edited: 2026-07-30 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -84,7 +84,7 @@ effort — it is not fully achievable autonomously.
 | Score-gated accept/reject (min-score) | ✅ | wired into `ProcessFile` + `FetchWithProfile` |
 | Score-based upgrade | ✅ | compares persisted `DownloadRecord.MatchScore` |
 | Adaptive searching | 🟡 | fixed retry→blacklist; in-memory provider backoff |
-| Parallel provider fetch (core path) | 🟡 | `multi.go` is serial with backoff sleeps |
+| Parallel provider fetch (core path) | ✅ | `multi.go` runs waves of 4, resolved in priority order |
 | Use embedded tracks as a source | ✅ | `embedded` provider extracts muxed tracks via ffmpeg |
 | Ignore PGS/image subtitles | ✅ | `video.SubtitleStream.ImageBased()` skipped by embedded |
 | Desired-languages via profiles | ✅ | `FetchWithProfile` iterates by priority |

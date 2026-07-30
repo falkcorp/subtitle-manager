@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strconv"
@@ -45,13 +46,16 @@ func TestFetchFromAllInstances(t *testing.T) {
 	})
 
 	m1.On("Fetch", mock.Anything, "file.mkv", "en").Return([]byte(nil), errors.New("fail"))
-	m2.On("Fetch", mock.Anything, "file.mkv", "en").Return([]byte("ok"), nil)
+	// A real subtitle: provider responses are validated, so "ok" would now be
+	// rejected as not-a-subtitle and the fetch would report nothing found.
+	okSub := []byte("1\n00:00:01,000 --> 00:00:02,000\nok\n")
+	m2.On("Fetch", mock.Anything, "file.mkv", "en").Return(okSub, nil)
 
 	data, id, err := FetchFromAll(context.Background(), "file.mkv", "en", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if string(data) != "ok" || id != "p2" {
+	if !bytes.Contains(data, []byte("ok")) || id != "p2" {
 		t.Fatalf("unexpected result %s %s", data, id)
 	}
 
@@ -218,7 +222,10 @@ func TestFetchFromTagged(t *testing.T) {
 
 	testutil.MustNoError(t, "tag p2", database.AssignTagToEntity(db, tagID, "provider", "p2"))
 
-	m2.On("Fetch", mock.Anything, "file.mkv", "en").Return([]byte("ok"), nil)
+	// A real subtitle: provider responses are validated, so "ok" would now be
+	// rejected as not-a-subtitle and the fetch would report nothing found.
+	okSub := []byte("1\n00:00:01,000 --> 00:00:02,000\nok\n")
+	m2.On("Fetch", mock.Anything, "file.mkv", "en").Return(okSub, nil)
 
 	data, id, err := FetchFromTagged(context.Background(), "file.mkv", "en", "", []string{"fast"}, tm)
 	if err != nil {

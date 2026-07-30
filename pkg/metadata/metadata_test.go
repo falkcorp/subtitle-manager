@@ -227,7 +227,11 @@ func TestScanLibraryProgress(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	video := filepath.Join(dir, "movie-GRP.mkv")
+	// A realistic release name. "movie-GRP.mkv" is not one: ParseFileName
+	// rejects it outright with "unrecognised file name", so the scan stored an
+	// item with no release group and the assertion below could never pass. The
+	// parser is correct; the fixture was not.
+	video := filepath.Join(dir, "Movie.2020.1080p.BluRay.x264-GRP.mkv")
 	if err := os.WriteFile(video, []byte("x"), 0644); err != nil {
 		t.Fatalf("create video: %v", err)
 	}

@@ -47,13 +47,37 @@ New `logging.SetHook` sets the hook and discards the logger cache, so existing
 components pick it up. Assigning `logging.Hook` directly still works for
 process startup, where nothing has logged yet.
 
+- **`pkg/metadata` / `TestScanLibraryProgress`** used the fixture
+  `movie-GRP.mkv`, which `ParseFileName` rejects outright as an unrecognised
+  file name — so the scan stored an item with no release group and the
+  assertion could never pass. A realistic release name
+  (`Movie.2020.1080p.BluRay.x264-GRP.mkv`) parses correctly to
+  `title="Movie" group="GRP"`. The parser was right; the fixture was not.
+
+### Some Go tests silently require `npm run build`
+
+`TestSPAIndexFallback` fails with a 404 when `webui/dist` has not been built:
+the single-page-app fallback has no `index.html` to serve. It is not a code
+defect and it is not fixed here, but it means a green Go suite depends on a
+frontend build having happened first — worth knowing before wiring the sqlite
+tag into CI.
+
 ### Still failing under `-tags sqlite`
 
-Not fixed here, and called out rather than left to be rediscovered:
+Called out rather than left to be rediscovered. All four fail **in isolation**
+as well as in a package run, so none of them is cross-test pollution:
 
-- `pkg/metadata` — `TestScanLibraryProgress`
-- `pkg/webserver` — `TestSPAIndexFallback`, `TestScanHandlers`, `TestTranslate`,
-  `TestTranslateUpload`, `TestSystemHandlers`
+- `pkg/webserver` — `TestSystemHandlers`: `GET /api/announcements` returns 404
+  because `announcements.json` does not exist in the repository. Note the
+  handler opens `filepath.Join("..", "..", "announcements.json")`, a path
+  relative to the **process working directory** — so this endpoint cannot work
+  for a deployed binary either, wherever that file is put. That is a product
+  bug, not a test bug, and fixing it means deciding where the file should live
+  (embedded? configurable path?) — a decision, not a repair.
+- `pkg/webserver` — `TestScanHandlers` ("completed 0"), `TestTranslate` and
+  `TestTranslateUpload` (both HTTP 500, despite mocking the Google endpoint
+  with an httptest server). Not diagnosed.
 
 Adding `-tags sqlite` to CI should wait until those are green, or it lands
-permanently red. The default (untagged) build is unaffected by this change.
+permanently red and gets ignored — which is how the tag came to be untested in
+the first place. The default (untagged) build is unaffected by this change.

@@ -77,3 +77,38 @@ global.ResizeObserver = MockResizeObserver;
 afterEach(() => {
   cleanup();
 });
+
+// Provide localStorage when the environment does not.
+//
+// Components read it as a bare global (`localStorage.getItem(...)`), and under
+// this jsdom setup the global is undefined rather than throwing — so the
+// component crashed with "Cannot read properties of undefined (reading
+// 'getItem')" before rendering anything, which surfaced as a confusing
+// element-not-found failure.
+//
+// Guarded so a real implementation, or a per-test stub, always wins.
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map();
+  const localStorageMock = {
+    getItem: key => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: key => store.delete(key),
+    clear: () => store.clear(),
+    key: index => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  };
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+  });
+  if (typeof window !== 'undefined') {
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageMock,
+      writable: true,
+      configurable: true,
+    });
+  }
+}

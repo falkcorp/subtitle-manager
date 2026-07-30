@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -19,6 +20,16 @@ type alwaysFailProvider struct{}
 
 func (alwaysFailProvider) Fetch(ctx context.Context, mediaPath, lang string) ([]byte, error) {
 	return nil, fmt.Errorf("fail")
+}
+
+// subtitleBody builds a minimal but genuine SRT payload.
+//
+// Provider responses are validated now — a 200 carrying something that is not a
+// subtitle counts as a failure — so test fixtures have to be real subtitles or
+// they exercise the rejection path instead of the one under test.
+func subtitleBody(marker string) []byte {
+	return []byte("1\n00:00:01,000 --> 00:00:02,000\n" + marker + "\n\n" +
+		"2\n00:00:03,000 --> 00:00:04,000\nsecond cue\n")
 }
 
 // scriptedProvider is a provider whose latency and outcome the test controls,
@@ -163,11 +174,11 @@ func TestFetchFromAllPrefersHigherPriority(t *testing.T) {
 	obs := newObserver()
 	RegisterFactory("slowgood", func() Provider {
 		return scriptedProvider{name: "slowgood", delay: 150 * time.Millisecond,
-			body: []byte("preferred"), obs: obs}
+			body: subtitleBody("preferred"), obs: obs}
 	})
 	RegisterFactory("fastgood", func() Provider {
 		return scriptedProvider{name: "fastgood", delay: 0,
-			body: []byte("secondary"), obs: obs}
+			body: subtitleBody("secondary"), obs: obs}
 	})
 
 	useConcurrency(t, 4)
@@ -184,7 +195,7 @@ func TestFetchFromAllPrefersHigherPriority(t *testing.T) {
 		t.Errorf("winner = %q, want slowgood-1: the faster low-priority provider "+
 			"was preferred, which inverts the configured provider order", id)
 	}
-	if string(data) != "preferred" {
+	if !bytes.Contains(data, []byte("preferred")) {
 		t.Errorf("data = %q, want the high-priority provider's body", data)
 	}
 }
@@ -278,7 +289,7 @@ func TestFetchSerialEquivalence(t *testing.T) {
 		return scriptedProvider{name: "eq_fail_b", obs: obs}
 	})
 	RegisterFactory("eq_ok", func() Provider {
-		return scriptedProvider{name: "eq_ok", body: []byte("ok"), obs: obs}
+		return scriptedProvider{name: "eq_ok", body: subtitleBody("ok"), obs: obs}
 	})
 
 	useConcurrency(t, 1)
@@ -338,10 +349,10 @@ func TestFetchSerialEquivalence(t *testing.T) {
 func TestFetchSkipsInstancesInBackoff(t *testing.T) {
 	obs := newObserver()
 	RegisterFactory("bo_skipped", func() Provider {
-		return scriptedProvider{name: "bo_skipped", body: []byte("nope"), obs: obs}
+		return scriptedProvider{name: "bo_skipped", body: subtitleBody("nope"), obs: obs}
 	})
 	RegisterFactory("bo_used", func() Provider {
-		return scriptedProvider{name: "bo_used", body: []byte("yes"), obs: obs}
+		return scriptedProvider{name: "bo_used", body: subtitleBody("yes"), obs: obs}
 	})
 
 	useConcurrency(t, 4)

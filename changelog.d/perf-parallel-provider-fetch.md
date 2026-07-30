@@ -56,6 +56,38 @@ question has to be answered deliberately.
 
 ### Fixed
 
+#### Providers returning "200 OK" with junk were treated as successful downloads
+
+Most of the ~55 registered providers are stubs that GET
+`https://api.<name>.com/subtitles/...` — hostnames nobody controls. Several
+resolve to parked pages or generic gateways that answer `200` to anything, and
+whatever came back was accepted as a subtitle.
+
+This is not hypothetical. Fetching a **nonexistent** media path against a
+default configuration succeeded and wrote a **2-byte file containing `OK`**
+where the subtitle should be:
+
+    $ subtitle-manager fetch nonexistent-garbage-path en out.srt
+    level=info msg="downloaded subtitle to out.srt"
+    $ cat out.srt
+    OK
+
+The second-order effect is worse than the junk file: a provider that "succeeds"
+ends the search, so a stub answering `200` to everything **preempts the real
+providers that would have found an actual subtitle**. The more providers are
+configured, the likelier a search is silently poisoned.
+
+Responses are now checked for subtitle structure — a `-->` timing separator
+(SRT, WebVTT) or SubStation Alpha's `[Script Info]` / `[Events]` / `Dialogue:`
+markers — and anything else is treated as a fetch failure so the next provider
+is tried. Verified against a live run: the command above now reports
+`no subtitle found` and writes nothing, while a real fetch still returns a
+45,970-byte subtitle.
+
+The check is permissive about format and strict about structure, so a subtitle
+in any supported format passes while an error page, JSON error body or parked
+placeholder does not.
+
 #### Data race in the provider registry
 
 The `factories` map was unguarded, which was safe only because providers were

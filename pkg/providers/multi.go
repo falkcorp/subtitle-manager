@@ -225,6 +225,15 @@ func runWave(ctx context.Context, insts []Instance, wave []int, mediaPath, lang,
 			c, cancel := context.WithTimeout(wctx, providerTimeout)
 			defer cancel()
 			data, err := p.Fetch(c, mediaPath, lang)
+			// A 200 is not a subtitle. Most providers are stubs pointing at
+			// hostnames nobody controls, and several answer 200 to anything —
+			// which was accepted as a successful download and, worse, ended the
+			// search before a real provider was tried. Treat it as a failure so
+			// the next provider gets its turn.
+			if err == nil && !looksLikeSubtitle(data) {
+				err = ErrNotSubtitle
+				data = nil
+			}
 			ch <- fetchOutcome{data: data, err: err}
 		}()
 	}

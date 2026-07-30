@@ -104,7 +104,15 @@ func scanHandler() http.Handler {
 
 		// Start task with proper integration
 		taskID := fmt.Sprintf("scan-%s-%s", q.Directory, q.Lang)
-		task := tasks.Start(r.Context(), taskID, func(ctx context.Context) error {
+		// context.WithoutCancel: a task started here outlives the request.
+		//
+		// r.Context() is cancelled by net/http as soon as the handler returns,
+		// and this handler returns 202 immediately — so the work was cancelled
+		// before it did anything. The scan reported "completed 0" and logged
+		// "context canceled" per file, which reads like a provider problem.
+		// WithoutCancel keeps any request-scoped values while dropping the
+		// cancellation.
+		task := tasks.Start(context.WithoutCancel(r.Context()), taskID, func(ctx context.Context) error {
 			var p providers.Provider
 			var err error
 			if q.Provider != "" {

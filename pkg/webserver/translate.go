@@ -5,6 +5,7 @@
 package webserver
 
 import (
+	"github.com/jdfalk/subtitle-manager/pkg/logging"
 	"io"
 	"net/http"
 	"os"
@@ -90,6 +91,12 @@ func translateHandler() http.Handler {
 		}
 
 		if err := subtitles.TranslateFileToSRT(in.Name(), out.Name(), lang, service, gKey, gptKey, grpcAddr); err != nil {
+			// Log it. The error was discarded here, so a failed translation
+			// produced a bare 500 with nothing recorded anywhere — leaving no
+			// way to tell a bad API key from an unreachable service from a
+			// malformed subtitle.
+			logging.GetLogger("webserver").Warnf("translate %s->%s via %s: %v",
+				in.Name(), out.Name(), service, err)
 			metrics.TranslationRequests.WithLabelValues(service, lang, "error").Inc()
 			w.WriteHeader(http.StatusInternalServerError)
 			return

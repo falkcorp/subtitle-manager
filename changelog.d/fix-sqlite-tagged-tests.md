@@ -62,22 +62,49 @@ defect and it is not fixed here, but it means a green Go suite depends on a
 frontend build having happened first — worth knowing before wiring the sqlite
 tag into CI.
 
-### Still failing under `-tags sqlite`
+### Three product bugs the untested build configuration was hiding
 
-Called out rather than left to be rediscovered. All four fail **in isolation**
-as well as in a package run, so none of them is cross-test pollution:
+Chasing the last `pkg/webserver` failures turned up real defects, not stale
+tests:
 
-- `pkg/webserver` — `TestSystemHandlers`: `GET /api/announcements` returns 404
-  because `announcements.json` does not exist in the repository. Note the
-  handler opens `filepath.Join("..", "..", "announcements.json")`, a path
-  relative to the **process working directory** — so this endpoint cannot work
-  for a deployed binary either, wherever that file is put. That is a product
-  bug, not a test bug, and fixing it means deciding where the file should live
-  (embedded? configurable path?) — a decision, not a repair.
-- `pkg/webserver` — `TestScanHandlers` ("completed 0"), `TestTranslate` and
-  `TestTranslateUpload` (both HTTP 500, despite mocking the Google endpoint
-  with an httptest server). Not diagnosed.
+- **Library scans were cancelled before doing any work.** `scanHandler` started
+  its background task with `r.Context()`, which `net/http` cancels as soon as
+  the handler returns — and it returns `202 Accepted` immediately. Every file
+  logged "context canceled" and the scan reported zero completed. The same
+  pattern was in `startTaskHandler`. Both now use `context.WithoutCancel`,
+  which keeps request-scoped values while detaching from the response
+  lifecycle.
 
-Adding `-tags sqlite` to CI should wait until those are green, or it lands
-permanently red and gets ignored — which is how the tag came to be untested in
-the first place. The default (untagged) build is unaffected by this change.
+- **`POST /api/translate` panicked on a nil metrics collector.**
+  `metrics.Initialize()` was called only from `StartServer`, so the running web
+  command was fine, but any other way of building the handler left the
+  Prometheus collectors nil, and the translate handler calls `WithLabelValues`
+  on one unconditionally. A nil `*CounterVec` panics, killing the connection
+  mid-request: the client sees a bare `EOF`, no status, nothing logged.
+  Initialisation moved to `newMux`, which every path goes through; it is
+  idempotent, so `StartServer`'s call is harmless.
+
+- **A failed translation was reported as a bare 500 with the error discarded.**
+  No way to tell a bad API key from an unreachable service from a malformed
+  subtitle. It is logged now — which is how the mock mismatch below was found.
+
+Two test defects alongside them: both Google Translate mocks returned a single
+fixed translation regardless of input, so any subtitle with more than one cue
+failed the translator's count check ("expected 2 translations, got 1"). They
+now return one translation per input string, as the real API does.
+
+#### `/api/announcements` returned 404 on every deployment
+
+The handler answered `404` when `announcements.json` was absent — which is
+always: none is committed, and the path is resolved relative to the **process
+working directory**, so even adding one would only work if the binary happened
+to run two levels below it. An absent file now means "no announcements" and
+returns an empty list, and the location is configurable via
+`announcements_file`. Making that path sane by default is still worth doing;
+this stops a working install looking like a broken endpoint in the meantime.
+
+### The `-tags sqlite` suite is now green
+
+Every package passes under the tag, so it is safe to add to CI — which is the
+point, since it is the configuration the web server requires and the only one
+users actually run. The default (untagged) build is unaffected.

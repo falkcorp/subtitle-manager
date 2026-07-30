@@ -156,6 +156,21 @@ func Handler(db *sql.DB) (http.Handler, error) {
 // response therefore silently passes in CI while the route is broken in
 // production.
 func newMux(db *sql.DB) (*http.ServeMux, string, error) {
+	// Metrics have to exist before any handler that records one can serve.
+	//
+	// This used to be initialised only in StartServer, so the running web
+	// command was fine, but every other way of building the handler — tests,
+	// or anything embedding this package — left the Prometheus collectors nil.
+	// The translate handler calls WithLabelValues on one unconditionally, which
+	// panics on a nil *CounterVec, killing the connection mid-request: the
+	// client sees a bare "EOF" with no status and no server-side error.
+	//
+	// Initialize is guarded against running twice, so StartServer's call
+	// remains harmless.
+	if err := metrics.Initialize(); err != nil {
+		logging.GetLogger("webserver").Warnf("failed to initialize metrics: %v", err)
+	}
+
 	// Initialize webhook system
 	initializeWebhooks()
 

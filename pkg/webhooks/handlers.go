@@ -1,6 +1,7 @@
 // file: pkg/webhooks/handlers.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 123e4567-e89b-12d3-a456-426614174002
+// last-edited: 2026-07-30
 
 package webhooks
 
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/profiles"
 	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/scanner"
 	"github.com/jdfalk/subtitle-manager/pkg/security"
@@ -136,9 +138,16 @@ func (h *SonarrWebhookHandler) Handle(ctx context.Context, payload []byte, heade
 
 	h.logger.Infof("Processing Sonarr download: %s", filePath)
 
-	// Process file for subtitle download
-	// Use default language (English) and let the system determine provider
-	if err := scanner.ProcessFile(ctx, filePath, "en", "", nil, true, nil); err != nil {
+	// Process file for subtitle download, letting the system pick the provider.
+	//
+	// The language was hardcoded to English here, so a non-English library
+	// fetched English subtitles for everything imported through Sonarr with no
+	// setting anywhere to change it. It now follows the configured default.
+	//
+	// This is still not the language *profile* assigned to the series — the
+	// handler receives a file path and has no database to resolve one — which
+	// is the remaining half of this gap and is tracked separately.
+	if err := scanner.ProcessFile(ctx, filePath, profiles.DefaultLanguage(), "", nil, true, nil); err != nil {
 		h.logger.Warnf("Failed to process file from Sonarr webhook: %v", err)
 		return fmt.Errorf("processing failed: %v", err)
 	}
@@ -177,9 +186,10 @@ func (h *RadarrWebhookHandler) Handle(ctx context.Context, payload []byte, heade
 
 	h.logger.Infof("Processing Radarr download: %s", filePath)
 
-	// Process file for subtitle download
-	// Use default language (English) and let the system determine provider
-	if err := scanner.ProcessFile(ctx, filePath, "en", "", nil, true, nil); err != nil {
+	// Process file for subtitle download. See the Sonarr handler above for why
+	// this follows the configured default language rather than a hardcoded
+	// English, and what the remaining gap is.
+	if err := scanner.ProcessFile(ctx, filePath, profiles.DefaultLanguage(), "", nil, true, nil); err != nil {
 		h.logger.Warnf("Failed to process file from Radarr webhook: %v", err)
 		return fmt.Errorf("processing failed: %v", err)
 	}

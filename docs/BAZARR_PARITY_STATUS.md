@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.8.0 -->
+<!-- version: 1.9.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-25 -->
+<!-- last-edited: 2026-07-30 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -71,7 +71,7 @@ effort — it is not fully achievable autonomously.
 | Monitored-only mode | ✅ | `arr.Filters.MonitoredOnly` |
 | Excluded tags / series types | ✅ | `arr.Filters` excluded tags/series-types |
 | Path mappings (arr↔local) applied | ✅ | `arr.Filters.PathMappings` |
-| Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; still hardcoded `en` |
+| Webhook on import → search | 🟡 | Sonarr/Radarr/custom + Plex; language now configurable (`languages.default`), still not per-series profile |
 | Notify *arr to rescan after download | ✅ | `pkg/arrnotify`; id resolved from path at event time (see note below) |
 
 ### Search / download / upgrade engine

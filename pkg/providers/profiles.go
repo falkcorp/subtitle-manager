@@ -1,6 +1,7 @@
 // file: pkg/providers/profiles.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: f1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c
+// last-edited: 2026-07-30
 
 package providers
 
@@ -26,11 +27,12 @@ func FetchWithProfile(ctx context.Context, db *sql.DB, mediaPath, key string) ([
 	profile, err := service.GetMediaProfileByPath(mediaPath)
 	if err != nil {
 		// Fallback to default fetch if no profile found
-		data, provider, fetchErr := FetchFromAll(ctx, mediaPath, "en", key)
+		lang := profiles.DefaultLanguage()
+		data, provider, fetchErr := FetchFromAll(ctx, mediaPath, lang, key)
 		if fetchErr != nil {
 			return nil, "", "", fmt.Errorf("failed to get profile (%v) and fallback fetch failed: %w", err, fetchErr)
 		}
-		return data, provider, "en", nil
+		return data, provider, lang, nil
 	}
 
 	// Sort languages by priority (lower number = higher priority)
@@ -109,11 +111,12 @@ func FetchWithProfileTagged(ctx context.Context, db *sql.DB, mediaPath, key stri
 	profile, err := service.GetMediaProfileByPath(mediaPath)
 	if err != nil {
 		// Fallback to default tagged fetch if no profile found
-		data, provider, fetchErr := FetchFromTagged(ctx, mediaPath, "en", key, tags, tm)
+		lang := profiles.DefaultLanguage()
+		data, provider, fetchErr := FetchFromTagged(ctx, mediaPath, lang, key, tags, tm)
 		if fetchErr != nil {
 			return nil, "", "", fmt.Errorf("failed to get profile (%v) and fallback fetch failed: %w", err, fetchErr)
 		}
-		return data, provider, "en", nil
+		return data, provider, lang, nil
 	}
 
 	// Sort languages by priority (lower number = higher priority)
@@ -147,7 +150,10 @@ func GetLanguagesFromProfile(ctx context.Context, db *sql.DB, mediaPath string) 
 
 	profile, err := service.GetMediaProfileByPath(mediaPath)
 	if err != nil {
-		return []string{"en"}, err // fallback to English
+		// No profile: fall back to the configured default language rather than
+		// assuming English, which is what this returned before the default was
+		// configurable.
+		return []string{profiles.DefaultLanguage()}, err
 	}
 
 	// Sort languages by priority

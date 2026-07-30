@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.8.0 -->
+<!-- version: 1.9.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-25 -->
+<!-- last-edited: 2026-07-30 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -120,6 +120,8 @@ effort — it is not fully achievable autonomously.
 | Notifications (Apprise / many channels) | ✅ | Apprise + Discord/Telegram/email; **fire on subtitle events** |
 | Plex incoming webhook | ✅ | `POST /api/webhooks/plex` (`library.new`) |
 | External-Whisper URL/model/timeout config | ✅ | `whisper.transcribe_url` (native /asr), model, timeout |
+| Provider status / throttle view | ✅ | `/api/providers/status` computed on read (enabled/throttled/last success); no UI consumer yet |
+| Per-provider instance config (priority, tags, credentials) | 🔴 | `RegisterInstance` has **no production caller** — the instance layer is unreachable; searches always use the name fallback |
 
 ## Implementation plan (backend)
 

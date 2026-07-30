@@ -1,4 +1,8 @@
 // file: pkg/providers/instance.go
+// version: 1.1.0
+// guid: d7e9e164-3f86-4b97-95c8-c821bb4fe988
+// last-edited: 2026-07-30
+
 package providers
 
 import (
@@ -87,7 +91,20 @@ func ListInstances() []Instance {
 }
 
 // SetBackoff records a backoff duration for a provider instance. A zero or negative duration clears the backoff.
+//
+// This doubles as the seam where provider outcomes are recorded for
+// /api/providers/status. Every call site already means one of exactly two
+// things — the fetch loops call SetBackoff(id, 0) only after a provider
+// returned a subtitle, and SetBackoff(id, >0) only after one failed — so
+// recording here captures real history without threading a status call
+// through the fetch path.
 func SetBackoff(id string, d time.Duration) {
+	if d <= 0 {
+		recordSuccess(id)
+	} else {
+		recordFailure(id)
+	}
+
 	backoffMu.Lock()
 	defer backoffMu.Unlock()
 	if d <= 0 {

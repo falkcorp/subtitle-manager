@@ -1,3 +1,8 @@
+// file: pkg/webserver/users.go
+// version: 1.1.0
+// guid: 3f14cff3-19b6-461e-9c49-592a737c1a7d
+// last-edited: 2026-07-30
+
 package webserver
 
 import (
@@ -40,7 +45,7 @@ func userResetHandler(db *sql.DB) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/users/"), "/")
+		parts := pathSegments(r, "/api/users/")
 		if len(parts) != 2 || parts[1] != "reset" {
 			w.WriteHeader(http.StatusNotFound)
 			return

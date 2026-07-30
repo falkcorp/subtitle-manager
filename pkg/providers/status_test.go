@@ -1,11 +1,12 @@
 // file: pkg/providers/status_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: cb3753c6-7b0d-45cd-9137-9528ad6da276
 // last-edited: 2026-07-30
 
 package providers
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -95,11 +96,49 @@ func TestListNeverInventsAvailability(t *testing.T) {
 	useStatusState(t, Instance{ID: "stub-1", Name: "stub", Enabled: true})
 
 	s := List()["stub-1"]
-	if !s.LastSuccess.IsZero() {
+	if s.LastSuccess != nil {
 		t.Error("a provider that never ran reports a last success")
 	}
-	if !s.LastFailure.IsZero() {
+	if s.LastFailure != nil {
 		t.Error("a provider that never ran reports a last failure")
+	}
+}
+
+// TestStatusJSONOmitsUnsetTimes asserts on the serialised form, not the Go
+// struct.
+//
+// This is the bug the Go-level assertions could not see. The time fields were
+// plain time.Time with `omitempty`, but encoding/json does not apply omitempty
+// to structs — a zero time.Time serialises as "0001-01-01T00:00:00Z" rather
+// than being omitted. Every one of the 52 providers therefore shipped a
+// last_success, so the field meant to separate a working provider from a stub
+// was present on all of them and distinguished nothing. IsZero() in Go looked
+// fine throughout; only querying a running server showed it.
+func TestStatusJSONOmitsUnsetTimes(t *testing.T) {
+	useStatusState(t,
+		Instance{ID: "never-1", Name: "never", Enabled: true},
+		Instance{ID: "worked-1", Name: "worked", Enabled: true},
+	)
+	SetBackoff("worked-1", 0) // a success
+
+	raw, err := json.Marshal(List())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got map[string]map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if _, present := got["never-1"]["last_success"]; present {
+		t.Errorf("a provider that never succeeded still carries last_success in "+
+			"JSON (%s); clients cannot tell it from one that works", raw)
+	}
+	if _, present := got["never-1"]["retry_after"]; present {
+		t.Error("an unthrottled provider carries retry_after in JSON")
+	}
+	if _, present := got["worked-1"]["last_success"]; !present {
+		t.Error("a provider that succeeded is missing last_success in JSON")
 	}
 }
 
@@ -126,7 +165,7 @@ func TestStatusTracksThrottling(t *testing.T) {
 	if thr.Available {
 		t.Error("a throttled provider is reported as available; a search would skip it")
 	}
-	if thr.RetryAfter.IsZero() {
+	if thr.RetryAfter == nil {
 		t.Error("a throttled provider reports no retry time")
 	}
 
@@ -134,7 +173,7 @@ func TestStatusTracksThrottling(t *testing.T) {
 	if exp.Throttled || !exp.Available {
 		t.Errorf("expired backoff still counted: %+v", exp)
 	}
-	if !exp.RetryAfter.IsZero() {
+	if exp.RetryAfter != nil {
 		t.Error("an expired backoff still reports a retry time")
 	}
 }
@@ -156,16 +195,16 @@ func TestSetBackoffRecordsOutcomes(t *testing.T) {
 	SetBackoff("ok-1", 0)            // a success
 
 	got := List()
-	if got["ok-1"].LastSuccess.IsZero() {
+	if got["ok-1"].LastSuccess == nil {
 		t.Error("a successful fetch recorded no success")
 	}
-	if !got["ok-1"].LastFailure.IsZero() {
+	if got["ok-1"].LastFailure != nil {
 		t.Error("a successful fetch recorded a failure")
 	}
-	if got["bad-1"].LastFailure.IsZero() {
+	if got["bad-1"].LastFailure == nil {
 		t.Error("a failed fetch recorded no failure")
 	}
-	if !got["bad-1"].LastSuccess.IsZero() {
+	if got["bad-1"].LastSuccess != nil {
 		t.Error("a failed fetch recorded a success")
 	}
 }
@@ -188,12 +227,12 @@ func TestResetThrottlingClearsBackoffOnly(t *testing.T) {
 	if after.Throttled {
 		t.Error("ResetThrottling left the provider throttled")
 	}
-	if after.LastFailure.IsZero() {
+	if after.LastFailure == nil {
 		t.Error("ResetThrottling erased the failure history; that is Reset's job")
 	}
 
 	Reset()
-	if !List()["r-1"].LastFailure.IsZero() {
+	if List()["r-1"].LastFailure != nil {
 		t.Error("Reset did not clear the recorded history")
 	}
 }

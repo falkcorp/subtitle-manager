@@ -117,6 +117,11 @@ func discoverAPIPaths(root string) ([]string, error) {
 			if p == "" || p == "/api" {
 				continue
 			}
+			// Prose, not endpoints. Comments and docs refer to paths as
+			// "/api/..." or "/api/foo/…"; a real path has no run of dots.
+			if strings.Contains(p, "..") || strings.HasSuffix(p, ".") {
+				continue
+			}
 			seen[p] = true
 		}
 		return nil

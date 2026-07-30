@@ -207,15 +207,16 @@ func init() {
 		rootCmd.PersistentFlags().Bool("storage-backup-history", false, "enable cloud backup of history data")
 		viper.BindPFlag("storage.backup_history", rootCmd.PersistentFlags().Lookup("storage-backup-history"))
 
+		// Only commands that do NOT register themselves belong here.
+		//
+		// fetch, batch, sonarr, radarr and rename were listed here as well as
+		// in their own files' init(), so cobra held two entries for each and
+		// `--help` printed them twice. Every other command in cmd/ follows the
+		// self-registration pattern; these five now do too.
 		rootCmd.AddCommand(convertCmd)
 		rootCmd.AddCommand(mergeCmd)
 		rootCmd.AddCommand(translateCmd)
 		rootCmd.AddCommand(queueCmd)
-		rootCmd.AddCommand(fetchCmd)
-		rootCmd.AddCommand(batchCmd)
-		rootCmd.AddCommand(sonarrCmd)
-		rootCmd.AddCommand(radarrCmd)
-		rootCmd.AddCommand(renameCmd)
 		rootCmd.AddCommand(profileCmd)
 	})
 }

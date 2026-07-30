@@ -1,6 +1,7 @@
 // file: pkg/events/events.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 123e4567-e89b-12d3-a456-426614174006
+// last-edited: 2026-07-30
 
 package events
 
@@ -65,6 +66,14 @@ var globalPublisher EventPublisher
 // SetGlobalPublisher sets the global event publisher.
 func SetGlobalPublisher(publisher EventPublisher) {
 	globalPublisher = publisher
+}
+
+// GetGlobalPublisher returns the current global event publisher, which may be
+// nil. It exists so a caller that swaps the publisher — a test asserting which
+// code paths emit events, in practice — can put the previous one back rather
+// than leaving the global cleared for everything that runs afterwards.
+func GetGlobalPublisher() EventPublisher {
+	return globalPublisher
 }
 
 // PublishSubtitleDownloaded publishes a subtitle downloaded event.

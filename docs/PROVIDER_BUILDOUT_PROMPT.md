@@ -1,7 +1,7 @@
 <!-- file: docs/PROVIDER_BUILDOUT_PROMPT.md -->
-<!-- version: 1.1.0 -->
+<!-- version: 1.2.0 -->
 <!-- guid: 0d3f8b21-5c47-4e90-a2b6-9f1c0e7d4a38 -->
-<!-- last-edited: 2026-07-25 -->
+<!-- last-edited: 2026-07-31 -->
 
 # Next-session prompt: provider build-out
 
@@ -36,7 +36,7 @@ the config-key wiring; `gh pr merge <N> --rebase --admin`). For each provider,
 not guess** — and skip pure-HTML-scraping providers unless I say otherwise
 (note any you skip and why).
 
-## Phase 1 — keyless providers — **COMPLETE / EXHAUSTED**
+## Phase 1 — keyless providers
 - [x] **Gestdown** (`gestdown.info`) — done, PR #2201. Keyless REST proxy for
       Addic7ed, **TV only**. Indexes by show/season/episode rather than by hash,
       so it fits the filename-only `Fetch` interface via `metadata.ParseFileName`.
@@ -46,10 +46,30 @@ not guess** — and skip pure-HTML-scraping providers unless I say otherwise
       old "fragile HTML scraping" label was wrong: it has a real advanced-search
       JSON API. Language is **alpha-2**, and downloads are **zip-wrapped** — both
       facts came from subliminal's VCR cassette, not from guessing.
-- [x] No keyless candidates remain. `yifysubtitles` and `subscene` were assessed
-      and **skipped**: they are genuine HTML scraping with no stable API, which
-      cannot be implemented correctly or tested offline. Revisit only if you
-      explicitly want to take on scraping.
+- [x] **Wizdom** (`wizdom.xyz`) — done. **Hebrew only**, movies and TV. Keyless
+      JSON API: `/api/search?action=by_id&imdb=…` plus `season`/`episode`, and
+      `/api/files/sub/{id}` returning a zip. Two facts worth carrying forward:
+      it indexes strictly by **IMDb ID**, so the provider resolves title→ID
+      itself against IMDb's keyless suggestion endpoint; and its files are
+      **Windows-1255**, not UTF-8.
+
+      This entry is also the correction to what this section used to claim.
+      "Phase 1 COMPLETE / EXHAUSTED — no keyless candidates remain" was wrong:
+      wizdom had never been assessed at all. Treat "exhausted" as meaning
+      "nothing left that I looked at", and re-probe before believing it.
+
+### Assessed and skipped, with the evidence (probed 2026-07-31)
+
+| Candidate | Result | Verdict |
+|---|---|---|
+| `yifysubtitles.ch` | 200, `text/html`, no API | scraping — skip (old label was right) |
+| `subscene.com` | 403 Cloudflare interstitial | blocked — skip |
+| `subdl.com` | 403 `{"error":"not_authorized"}` | Phase 2, needs key |
+| `titlovi.com` | 403 on `/gettoken` | Phase 2, needs credentials |
+| `animetosho.org` | keyless JSON, but keys on **AniDB episode IDs** | needs an AniDB mapping layer first |
+| `subsource.net` | `/v1` is live JSON but every search param returns `{"error":"Movie ID is required"}` | undocumented; revisit if the API is published |
+| `subtitulamos.tv` | `/search/query?q=` returns `[]` for every query tried | undocumented; revisit |
+| `feliratok.eu` | HTML only | scraping — skip |
 
 ## Phase 2 — credential-gated providers (I've put secrets in my local config)
 Implement + wire config for the ones I check. Config lives under the provider's

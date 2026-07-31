@@ -1,5 +1,5 @@
 // file: pkg/providers/wizdom/wizdom.go
-// version: 2.0.0
+// version: 2.0.1
 // guid: 8b2f4d17-5c60-42ae-9d38-71e0a6c4b3f5
 // last-edited: 2026-07-31
 
@@ -31,6 +31,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -159,7 +160,9 @@ func (c *Client) search(ctx context.Context, imdbID string, info *metadata.Media
 func selectBest(results []result, mediaPath string) *result {
 	var best *result
 	bestScore := -1
-	want := releaseTokens(mediaPath)
+	// Only the file name: a directory like "/movies/1080p/" would otherwise
+	// donate its tokens to every candidate equally and skew the comparison.
+	want := releaseTokens(filepath.Base(mediaPath))
 	for i := range results {
 		if results[i].ID == 0 {
 			continue

@@ -110,7 +110,7 @@ effort — it is not fully achievable autonomously.
 | **Auto-sync after download** | ✅ | `postprocess.auto_sync` |
 | **Custom post-download script** | ✅ | `postprocess.custom_script` |
 | Custom post-processing script variables (score/provider) + threshold | ✅ | `SM_PROVIDER`/`SM_SCORE`; `postprocess.score_threshold` |
-| Format conversion on download (ASS/VTT) | 🟡 | astisub writer real but gRPC path stubbed; download emits `.srt` only |
+| Format conversion on download (ASS/VTT) | ✅ | `subtitles.format` (srt/vtt/ass) applied at the single write path — manual download, scan and monitor loop; falls back to SRT if a payload cannot be converted. Config-file only (like `subtitles.single_language`); gRPC path still stubbed |
 | Anti-captcha wired to providers | 🟡 | solver exists, never called (moot until providers are real) |
 | History retention/depth | ✅ | `history.retention_days` (`maintenance.PruneDownloadHistory`) |
 | Blacklist (per-subtitle) | ✅ | persisted w/ reason+expiry via `database.BlacklistStore` |

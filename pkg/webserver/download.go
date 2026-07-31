@@ -136,8 +136,14 @@ func downloadHandler(db *sql.DB) http.Handler {
 			return
 		}
 
-		// Construct output path using validated inputs
-		out, outErr := security.ValidateSubtitleOutputPath(validatedPath, q.Lang)
+		// Construct output path using validated inputs.
+		//
+		// The extension depends on "subtitles.format", and the scanner falls
+		// back to SRT when a conversion fails — so resolve against what is
+		// actually on disk rather than reporting a .vtt that was never
+		// written. Reporting a file that does not exist is the same class of
+		// quiet disagreement this endpoint is meant to avoid.
+		out, outErr := writtenSubtitlePath(validatedPath, q.Lang)
 		if outErr != nil {
 			logger.WithFields(logrus.Fields{
 				"path":  validatedPath,

@@ -281,6 +281,32 @@ func ValidateSubtitleOutputPath(videoPath, lang string) (string, error) {
 // in the download history. A single-language layout can only hold one subtitle
 // language per media file.
 func ValidateSubtitleOutputPathWithOptions(videoPath, lang string, singleLanguage bool) (string, error) {
+	return ValidateSubtitleOutputPathWithFormat(videoPath, lang, singleLanguage, "srt")
+}
+
+// ValidateSubtitleOutputPathWithFormat is ValidateSubtitleOutputPathWithOptions
+// with a caller-chosen container extension.
+//
+// ext reaches a file name joined onto a media directory, so it is checked
+// against an allowlist rather than sanitised: only the containers the
+// application can actually write are accepted, and anything else is an error.
+// Sanitising a caller-supplied path fragment invites the one case the filter
+// missed; refusing everything off a short list does not.
+func ValidateSubtitleOutputPathWithFormat(videoPath, lang string, singleLanguage bool, ext string) (string, error) {
+	switch strings.ToLower(strings.TrimPrefix(ext, ".")) {
+	case "srt", "vtt", "ass":
+		ext = strings.ToLower(strings.TrimPrefix(ext, "."))
+	case "":
+		ext = "srt"
+	default:
+		return "", fmt.Errorf("unsupported subtitle format: %s", ext)
+	}
+	return validateSubtitleOutputPath(videoPath, lang, singleLanguage, ext)
+}
+
+// validateSubtitleOutputPath builds and validates the output path. ext is
+// already known-good.
+func validateSubtitleOutputPath(videoPath, lang string, singleLanguage bool, ext string) (string, error) {
 	// Validate inputs
 	sanitizedVideoPath, err := ValidateAndSanitizePath(videoPath)
 	if err != nil {
@@ -301,9 +327,9 @@ func ValidateSubtitleOutputPathWithOptions(videoPath, lang string, singleLanguag
 		return "", fmt.Errorf("invalid characters in video filename")
 	}
 
-	name := base + "." + lang + ".srt"
+	name := base + "." + lang + "." + ext
 	if singleLanguage {
-		name = base + ".srt"
+		name = base + "." + ext
 	}
 	subtitlePath := filepath.Join(dir, name)
 	subtitlePath = filepath.Clean(subtitlePath)

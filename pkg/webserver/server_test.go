@@ -366,8 +366,17 @@ func TestScanHandlers(t *testing.T) {
 	if err != nil || resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("scan start: %v %d", err, resp.StatusCode)
 	}
-	// poll status until not running
-	for i := 0; i < 10; i++ {
+	// Poll until the scan reports itself finished.
+	//
+	// The budget is generous on purpose. The scan contacts subtitle providers
+	// over the network, and provider responses are now validated — a stub
+	// answering 200 with junk no longer counts as a hit, so the scan works
+	// through more providers before concluding rather than stopping at the
+	// first bogus success. The previous one-second ceiling was already tight
+	// and became a coin flip: this passed alone and failed in a full package
+	// run, which reads as cross-test pollution rather than a slow scan.
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)
 		req2, _ := http.NewRequest("GET", srv.URL+"/api/scan/status", nil)
 		req2.Header.Set("X-API-Key", keyObj.GetId())

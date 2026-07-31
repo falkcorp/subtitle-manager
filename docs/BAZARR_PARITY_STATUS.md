@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.9.0 -->
+<!-- version: 1.10.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-30 -->
+<!-- last-edited: 2026-07-31 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -19,7 +19,7 @@ GETs a fictional `https://api.<name>.com/subtitles/<file>/<lang>` endpoint
 (`pkg/providers/*/*.go`). Real integrations: **opensubtitles** (hash + REST),
 **napiprojekt** (keyless hash protocol), **gestdown** (keyless Addic7ed REST
 proxy, TV-only), **podnapisi** (keyless advanced-search JSON API, movies + TV),
-plus **embedded** (ffmpeg track extraction) and the
+**wizdom** (keyless JSON API, Hebrew only, movies + TV), plus **embedded** (ffmpeg track extraction) and the
 configurable **generic** / **whisper** HTTP pass-throughs. Bazarr's provider
 breadth comes from Python's `subliminal`; porting dozens of real scrapers to Go
 is a large, separate effort.
@@ -38,11 +38,19 @@ Porting the remaining stubs splits into three buckets:
 - **Keyless / anonymous (implementable & unit-testable now):** hash- or
   anonymous-search services that need no account. `napiprojekt` (hash protocol),
   `gestdown` (Addic7ed REST proxy, filename→episode via `pkg/metadata`), and
-  `podnapisi` (advanced-search JSON API, movies + TV) are done as the reference
-  implementations. A handful of others are theoretically keyless but
-  rely on **fragile HTML scraping of live sites** (e.g. `yifysubtitles`,
-  `subscene`), which cannot be implemented correctly or tested
-  offline without replicating each site's exact markup — high effort, brittle.
+  `podnapisi` (advanced-search JSON API, movies + TV) and `wizdom` (JSON API
+  keyed on IMDb ID, Hebrew only) are done as the reference implementations.
+  Others really are scraping-only and were skipped on evidence, not on
+  reputation: `yifysubtitles` serves HTML with no API, and `subscene` answers
+  403 behind a Cloudflare interstitial. The per-candidate probe results are
+  tabulated in `PROVIDER_BUILDOUT_PROMPT.md`.
+
+  Two lessons from this pass are worth keeping. Do not trust a "fragile HTML
+  scraping" label without probing — it was wrong for `podnapisi`, which has a
+  clean JSON API, and it caused `wizdom` to be written off without ever being
+  looked at. And a provider is not finished when a mocked test passes: wizdom's
+  subtitles are Windows-1255, which the response validator rejected outright as
+  "not a subtitle" until that was fixed, and only a live fetch surfaced it.
 - **Credential-gated (BLOCKED — needs the operator):** the majority require an
   account, API key, or paid tier the agent cannot obtain — e.g. `addic7ed`,
   `titlovi`, `legendasnet`, `ktuvit`, `avistaz`/`hdbits`/`karagarga`

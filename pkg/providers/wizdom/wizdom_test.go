@@ -1,5 +1,5 @@
 // file: pkg/providers/wizdom/wizdom_test.go
-// version: 2.0.0
+// version: 2.0.1
 // guid: 5d9a3e08-7b14-4c62-8f01-3a6b2d70e491
 // last-edited: 2026-07-31
 
@@ -247,5 +247,21 @@ func TestExtractSubtitlePrefersSRT(t *testing.T) {
 	}
 	if !strings.Contains(string(got), "-->") {
 		t.Errorf("extracted the wrong archive entry: %q", got)
+	}
+}
+
+// TestSelectBestIgnoresDirectoryTokens pins that ranking looks at the file
+// name alone. A media root like "/movies/1080p/" would otherwise donate
+// "1080p" to every candidate and outweigh the release name that actually
+// determines whether the timings line up.
+func TestSelectBestIgnoresDirectoryTokens(t *testing.T) {
+	results := []result{
+		{ID: 1, VersionName: "Movie.2010.1080p.BluRay.x264-NOMATCH"},
+		{ID: 2, VersionName: "Movie.2010.DVDRip.XviD-RIGHT"},
+	}
+	// The file is the DVDRip; only the *directory* says 1080p.
+	got := selectBest(results, "/media/1080p/BluRay/x264/Movie.2010.DVDRip.XviD-RIGHT.mkv")
+	if got == nil || got.ID != 2 {
+		t.Fatalf("selectBest picked %v; directory tokens outweighed the file name", got)
 	}
 }

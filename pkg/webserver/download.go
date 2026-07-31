@@ -1,6 +1,7 @@
 // file: pkg/webserver/download.go
-// version: 1.0.1
+// version: 1.1.0
 // guid: d4467b2f-6653-4124-ab88-235fce8b0f77
+// last-edited: 2026-07-31
 
 package webserver
 

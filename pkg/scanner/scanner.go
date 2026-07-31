@@ -1,6 +1,7 @@
 // file: pkg/scanner/scanner.go
-// version: 1.4.0
+// version: 1.5.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
+// last-edited: 2026-07-31
 package scanner
 
 import (

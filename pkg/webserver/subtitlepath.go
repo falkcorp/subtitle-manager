@@ -1,5 +1,5 @@
 // file: pkg/webserver/subtitlepath.go
-// version: 1.0.0
+// version: 1.0.1
 // guid: b30c5e94-1a76-4f28-8d51-6c02fa3719be
 // last-edited: 2026-07-31
 

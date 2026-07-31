@@ -1,6 +1,7 @@
 // file: pkg/postprocess/postprocess.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: e05a04c4-5ff1-4ed0-8c91-3b114e2a3d94
+// last-edited: 2026-07-31
 
 // Package postprocess implements the Bazarr-style post-processing pipeline that
 // runs on a subtitle after it is downloaded/written: UTF-8 re-encoding,

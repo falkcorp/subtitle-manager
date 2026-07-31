@@ -1,14 +1,13 @@
 // file: pkg/providers/validate.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: f6bafd75-4871-464c-adce-fb0e0890cf03
-// last-edited: 2026-07-30
+// last-edited: 2026-07-31
 
 package providers
 
 import (
 	"bytes"
 	"errors"
-	"unicode/utf8"
 )
 
 // ErrNotSubtitle reports that a provider returned something that is not a
@@ -44,17 +43,31 @@ func looksLikeSubtitle(data []byte) bool {
 	if len(data) < minSubtitleBytes {
 		return false
 	}
-	// A subtitle is text. Binary payloads are archives that should already have
-	// been extracted, or error pages that happen to be long.
-	if !utf8.Valid(data) {
-		return false
-	}
-
 	// Only the head needs inspecting; markers appear early in every format.
 	head := data
 	if len(head) > 4096 {
 		head = head[:4096]
 	}
+
+	// A subtitle is text. Binary payloads are archives that should already have
+	// been extracted, or images an error page served instead.
+	//
+	// The test is a NUL byte, deliberately *not* utf8.Valid: subtitles are
+	// routinely distributed in legacy single-byte codepages rather than UTF-8
+	// — Windows-1255 for Hebrew, 1251 for Cyrillic, 1252 for Western European.
+	// Those bytes are invalid UTF-8, so a validity check discarded perfectly
+	// good subtitles as junk, and did so silently: the fetch was recorded as a
+	// provider failure, so the search moved on and the file was never written.
+	// Transcoding to UTF-8 is postprocess.EncodeUTF8's job, downstream of here.
+	//
+	// Rejecting on NUL costs nothing in coverage, because every marker below is
+	// pure ASCII and therefore survives any 8-bit codepage intact. UTF-16 text
+	// is excluded, but it always was: its markers are interleaved with NULs and
+	// never matched the byte comparisons either way.
+	if bytes.IndexByte(head, 0) >= 0 {
+		return false
+	}
+
 	lower := bytes.ToLower(head)
 
 	// SRT and WebVTT.

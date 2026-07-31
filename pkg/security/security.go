@@ -1,6 +1,7 @@
 // file: pkg/security/security.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
+// last-edited: 2026-07-31
 package security
 
 import (

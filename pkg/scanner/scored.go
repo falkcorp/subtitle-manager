@@ -1,7 +1,7 @@
 // file: pkg/scanner/scored.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 9f2c8b41-6d0e-4a7c-b3f5-1e8a0c2d4b6a
-// last-edited: 2026-07-23
+// last-edited: 2026-07-31
 
 package scanner
 

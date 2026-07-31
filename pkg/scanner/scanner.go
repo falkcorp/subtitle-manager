@@ -101,7 +101,8 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 
 	// Construct and validate the output path securely. When single-language
 	// naming is enabled the language code is omitted from the filename.
-	validatedOutputPath, err := security.ValidateSubtitleOutputPathWithOptions(path, lang, singleLanguageNaming())
+	outFormat := outputFormat()
+	validatedOutputPath, err := security.ValidateSubtitleOutputPathWithFormat(path, lang, singleLanguageNaming(), string(outFormat))
 	if err != nil {
 		logger.Warnf("invalid subtitle output path: %v", err)
 		return err
@@ -183,6 +184,22 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 	}
 	// Post-processing: optionally re-encode to UTF-8 before writing.
 	data = postprocess.EncodeUTF8IfEnabled(data)
+
+	// Convert into the configured container. A conversion that fails falls
+	// back to SRT, so the path is recomputed to match what is actually being
+	// written rather than what was asked for — a ".vtt" holding SRT bytes is
+	// exactly the kind of quiet disagreement that is invisible until a player
+	// refuses the file.
+	var wrote subtitleFormat
+	data, wrote = convertForOutput(data)
+	if wrote != outFormat {
+		validatedOutputPath, err = security.ValidateSubtitleOutputPathWithFormat(path, lang, singleLanguageNaming(), string(wrote))
+		if err != nil {
+			logger.Warnf("invalid subtitle output path: %v", err)
+			return err
+		}
+	}
+
 	if err := os.WriteFile(validatedOutputPath, data, 0644); err != nil {
 		logger.Warnf("write %s: %v", validatedOutputPath, err)
 
@@ -312,7 +329,12 @@ func ProcessFileWithProfile(ctx context.Context, path string, db *sql.DB, upgrad
 	}
 
 	// Construct and validate the output path securely using the actual language found
-	out, err := security.ValidateSubtitleOutputPathWithOptions(sanitizedPath, actualLang, singleLanguageNaming())
+	wantFormat := outputFormat()
+	data, wroteFormat := convertForOutput(data)
+	if wroteFormat != wantFormat {
+		logger.Debugf("falling back to %s for %s", wroteFormat, sanitizedPath)
+	}
+	out, err := security.ValidateSubtitleOutputPathWithFormat(sanitizedPath, actualLang, singleLanguageNaming(), string(wroteFormat))
 	if err != nil {
 		logger.Warnf("invalid subtitle output path: %v", err)
 		return err

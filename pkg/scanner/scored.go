@@ -10,6 +10,9 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/subtitles"
+
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/providers/opensubtitles"
 	"github.com/jdfalk/subtitle-manager/pkg/scoring"
@@ -34,7 +37,7 @@ func scoringEnabled() bool {
 // language code in the filename ("<base>.srt" rather than "<base>.<lang>.srt"),
 // matching Bazarr's single-language naming option.
 func singleLanguageNaming() bool {
-	return viper.GetBool("subtitles.single_language")
+	return subtitles.SingleLanguageNaming()
 }
 
 // scoredResult is a downloaded subtitle together with its computed score.
@@ -127,3 +130,40 @@ func priorMatchScore(store database.SubtitleStore, video, lang string) *float64 
 	}
 	return best
 }
+
+// outputFormat returns the container downloads are written as, from
+// "subtitles.format". An unset or unrecognised value falls back to SRT rather
+// than failing the download: a bad config entry should not stop subtitles from
+// being fetched, and SRT is what every existing installation already has.
+func outputFormat() subtitles.Format {
+	f, err := subtitles.ParseFormat(viper.GetString("subtitles.format"))
+	if err != nil {
+		logging.GetLogger("scanner").Warnf("%v; writing SRT instead", err)
+		return subtitles.DefaultFormat
+	}
+	return f
+}
+
+// convertForOutput re-encodes data into the configured container.
+//
+// A conversion failure returns the original bytes and the default format, so
+// a subtitle that astisub cannot round-trip is still written as the SRT it
+// already was rather than being dropped. Losing a working download to a
+// cosmetic preference is the worse outcome of the two.
+func convertForOutput(data []byte) ([]byte, subtitles.Format) {
+	want := outputFormat()
+	out, err := subtitles.Convert(data, want)
+	if err != nil {
+		logging.GetLogger("scanner").Warnf("convert to %s: %v; writing as-is", want, err)
+		return data, subtitles.DefaultFormat
+	}
+	return out, want
+}
+
+// subtitleFormat is a local alias so the write paths can name the format
+// without importing pkg/subtitles at every site.
+type subtitleFormat = subtitles.Format
+
+// OutputFormat reports the container downloads are written as, so callers
+// outside this package can name the file the scanner produced.
+func OutputFormat() subtitles.Format { return outputFormat() }

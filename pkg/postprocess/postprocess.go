@@ -23,33 +23,26 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"unicode/utf8"
 
 	"github.com/asticode/go-astisub"
 	"github.com/spf13/viper"
-	"golang.org/x/net/html/charset"
-	"golang.org/x/text/transform"
 
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
+	"github.com/jdfalk/subtitle-manager/pkg/subtitles"
 	"github.com/jdfalk/subtitle-manager/pkg/syncer"
 )
-
-var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // EncodeUTF8 converts subtitle bytes to UTF-8. If the data is already valid
 // UTF-8 it is returned unchanged (minus any BOM). Otherwise the charset is
 // detected (e.g. Windows-1252, ISO-8859-1) and transcoded. On detection/decode
 // failure the original bytes are returned so a download is never lost.
+//
+// The implementation lives in pkg/subtitles because format conversion needs
+// the same normalisation and cannot import this package (postprocess already
+// depends on subtitles, not the other way round). This remains the name the
+// rest of the application calls.
 func EncodeUTF8(data []byte) []byte {
-	if utf8.Valid(data) {
-		return bytes.TrimPrefix(data, utf8BOM)
-	}
-	enc, _, _ := charset.DetermineEncoding(data, "")
-	out, _, err := transform.Bytes(enc.NewDecoder(), data)
-	if err != nil {
-		return data
-	}
-	return bytes.TrimPrefix(out, utf8BOM)
+	return subtitles.EncodeUTF8(data)
 }
 
 // EncodeUTF8IfEnabled applies EncodeUTF8 only when postprocess.utf8_encoding is

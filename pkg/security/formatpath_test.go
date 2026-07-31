@@ -16,7 +16,7 @@ import (
 // allowlist. The value becomes a file-name suffix, so anything off the list
 // must be refused rather than sanitised into a path.
 func TestValidateSubtitleOutputPathWithFormatRejectsBadFormat(t *testing.T) {
-	dir := t.TempDir()
+	const dir = "/opt/media"
 	viper.Set("media_directory", dir)
 	defer viper.Reset()
 
@@ -40,18 +40,28 @@ func TestValidateSubtitleOutputPathWithFormatRejectsBadFormat(t *testing.T) {
 // CodeQL flags that call because it cannot see this constraint. Pinning it
 // here means the assumption breaks a test rather than breaking quietly.
 func TestValidateSubtitleOutputPathWithFormatConfinesPath(t *testing.T) {
-	dir := t.TempDir()
+	// A fixed path rather than t.TempDir(): ValidateAndSanitizePath
+	// unconditionally admits anything under os.TempDir(), so a temp-rooted
+	// media directory would not exercise the confinement being asserted here.
+	// See the note on that bypass in security.go.
+	const dir = "/opt/media"
 	viper.Set("media_directory", dir)
 	defer viper.Reset()
 
 	for _, escape := range []string{
 		dir + "/../../etc/passwd.mkv",
+		dir + "/../secrets/other.mkv",
 		"../../../../etc/shadow.mkv",
 		"/etc/passwd.mkv",
 	} {
 		got, err := ValidateSubtitleOutputPathWithFormat(escape, "en", false, "vtt")
-		if err == nil && !strings.HasPrefix(got, dir) {
-			t.Errorf("path escaped the sandbox: %q -> %q", escape, got)
+		if err == nil && !strings.HasPrefix(got, dir+"/") {
+			t.Errorf("path escaped the media directory: %q -> %q", escape, got)
 		}
+	}
+
+	// The in-bounds case must still work, or the test above passes vacuously.
+	if got, err := ValidateSubtitleOutputPathWithFormat(dir+"/movie.mkv", "en", false, "vtt"); err != nil || got != dir+"/movie.en.vtt" {
+		t.Errorf("in-bounds path rejected: %q, %v", got, err)
 	}
 }

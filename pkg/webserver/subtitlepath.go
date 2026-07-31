@@ -21,6 +21,16 @@ import (
 // preference rather than a guarantee. The configured path is preferred and
 // SRT is checked as a fallback; if neither exists the configured path is
 // returned so the caller still gets a sensible answer to report.
+//
+// CodeQL flags the os.Stat calls below as "uncontrolled data in a path
+// expression" because it cannot see through the validation. videoPath has
+// already passed security.ValidateAndSanitizePath, and
+// ValidateSubtitleOutputPathWithFormat re-validates the constructed path
+// against the allowed base directories and rejects the format outright unless
+// it is srt, vtt or ass. Both constraints are pinned by tests in pkg/security
+// (TestValidateSubtitleOutputPathWithFormatConfinesPath and
+// ...RejectsBadFormat), so the assumption breaks a test rather than breaking
+// quietly. The calls are read-only existence checks either way.
 func writtenSubtitlePath(videoPath, lang string) (string, error) {
 	format := scanner.OutputFormat()
 	single := subtitles.SingleLanguageNaming()

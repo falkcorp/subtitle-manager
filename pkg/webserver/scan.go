@@ -1,7 +1,7 @@
 // file: pkg/webserver/scan.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: c025a40c-894d-401d-a68d-a27b7f66c3b6
-// last-edited: 2026-07-25
+// last-edited: 2026-08-01
 
 package webserver
 
@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jdfalk/subtitle-manager/pkg/database"
+	"github.com/jdfalk/subtitle-manager/pkg/logging"
 	"github.com/jdfalk/subtitle-manager/pkg/metadata"
 	"github.com/jdfalk/subtitle-manager/pkg/providers"
 	"github.com/jdfalk/subtitle-manager/pkg/radarr"
@@ -161,14 +162,21 @@ func scanHandler() http.Handler {
 				}
 			}
 
-			// Open database store for download tracking
+			// Store for download tracking and language-profile resolution.
+			//
+			// This must be the shared store, not a per-request
+			// database.OpenStore: Pebble takes an exclusive lock, so a second
+			// open fails while the server is running and the error here was
+			// swallowed — leaving store nil and the scan unable to record
+			// downloads or see a media item's assigned language profile. The
+			// same defect was fixed elsewhere in the server; this call site
+			// was missed. The shared store is never closed by its users.
 			var store database.SubtitleStore
-			if dbPath := viper.GetString("db_path"); dbPath != "" {
-				backend := viper.GetString("db_backend")
-				if s, err := database.OpenStore(dbPath, backend); err == nil {
-					store = s
-					defer s.Close()
-				}
+			if s, err := database.GetSharedStore(); err == nil {
+				store = s
+			} else {
+				logging.GetLogger("webserver").Warnf(
+					"scan running without a database store: %v", err)
 			}
 
 			return scanner.ScanDirectoryProgress(ctx, q.Directory, q.Lang, q.Provider, p, false, 2, store, cb)

@@ -1,6 +1,7 @@
 // file: pkg/scanner/progress.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 30d76902-4260-48c3-8dbb-acbbdc9bcea7
+// last-edited: 2026-08-01
 package scanner
 
 import (
@@ -30,6 +31,17 @@ func ScanDirectoryProgress(ctx context.Context, dir, lang, providerName string,
 		logger.Warnf("invalid path: %v", err)
 		return err
 	}
+	// Resolved once: the default profile is the same for every file, and
+	// looking it up per file would mean a second full profile-list scan per
+	// file per worker.
+	var (
+		defaultID       string
+		profilesDefined bool
+	)
+	if store != nil {
+		defaultID, profilesDefined = defaultProfileID(store)
+	}
+
 	work := pool.New().WithErrors().WithMaxGoroutines(workers)
 	err = filepath.WalkDir(sanitizedDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -43,6 +55,29 @@ func ScanDirectoryProgress(ctx context.Context, dir, lang, providerName string,
 		}
 		f := path
 		work.Go(func() error {
+			// A file with its own language profile is downloaded for every
+			// language that profile asks for, in priority order, instead of
+			// the single lang this scan was started with. Files without an
+			// assignment are untouched by this — see
+			// assignedProfileLanguages for why "assigned" excludes the
+			// default profile.
+			//
+			// The profilesDefined guard is a separate statement rather than
+			// part of the condition below: an if-statement's init clause runs
+			// before the condition is evaluated, so folding it in would still
+			// perform the lookup — and GetMediaProfile creates a default
+			// profile as a side effect on an empty Pebble store.
+			if profilesDefined {
+				if langs, ok := assignedProfileLanguages(f, store, defaultID); ok {
+					logger.Debugf("process %s with assigned profile (%v)", f, langs)
+					if err := processWithAssignedProfile(ctx, f, langs, providerName, p, upgrade, store); err == nil {
+						if cb != nil {
+							cb(f)
+						}
+					}
+					return nil
+				}
+			}
 			logger.Debugf("process %s", f)
 			if err := ProcessFile(ctx, f, lang, providerName, p, upgrade, store); err == nil {
 				if cb != nil {

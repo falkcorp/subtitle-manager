@@ -1,7 +1,7 @@
 // file: pkg/scanner/scanner.go
-// version: 1.5.0
+// version: 1.6.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
-// last-edited: 2026-07-31
+// last-edited: 2026-08-01
 package scanner
 
 import (
@@ -311,59 +311,48 @@ func ScanDirectoryWithProfiles(ctx context.Context, dir string, db *sql.DB, upgr
 	return nil
 }
 
-// ProcessFileWithProfile downloads subtitles using the language profile assigned to the media file.
+// ProcessFileWithProfile downloads subtitles for path using the language
+// profile assigned to it, covering every language the profile asks for in
+// priority order.
+//
+// It delegates to ProcessFile once per language rather than fetching and
+// writing itself. The previous implementation called providers.FetchWithProfile
+// and then wrote the file inline, which meant it silently skipped everything
+// ProcessFile does around the download — score gating, the Whisper fallback,
+// UTF-8 re-encoding, chmod, auto-sync, the custom post-download script, the
+// *arr rescan event and download-history persistence. It also read its
+// assignment through pkg/profiles.Service, which keys media_profiles on a
+// media_items row id in a raw *sql.DB, while the UI and CLI write path-keyed
+// rows through the SubtitleStore — so it could not have found a UI assignment
+// even when it was reached. It had no callers.
+//
+// db is retained for signature compatibility and is unused: the profile is
+// resolved through store (or the shared store) so that this path and the web
+// UI agree on both the database and the key.
 func ProcessFileWithProfile(ctx context.Context, path string, db *sql.DB, upgrade bool, store database.SubtitleStore) error {
 	logger := logging.GetLogger("scanner")
 
-	// Validate path
 	sanitizedPath, err := security.ValidateAndSanitizePath(path)
 	if err != nil {
 		logger.Warnf("invalid path: %v", err)
 		return err
 	}
 
-	// Use profile-based fetch to get subtitles
-	data, providerName, actualLang, err := providers.FetchWithProfile(ctx, db, sanitizedPath, "")
-	if err != nil {
-		logger.Warnf("fetch with profile %s: %v", sanitizedPath, err)
-		return err
-	}
-
-	// Construct and validate the output path securely using the actual language found
-	wantFormat := outputFormat()
-	data, wroteFormat := convertForOutput(data)
-	if wroteFormat != wantFormat {
-		logger.Debugf("falling back to %s for %s", wroteFormat, sanitizedPath)
-	}
-	out, err := security.ValidateSubtitleOutputPathWithFormat(sanitizedPath, actualLang, singleLanguageNaming(), string(wroteFormat))
-	if err != nil {
-		logger.Warnf("invalid subtitle output path: %v", err)
-		return err
-	}
-
-	if !upgrade {
-		if _, err := os.Stat(out); err == nil {
-			logger.Debugf("subtitle already exists: %s", out)
-			return nil
+	lookupStore := store
+	if lookupStore == nil {
+		var serr error
+		if lookupStore, serr = database.GetSharedStore(); serr != nil {
+			return serr
 		}
 	}
-
-	if upgrade {
-		if oldData, err := os.ReadFile(out); err == nil {
-			if len(data) <= len(oldData) {
-				logger.Debugf("existing subtitle %s is higher quality", out)
-				return nil
-			}
-		}
+	defaultID, profilesDefined := defaultProfileID(lookupStore)
+	if !profilesDefined {
+		return fmt.Errorf("no language profile assigned to %s", sanitizedPath)
+	}
+	langs, ok := assignedProfileLanguages(sanitizedPath, lookupStore, defaultID)
+	if !ok {
+		return fmt.Errorf("no language profile assigned to %s", sanitizedPath)
 	}
 
-	if err := os.WriteFile(out, data, 0644); err != nil {
-		logger.Warnf("write: %v", err)
-		return err
-	}
-	logger.Infof("downloaded %s subtitle %s using profile", actualLang, out)
-	if store != nil {
-		_ = store.InsertDownload(&database.DownloadRecord{File: out, VideoFile: sanitizedPath, Provider: providerName, Language: actualLang})
-	}
-	return nil
+	return processWithAssignedProfile(ctx, sanitizedPath, langs, "", nil, upgrade, store)
 }

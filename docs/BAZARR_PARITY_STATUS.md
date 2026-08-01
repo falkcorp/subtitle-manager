@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.13.0 -->
+<!-- version: 1.14.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-08-01 -->
 
@@ -95,13 +95,13 @@ effort — it is not fully achievable autonomously.
 | Parallel provider fetch (core path) | ✅ | `multi.go` runs waves of 4, resolved in priority order |
 | Use embedded tracks as a source | ✅ | `embedded` provider extracts muxed tracks via ffmpeg |
 | Ignore PGS/image subtitles | ✅ | `video.SubtitleStream.ImageBased()` skipped by embedded |
-| Desired-languages via profiles | 🔴 | `FetchWithProfile` iterates by priority but is unreachable from any real download — see "Language profiles are not wired to downloads" below |
+| Desired-languages via profiles | 🟡 | library scans honour an assigned profile's languages in priority order (`scanner.ScanDirectoryProgress`); monitor, watcher, webhooks, scheduler and *arr still fetch one language |
 
 ### Post-processing / languages / profiles
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Language profiles (multi-lang, priority, cutoff) | 🟡 | `pkg/profiles` + REST/CLI can create, assign and read them; nothing consumes them at download time |
-| Forced / HI honored at download & naming | 🔴 | mapped to scoring prefs in `FetchWithProfile`, which no download path calls |
+| Language profiles (multi-lang, priority, cutoff) | 🟡 | multi-language and priority order consumed by library scans; the profile's **cutoff score is not** — `ProcessFile` scores against global `scoring.*` config, not `profile.CutoffScore` |
+| Forced / HI honored at download & naming | 🔴 | only `FetchWithProfile` mapped per-language Forced/HI onto scoring prefs, and no download path calls it; the wired scan path goes through `ProcessFile`, which reads global scoring config |
 | Default profile auto-assigned to new *arr items | 🟡 | single global default; no auto-assign |
 | Mass-edit (bulk profile assign) | 🔴 | single-item only |
 | Single-language filename option | ✅ | `subtitles.single_language` → `video.srt` |
@@ -150,9 +150,40 @@ Fixed by taking the whole remainder of the path (`pathRest`) and
 are keyed on a truncated segment and are not migrated — they recorded a
 collision, not a usable assignment.
 
-### Language profiles are not wired to downloads — **open**
+### Language profiles are not wired to downloads — **partly fixed** (PR #2232)
 
-Nothing consumes a profile assignment when a subtitle is actually fetched.
+Library scans now honour an assigned profile. Everything else still does not,
+and two parts of a profile are ignored even on the fixed path.
+
+**What is fixed.** `scanner.ScanDirectoryProgress` resolves each file's
+assigned profile through the same store and the same `filepath.Clean`-ed path
+key the web handler writes, then calls `ProcessFile` once per language in
+priority order. `ProcessFileWithProfile` was rewritten to delegate to
+`ProcessFile` rather than fetch and write inline, which had bypassed score
+gating, the Whisper fallback, post-processing, the *arr rescan event and
+download history. `pkg/webserver/scan.go` was also switched to
+`database.GetSharedStore()`: it had been calling `database.OpenStore`, which
+fails under Pebble's exclusive lock, and the swallowed error left the scan
+with a nil store — without that fix the wiring would have been a no-op in
+production with a fully green test suite.
+
+**What is still open.**
+
+- Only library scans. The monitor loop, watcher, webhooks, scheduler and
+  Sonarr/Radarr paths still call `ProcessFile` with a single language.
+- **Cutoff score and Forced/HI are dropped.** `processWithAssignedProfile`
+  passes a bare language code, so `ProcessFile` scores candidates with
+  `scoring.LoadProfileFromConfig()` — the global `scoring.*` settings. The
+  per-language `Forced`/`HI` preferences and the profile's `CutoffScore` never
+  reach the scorer. Only the retired `scoredProfileFetch` ever applied them.
+- **A file explicitly assigned the default profile reads as unassigned**, so it
+  is scanned with the scan's own language rather than that profile's list.
+  `GetMediaProfile` falls back to the default instead of reporting a miss, and
+  there is no store method distinguishing "an assignment row exists" from
+  "this is what governs the file". Fixing it means adding one to the interface
+  and all three implementations.
+
+The original diagnosis, for context:
 
 There are two `media_profiles` implementations sharing a table name:
 

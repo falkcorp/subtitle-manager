@@ -1,7 +1,7 @@
 // file: pkg/webserver/profiles.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: 0a9b8c7d-6e5f-1a2b-4c3d-7e6f8a9b0c1d
-// last-edited: 2026-07-30
+// last-edited: 2026-08-01
 
 package webserver
 
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -246,7 +247,15 @@ func handleSetDefaultProfile(w http.ResponseWriter, r *http.Request, db *sql.DB,
 func mediaProfilesHandler(db *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL path: /api/media/profile/{id}
-		mediaID := pathSegment(r, "/api/media/profile/")
+		//
+		// The identifier is a media file path, so it must be taken whole
+		// rather than as a first segment — see pathRest for what splitting
+		// it on slashes did. It is normalised the same way the CLI
+		// normalises the path it looks up (cmd/profiles.go runs it through
+		// security.ValidateAndSanitizePath, whose output is a cleaned
+		// absolute path), so an assignment made in the UI is readable from
+		// the CLI and vice versa.
+		mediaID := normalizeMediaID(pathRest(r, "/api/media/profile/"))
 		if mediaID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -263,6 +272,27 @@ func mediaProfilesHandler(db *sql.DB) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
+}
+
+// normalizeMediaID canonicalises a media identifier so that the same file
+// yields the same storage key regardless of which entry point wrote it.
+//
+// Media identifiers are file paths, and the three entry points that touch them
+// each cleaned differently — the CLI via security.ValidateAndSanitizePath, the
+// scanner via filepath.Clean, the web handler not at all. Two spellings of one
+// path ("/media//Film.mkv", "/media/./Film.mkv") would therefore land on two
+// different rows, and a lookup from one entry point would miss what another
+// wrote. filepath.Clean is what ValidateAndSanitizePath returns for any path
+// it accepts, so cleaning here makes the web key agree with both others.
+//
+// Identifiers that are not paths pass through unchanged: Clean("42") is "42".
+// The empty identifier is preserved as empty rather than becoming Clean's ".",
+// so callers can still reject it.
+func normalizeMediaID(mediaID string) string {
+	if mediaID == "" {
+		return ""
+	}
+	return filepath.Clean(mediaID)
 }
 
 // handleGetMediaProfile returns the profile assigned to a media item.

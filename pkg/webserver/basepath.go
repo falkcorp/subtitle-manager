@@ -1,7 +1,7 @@
 // file: pkg/webserver/basepath.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: eb46ab64-f28e-4adb-9677-ac932a044fdd
-// last-edited: 2026-07-30
+// last-edited: 2026-08-01
 
 package webserver
 
@@ -96,4 +96,31 @@ func pathSegment(r *http.Request, route string) string {
 		return ""
 	}
 	return segs[0]
+}
+
+// pathRest returns everything following route as a single string, with the
+// base-URL prefix already removed and any leading slash preserved. It returns
+// "" when the request path does not lie under route or carries nothing after
+// it.
+//
+// # Why this is not pathSegment
+//
+// Some routes carry an identifier that is itself a filesystem path. The web UI
+// sends one percent-encoded — /api/media/profile/%2Fmedia%2FFilm.mkv — but
+// net/http decodes the request target before a handler sees it, so r.URL.Path
+// is "/api/media/profile//media/Film.mkv" and the %2F separators are
+// indistinguishable from real ones. pathSegment then splits on them and
+// returns "media", the first component, as the identifier.
+//
+// The effect is not a truncated key, it is a shared one: every media file
+// under /media collapses onto the same identifier, so assigning a language
+// profile to one episode silently reassigns it for the whole library. Every
+// test used an identifier like "42" or "some-id", which has no slashes to
+// split on, so nothing caught it.
+func pathRest(r *http.Request, route string) string {
+	p := apiPath(r)
+	if !strings.HasPrefix(p, route) {
+		return ""
+	}
+	return strings.TrimPrefix(p, route)
 }

@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.12.0 -->
+<!-- version: 1.13.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-07-31 -->
+<!-- last-edited: 2026-08-01 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -95,13 +95,13 @@ effort — it is not fully achievable autonomously.
 | Parallel provider fetch (core path) | ✅ | `multi.go` runs waves of 4, resolved in priority order |
 | Use embedded tracks as a source | ✅ | `embedded` provider extracts muxed tracks via ffmpeg |
 | Ignore PGS/image subtitles | ✅ | `video.SubtitleStream.ImageBased()` skipped by embedded |
-| Desired-languages via profiles | ✅ | `FetchWithProfile` iterates by priority |
+| Desired-languages via profiles | 🔴 | `FetchWithProfile` iterates by priority but is unreachable from any real download — see "Language profiles are not wired to downloads" below |
 
 ### Post-processing / languages / profiles
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Language profiles (multi-lang, priority, cutoff) | ✅ | `pkg/profiles` + REST/CLI |
-| Forced / HI honored at download & naming | ✅ | per-language Forced/HI mapped to scoring prefs in `FetchWithProfile` |
+| Language profiles (multi-lang, priority, cutoff) | 🟡 | `pkg/profiles` + REST/CLI can create, assign and read them; nothing consumes them at download time |
+| Forced / HI honored at download & naming | 🔴 | mapped to scoring prefs in `FetchWithProfile`, which no download path calls |
 | Default profile auto-assigned to new *arr items | 🟡 | single global default; no auto-assign |
 | Mass-edit (bulk profile assign) | 🔴 | single-item only |
 | Single-language filename option | ✅ | `subtitles.single_language` → `video.srt` |
@@ -130,6 +130,64 @@ effort — it is not fully achievable autonomously.
 | External-Whisper URL/model/timeout config | ✅ | `whisper.transcribe_url` (native /asr), model, timeout |
 | Provider status / throttle view | ✅ | `/api/providers/status` computed on read (enabled/throttled/last success); no UI consumer yet |
 | Per-provider enable/priority/tags from config | ✅ | `providers.LoadFromConfig` at server start + on settings save; no-op when unconfigured |
+
+## Open findings (2026-08-01): language profiles
+
+Three defects found while starting on mass-edit. All were verified against
+running code, not inferred from the call graph. The first is fixed; the rest
+are open.
+
+### Per-item assignments collided on one key — **fixed** (PR #2230)
+
+The web UI identifies a media item by its file path, percent-encoded into the
+URL. `net/http` decodes the request target before a handler runs, so the `%2F`
+separators became indistinguishable from real ones and `mediaProfilesHandler`
+took only the first path segment as the identifier. Every file under `/media`
+therefore keyed as `media`, and each assignment overwrote the last.
+
+Fixed by taking the whole remainder of the path (`pathRest`) and
+`filepath.Clean`ing it so the key matches what the CLI looks up. Existing rows
+are keyed on a truncated segment and are not migrated — they recorded a
+collision, not a usable assignment.
+
+### Language profiles are not wired to downloads — **open**
+
+Nothing consumes a profile assignment when a subtitle is actually fetched.
+
+There are two `media_profiles` implementations sharing a table name:
+
+- The web UI and CLI write **path-keyed** rows through
+  `database.SubtitleStore` (`AssignProfileToMedia`).
+- `pkg/profiles.Service` — used only by `pkg/providers/profiles.go` — reads
+  **integer-keyed** rows out of a raw `*sql.DB`, resolving
+  `media_items.path → id` first (`GetMediaProfileByPath`). Under the pebble or
+  postgres backends that is not even the same database.
+
+Independently, `scanner.ProcessFileWithProfile` has no non-test callers. Every
+real download path — web library scan, monitor loop, watcher, webhooks,
+scheduler, Sonarr/Radarr — calls `scanner.ProcessFile` with a single language.
+`FetchWithProfile` is reachable only from `subtitle-manager fetch --use-profile`,
+which opens its own SQLite store regardless of the configured backend.
+
+So a profile's language list, priority order, cutoff score and Forced/HI flags
+have no effect on what gets downloaded. This is what demoted the three matrix
+rows above.
+
+Note when fixing: `MonitoredItem.Languages` is a second, independent
+desired-languages mechanism. Making the monitor loop profile-driven means
+deciding which of the two wins — a product decision, not a refactor.
+
+### The last language profile cannot be deleted — **open**
+
+`GetDefaultLanguageProfile` returns the first profile in the list when none is
+explicitly marked default, and `handleDeleteProfile` refuses to delete the
+default. With one profile left, that profile is always "the default", so
+`DELETE /api/profiles/{id}` answers 400 forever. Reproduced on the preview
+instance.
+
+Related: `cmd/profiles.go` hardcodes `database.OpenStore(..., "pebble")`,
+ignoring `db_backend`, so `subtitle-manager profiles show` reads the wrong
+store on a sqlite or postgres deployment.
 
 ## Implementation plan (backend)
 

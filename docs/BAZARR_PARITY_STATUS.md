@@ -1,5 +1,5 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.11.0 -->
+<!-- version: 1.12.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
 <!-- last-edited: 2026-07-31 -->
 
@@ -85,7 +85,7 @@ effort — it is not fully achievable autonomously.
 ### Search / download / upgrade engine
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Provider registry breadth | 🔴 | ~49 stubs; 4 real (opensubtitles, napiprojekt, gestdown, podnapisi) + embedded |
+| Provider registry breadth | 🔴 | ~48 stubs; 5 real (opensubtitles, napiprojekt, gestdown, podnapisi, wizdom) + embedded. Keyless candidates are exhausted **on evidence** — see the probe table in `PROVIDER_BUILDOUT_PROMPT.md`; the rest need operator credentials or are scraping-only |
 | Whisper fallback (transcribe when no provider match) | ✅ | `whisper.fallback_enabled` (`pkg/scanner.whisperFallback`) |
 | Automatic "wanted" search loop (scheduled) | 🟡 | monitor skeleton; score gate now available |
 | Manual search (ranked candidates) | 🟡 | `/api/search`; only opensubtitles implements `Searcher` |

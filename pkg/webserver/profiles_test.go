@@ -1,7 +1,7 @@
 // file: pkg/webserver/profiles_test.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 1b0c9d8e-7f6e-2a3b-5c4d-8f7e9a0b1c2d
-// last-edited: 2026-07-25
+// last-edited: 2026-08-01
 
 package webserver
 
@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/profiles"
 	"github.com/spf13/viper"
 )
@@ -190,6 +192,141 @@ func TestMediaProfilesHandler(t *testing.T) {
 	if rr.Code >= 500 {
 		t.Errorf("unassigned media returned server error %d (body: %s)",
 			rr.Code, rr.Body.String())
+	}
+}
+
+// createTestProfile posts a profile through the collection handler and returns
+// its server-assigned ID.
+func createTestProfile(t *testing.T, name, lang string) string {
+	t.Helper()
+	body, err := json.Marshal(profiles.LanguageProfile{
+		Name:        name,
+		Languages:   []profiles.LanguageConfig{{Language: lang, Priority: 1}},
+		CutoffScore: 75,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	profilesHandler(nil).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodPost, "/api/profiles", bytes.NewReader(body)))
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("create profile %q: got %d (body: %s)", name, rr.Code, rr.Body.String())
+	}
+	var created profiles.LanguageProfile
+	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
+		t.Fatalf("create profile %q: %v", name, err)
+	}
+	if created.ID == "" {
+		t.Fatalf("create profile %q: server returned no ID", name)
+	}
+	return created.ID
+}
+
+// mediaProfileURL builds the URL the web UI builds: the media file path,
+// percent-encoded whole, appended to the route.
+func mediaProfileURL(mediaPath string) string {
+	return "/api/media/profile/" + url.PathEscape(mediaPath)
+}
+
+// TestMediaProfilesHandlerDistinctPaths pins that two media files receive two
+// independent profile assignments.
+//
+// They did not. The UI sends the media file path as the identifier
+// (MediaDetails.jsx percent-encodes it), net/http decodes it before the
+// handler runs, and the handler took only the first path segment — so every
+// file under /media keyed as "media" and each assignment overwrote the last.
+// Assigning a profile to one episode silently reassigned the entire library.
+//
+// The bug survived because every other test here uses an identifier like "123"
+// or "some-id", which has no slash to split on. Only a slash-bearing path
+// exercises it.
+func TestMediaProfilesHandlerDistinctPaths(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
+	english := createTestProfile(t, "English", "en")
+	spanish := createTestProfile(t, "Spanish", "es")
+
+	const (
+		ep1 = "/media/Show/Show.S01E01.mkv"
+		ep2 = "/media/Show/Show.S01E02.mkv"
+	)
+
+	handler := mediaProfilesHandler(nil)
+
+	assign := func(mediaPath, profileID string) {
+		t.Helper()
+		body := bytes.NewReader([]byte(`{"profile_id":"` + profileID + `"}`))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, mediaProfileURL(mediaPath), body))
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("assign %s: got %d (body: %s)", mediaPath, rr.Code, rr.Body.String())
+		}
+	}
+
+	assigned := func(mediaPath string) profiles.LanguageProfile {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, mediaProfileURL(mediaPath), nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("get %s: got %d (body: %s)", mediaPath, rr.Code, rr.Body.String())
+		}
+		var got profiles.LanguageProfile
+		if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+			t.Fatalf("get %s: %v (body: %s)", mediaPath, err, rr.Body.String())
+		}
+		return got
+	}
+
+	assign(ep1, english)
+	assign(ep2, spanish)
+
+	if got := assigned(ep1); got.ID != english {
+		t.Errorf("%s resolved to profile %q (%s), want English (%s) — the second "+
+			"assignment overwrote the first, so both files share one key",
+			ep1, got.Name, got.ID, english)
+	}
+	if got := assigned(ep2); got.ID != spanish {
+		t.Errorf("%s resolved to profile %q (%s), want Spanish (%s)",
+			ep2, got.Name, got.ID, spanish)
+	}
+}
+
+// TestMediaProfilesHandlerKeyMatchesCLI pins that the key the handler stores is
+// the media path itself, normalised the way the CLI normalises it, so a UI
+// assignment is visible to `subtitle-manager profiles show <path>` and vice
+// versa. Storing a raw, uncleaned path would be invisible to the CLI, which
+// looks up security.ValidateAndSanitizePath's cleaned output.
+func TestMediaProfilesHandlerKeyMatchesCLI(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
+	english := createTestProfile(t, "English", "en")
+	handler := mediaProfilesHandler(nil)
+
+	// Assign through an uncleaned spelling of the path...
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodPut,
+		mediaProfileURL("/media/Show/../Show/Show.S01E01.mkv"),
+		bytes.NewReader([]byte(`{"profile_id":"`+english+`"}`))))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("assign: got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	// ...and read it back through the cleaned one the CLI would use.
+	store, err := database.GetSharedStore()
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	got, err := store.GetMediaProfile("/media/Show/Show.S01E01.mkv")
+	if err != nil {
+		t.Fatalf("lookup by cleaned path: %v", err)
+	}
+	if got.ID != english {
+		t.Errorf("cleaned path resolved to profile %q (%s), want English (%s) — "+
+			"the handler stored an unnormalised key the CLI cannot find",
+			got.Name, got.ID, english)
 	}
 }
 

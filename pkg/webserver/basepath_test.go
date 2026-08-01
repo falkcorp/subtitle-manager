@@ -1,7 +1,7 @@
 // file: pkg/webserver/basepath_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: d58f16de-9d4f-4e6b-8a95-8a3d53f5dbcd
-// last-edited: 2026-07-30
+// last-edited: 2026-08-01
 
 package webserver
 
@@ -84,6 +84,41 @@ func TestPathSegment(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			if got := pathSegment(r, tc.route); got != tc.want {
 				t.Errorf("pathSegment(%q) with base_url %q = %q, want %q",
+					tc.path, tc.base, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestPathRest covers identifiers that are themselves paths, which pathSegment
+// silently truncates to their first component. The percent-encoded cases are
+// what the web UI actually sends; net/http decodes them before a handler runs,
+// so by then the encoded separators look exactly like real ones.
+func TestPathRest(t *testing.T) {
+	for name, tc := range map[string]struct {
+		base, path, route, want string
+	}{
+		"plain id": {
+			"", "/api/media/profile/42", "/api/media/profile/", "42"},
+		"encoded absolute path": {
+			"", "/api/media/profile/%2Fmedia%2FShow%2FS01E01.mkv",
+			"/api/media/profile/", "/media/Show/S01E01.mkv"},
+		"encoded absolute path under a base url": {
+			"/sm", "/sm/api/media/profile/%2Fmedia%2FShow%2FS01E01.mkv",
+			"/api/media/profile/", "/media/Show/S01E01.mkv"},
+		"path with spaces": {
+			"", "/api/media/profile/%2Fmedia%2FThe%20Show.mkv",
+			"/api/media/profile/", "/media/The Show.mkv"},
+		"nothing after the route": {
+			"", "/api/media/profile/", "/api/media/profile/", ""},
+		"path outside the route": {
+			"/sm", "/sm/api/other/42", "/api/media/profile/", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			useBaseURL(t, tc.base)
+			r := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			if got := pathRest(r, tc.route); got != tc.want {
+				t.Errorf("pathRest(%q) with base_url %q = %q, want %q",
 					tc.path, tc.base, got, tc.want)
 			}
 		})

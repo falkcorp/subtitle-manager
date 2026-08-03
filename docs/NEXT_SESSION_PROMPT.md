@@ -1,7 +1,7 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 1.1.0 -->
+<!-- version: 1.2.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
-<!-- last-edited: 2026-08-01 -->
+<!-- last-edited: 2026-08-02 -->
 
 # Next-session prompt
 
@@ -89,15 +89,22 @@ instead. Three PRs, all merged:
    - `cmd/profiles.go` hardcodes `database.OpenStore(..., "pebble")`, ignoring
      `db_backend`.
 
-4. **Whisper is configured but dead.** `whisper.transcribe_url` points at
-   `http://172.16.3.22:19847` (the `windows-gpu` box), which is up but serves
-   `/transcribe`, `/transcribe-batch`, `/health` — a custom FastAPI server
-   returning `{"text","error"}`, **text only, no timestamps**.
-   `WhisperTranscribe` speaks the native `/asr` protocol and gets a 404. The
-   config already records the `onerahmet/openai-whisper-asr-webservice` image
-   and port 9000 for the standard service; port 9000 is currently closed. Ask
-   me to start that container rather than trying to build subtitles out of an
-   untimed transcript.
+4. **Whisper: RESOLVED 2026-08-02, no config change needed.** The transcription
+   fallback works end-to-end; leave `whisper.transcribe_url` alone.
+
+   The GPU host runs a custom FastAPI Whisper server that previously served only
+   `/transcribe` and discarded segment timings, so `WhisperTranscribe` — which
+   speaks the native `/asr` protocol — got a 404. That server now also serves
+   `/asr`, returning real SRT/VTT built from `segment.start`/`.end`. Verified
+   against a real media file: 196 monotonic cues over 10 minutes, driven through
+   the `transcribe` CLI rather than curl.
+
+   Two constraints worth knowing before touching it: the GPU has no room for a
+   second resident model, so one process serves both this project and another;
+   and inference is therefore serialised behind a lock, meaning a long
+   transcription blocks the other project's requests for its duration. The
+   deployment is **not** in this repo — the operator's notes have the details.
+   Do not record host addresses here; this file is public.
 
 5. **Two findings from an earlier session, still open.**
    - `security.ValidateAndSanitizePath` accepts **any** absolute path under

@@ -1,3 +1,8 @@
+// file: pkg/watcher/watcher.go
+// version: 1.0.0
+// guid: b30941d0-038e-4c97-9601-7d2dc16520ad
+// last-edited: 2026-08-04
+
 package watcher
 
 import (
@@ -56,7 +61,7 @@ func WatchDirectory(ctx context.Context, dir, lang, providerName string, p provi
 			logger.Warnf("watch error: %v", err)
 		case ev := <-w.Events:
 			if ev.Op&(fsnotify.Create|fsnotify.Rename|fsnotify.Write) != 0 && isVideoFile(ev.Name) {
-				if err := scanner.ProcessFile(ctx, ev.Name, lang, providerName, p, false, store); err != nil {
+				if err := processWatched(ctx, ev.Name, lang, providerName, p, store); err != nil {
 					logger.Warnf("process %s: %v", ev.Name, err)
 				}
 			}
@@ -106,10 +111,25 @@ func WatchDirectoryRecursive(ctx context.Context, dir, lang, providerName string
 				}
 			}
 			if ev.Op&(fsnotify.Create|fsnotify.Rename|fsnotify.Write) != 0 && isVideoFile(ev.Name) {
-				if err := scanner.ProcessFile(ctx, ev.Name, lang, providerName, p, false, store); err != nil {
+				if err := processWatched(ctx, ev.Name, lang, providerName, p, store); err != nil {
 					logger.Warnf("process %s: %v", ev.Name, err)
 				}
 			}
 		}
 	}
+}
+
+// processWatched downloads subtitles for a newly seen file, honouring the
+// file's own language profile when it has one and falling back to the single
+// language the watcher was started with.
+//
+// The watcher is an automated path — nobody named a language for this
+// particular file — so an assignment made in the UI should govern it, the same
+// way it governs a library scan.
+func processWatched(ctx context.Context, path, lang, providerName string,
+	p providers.Provider, store database.SubtitleStore) error {
+	if handled, err := scanner.ProcessWithProfileIfAssigned(ctx, path, providerName, p, false, store); handled {
+		return err
+	}
+	return scanner.ProcessFile(ctx, path, lang, providerName, p, false, store)
 }

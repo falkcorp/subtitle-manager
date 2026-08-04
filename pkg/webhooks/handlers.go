@@ -1,7 +1,7 @@
 // file: pkg/webhooks/handlers.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 123e4567-e89b-12d3-a456-426614174002
-// last-edited: 2026-07-30
+// last-edited: 2026-08-04
 
 package webhooks
 
@@ -144,10 +144,11 @@ func (h *SonarrWebhookHandler) Handle(ctx context.Context, payload []byte, heade
 	// fetched English subtitles for everything imported through Sonarr with no
 	// setting anywhere to change it. It now follows the configured default.
 	//
-	// This is still not the language *profile* assigned to the series — the
-	// handler receives a file path and has no database to resolve one — which
-	// is the remaining half of this gap and is tracked separately.
-	if err := scanner.ProcessFile(ctx, filePath, profiles.DefaultLanguage(), "", nil, true, nil); err != nil {
+	// A file with its own language profile is downloaded for that profile's
+	// languages instead. Nothing in a Sonarr import names a language for this
+	// particular file, so an assignment made in the UI should govern it. The
+	// nil store is fine — the helper resolves the shared store itself.
+	if err := processWebhookFile(ctx, filePath, profiles.DefaultLanguage(), "", nil); err != nil {
 		h.logger.Warnf("Failed to process file from Sonarr webhook: %v", err)
 		return fmt.Errorf("processing failed: %v", err)
 	}
@@ -187,9 +188,9 @@ func (h *RadarrWebhookHandler) Handle(ctx context.Context, payload []byte, heade
 	h.logger.Infof("Processing Radarr download: %s", filePath)
 
 	// Process file for subtitle download. See the Sonarr handler above for why
-	// this follows the configured default language rather than a hardcoded
-	// English, and what the remaining gap is.
-	if err := scanner.ProcessFile(ctx, filePath, profiles.DefaultLanguage(), "", nil, true, nil); err != nil {
+	// this follows an assigned language profile first and the configured
+	// default language otherwise.
+	if err := processWebhookFile(ctx, filePath, profiles.DefaultLanguage(), "", nil); err != nil {
 		h.logger.Warnf("Failed to process file from Radarr webhook: %v", err)
 		return fmt.Errorf("processing failed: %v", err)
 	}
@@ -344,4 +345,20 @@ func (h *RadarrWebhookHandler) GetName() string {
 // GetName returns the handler name for custom webhooks.
 func (h *CustomWebhookHandler) GetName() string {
 	return "custom"
+}
+
+// processWebhookFile downloads subtitles for a file an *arr instance just
+// imported, honouring the file's own language profile when it has one.
+//
+// Only the Sonarr and Radarr handlers use this. The custom webhook is left on
+// scanner.ProcessFile deliberately: its payload carries an explicit, validated
+// language, which is the sender asking for one specific thing rather than a
+// policy about the file — the same reason the web download endpoint is
+// untouched. See scanner.ProcessWithProfileIfAssigned.
+func processWebhookFile(ctx context.Context, path, lang, providerName string,
+	p providers.Provider) error {
+	if handled, err := scanner.ProcessWithProfileIfAssigned(ctx, path, providerName, p, true, nil); handled {
+		return err
+	}
+	return scanner.ProcessFile(ctx, path, lang, providerName, p, true, nil)
 }

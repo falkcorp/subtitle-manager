@@ -1,5 +1,5 @@
 // file: pkg/scanner/profile_test.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 9e2b6c74-51af-4d38-a0e6-7b3c8f1d20a5
 // last-edited: 2026-08-04
 
@@ -337,4 +337,59 @@ func TestDeletingTheLastProfileStaysDeleted(t *testing.T) {
 		}
 		t.Errorf("a lookup recreated %d profile(s) %v after the last was deleted", len(after), names)
 	}
+}
+
+// TestProcessWithProfileIfAssignedReportsHandled pins the contract every wired
+// download path depends on: the helper must say whether it took over, so the
+// caller knows whether to fall through to its own single language.
+//
+// Getting this backwards in either direction is silent: reporting handled when
+// it did nothing loses the download entirely, and reporting unhandled after
+// downloading duplicates it.
+func TestProcessWithProfileIfAssignedReportsHandled(t *testing.T) {
+	dir := t.TempDir()
+	assignedVid := filepath.Join(dir, "assigned.mkv")
+	plainVid := filepath.Join(dir, "plain.mkv")
+	for _, v := range []string{assignedVid, plainVid} {
+		if err := os.WriteFile(v, []byte("x"), 0644); err != nil {
+			t.Fatalf("create video: %v", err)
+		}
+	}
+	viper.Set("media_directory", dir)
+	defer viper.Reset()
+
+	store := profileTestStore(t)
+	newProfile(t, store, "default", true, profiles.LanguageConfig{Language: "en", Priority: 1})
+	assigned := newProfile(t, store, "assigned", false,
+		profiles.LanguageConfig{Language: "fr", Priority: 2},
+		profiles.LanguageConfig{Language: "es", Priority: 1})
+	if err := store.AssignProfileToMedia(assignedVid, assigned); err != nil {
+		t.Fatalf("assign profile: %v", err)
+	}
+
+	m := providersmocks.NewMockProvider(t)
+	m.On("Fetch", mock.Anything, mock.Anything, "es").Return([]byte("es-sub"), nil).Once()
+	m.On("Fetch", mock.Anything, mock.Anything, "fr").Return([]byte("fr-sub"), nil).Once()
+
+	handled, err := ProcessWithProfileIfAssigned(context.Background(), assignedVid, "test", m, false, store)
+	if err != nil {
+		t.Fatalf("assigned file: %v", err)
+	}
+	if !handled {
+		t.Fatal("assigned file reported unhandled; the caller would download its own language instead")
+	}
+	m.AssertExpectations(t)
+
+	// The unassigned file must be declined, not silently downloaded with the
+	// default profile's languages — otherwise every file in the library becomes
+	// profile-driven the moment a default exists.
+	unassigned := providersmocks.NewMockProvider(t)
+	handled, err = ProcessWithProfileIfAssigned(context.Background(), plainVid, "test", unassigned, false, store)
+	if err != nil {
+		t.Fatalf("unassigned file: %v", err)
+	}
+	if handled {
+		t.Error("unassigned file reported handled; the caller would skip its own download")
+	}
+	unassigned.AssertExpectations(t)
 }

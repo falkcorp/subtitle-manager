@@ -169,8 +169,21 @@ production with a fully green test suite.
 
 **What is still open.**
 
-- Only library scans. The monitor loop, watcher, webhooks, scheduler and
-  Sonarr/Radarr paths still call `ProcessFile` with a single language.
+- ~~Only library scans.~~ **Fixed 2026-08-04.** The monitor loop, watcher, the
+  Sonarr/Radarr webhooks and the `sonarr`/`radarr` CLI commands now route
+  through `scanner.ProcessWithProfileIfAssigned`, which honours the file's own
+  profile and reports whether it did so the caller can fall through.
+
+  **Precedence, decided here:** an assigned profile beats
+  `MonitoredItem.Languages`. That field is *accumulated*, not curated —
+  `sync.go` unions in every language it is ever asked for and never removes one,
+  so it cannot express "stop wanting German" — while an assignment is a
+  deliberate per-file choice. Pinned by
+  `TestAssignedProfileBeatsMonitoredItemLanguages`.
+
+  Deliberately **not** overridden: requests that name a language directly, i.e.
+  the web download endpoint's `?lang=`, the custom webhook's validated `lang`,
+  and `fetch <file> <lang>`. Those are one specific request, not a policy.
 - **Cutoff score and Forced/HI are dropped.** `processWithAssignedProfile`
   passes a bare language code, so `ProcessFile` scores candidates with
   `scoring.LoadProfileFromConfig()` — the global `scoring.*` settings. The

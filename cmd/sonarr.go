@@ -1,3 +1,8 @@
+// file: cmd/sonarr.go
+// version: 1.0.0
+// guid: 74705a61-aef7-400c-b5a5-23c2276a28ee
+// last-edited: 2026-08-04
+
 package cmd
 
 import (
@@ -37,6 +42,12 @@ var sonarrCmd = &cobra.Command{
 			} else {
 				logger.Warnf("db open: %v", err)
 			}
+		}
+		// An assigned language profile governs an *arr import: nothing here
+		// names a language for this particular file, so a choice made in the
+		// UI should win over the connector's default.
+		if handled, err := scanner.ProcessWithProfileIfAssigned(ctx, path, "", nil, true, store); handled {
+			return err
 		}
 		return scanner.ProcessFile(ctx, path, lang, "", nil, true, store)
 	},

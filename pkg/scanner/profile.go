@@ -1,5 +1,5 @@
 // file: pkg/scanner/profile.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 4f7c2a91-8d05-4e63-b7a2-90c1e5d3846b
 // last-edited: 2026-08-04
 
@@ -154,4 +154,44 @@ func processWithAssignedProfile(ctx context.Context, path string, langs []string
 		return nil
 	}
 	return firstErr
+}
+
+// ProcessWithProfileIfAssigned runs the download pipeline using the file's own
+// language profile when it has one, and reports whether it did. A caller that
+// gets false back should fall through to its own single-language behaviour.
+//
+// # Precedence
+//
+// This is the single place that decides an explicit profile assignment beats
+// whatever language the calling path would otherwise have used — including
+// MonitoredItem.Languages, which is the monitor loop's independent list of
+// desired languages.
+//
+// That field loses because it is *accumulated*, not curated: sync.go unions in
+// every language it is ever asked for and never removes one, so it cannot
+// express "stop wanting French". A profile assignment is a deliberate per-file
+// choice made in the UI. An append-only accumulation should not override a
+// deliberate choice.
+//
+// The exception is a request that names a language directly — the web
+// download endpoint's ?lang=, `fetch <file> <lang>`. Those are the user asking
+// for one specific thing right now, not a policy about the file, so they are
+// left alone and do not call this.
+func ProcessWithProfileIfAssigned(ctx context.Context, path string, providerName string,
+	p providers.Provider, upgrade bool, store database.SubtitleStore) (bool, error) {
+	lookupStore := store
+	if lookupStore == nil {
+		var err error
+		if lookupStore, err = database.GetSharedStore(); err != nil {
+			return false, nil
+		}
+	}
+	if !anyLanguageProfiles(lookupStore) {
+		return false, nil
+	}
+	langs, ok := assignedProfileLanguages(path, lookupStore)
+	if !ok {
+		return false, nil
+	}
+	return true, processWithAssignedProfile(ctx, path, langs, providerName, p, upgrade, store)
 }

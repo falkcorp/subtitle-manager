@@ -1,3 +1,8 @@
+// file: cmd/radarr.go
+// version: 1.0.0
+// guid: 61cbb50f-9d36-4700-b970-7dac611ebbd9
+// last-edited: 2026-08-04
+
 package cmd
 
 import (
@@ -37,6 +42,12 @@ var radarrCmd = &cobra.Command{
 			} else {
 				logger.Warnf("db open: %v", err)
 			}
+		}
+		// An assigned language profile governs an *arr import: nothing here
+		// names a language for this particular file, so a choice made in the
+		// UI should win over the connector's default.
+		if handled, err := scanner.ProcessWithProfileIfAssigned(ctx, path, "", nil, true, store); handled {
+			return err
 		}
 		return scanner.ProcessFile(ctx, path, lang, "", nil, true, store)
 	},

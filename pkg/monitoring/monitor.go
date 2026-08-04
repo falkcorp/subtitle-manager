@@ -1,5 +1,6 @@
 // file: pkg/monitoring/monitor.go
-// version: 1.1.0
+// version: 1.2.0
+// last-edited: 2026-08-04
 // guid: 12345678-1234-1234-1234-123456789012
 
 package monitoring
@@ -129,6 +130,20 @@ func (m *EpisodeMonitor) processItem(ctx context.Context, item *MonitoredItem) e
 	// Update last checked time
 	item.LastChecked = time.Now()
 
+	// A file with its own language profile is downloaded for the languages that
+	// profile asks for, in priority order, instead of item.Languages.
+	//
+	// The profile wins because item.Languages is accumulated rather than
+	// curated — sync.go unions in every language it is ever asked for and never
+	// removes one — while an assignment is a deliberate per-file choice. See
+	// scanner.ProcessWithProfileIfAssigned for the full reasoning.
+	if handled, err := scanner.ProcessWithProfileIfAssigned(ctx, item.Path, "", nil, true, m.store); handled {
+		if err != nil {
+			m.logger.Debugf("assigned profile failed for %s: %v", item.Path, err)
+		}
+		return m.recordCheckOutcome(item, err == nil)
+	}
+
 	// Check each requested language
 	foundAny := false
 	for _, lang := range item.Languages {
@@ -139,6 +154,14 @@ func (m *EpisodeMonitor) processItem(ctx context.Context, item *MonitoredItem) e
 		foundAny = true
 	}
 
+	return m.recordCheckOutcome(item, foundAny)
+}
+
+// recordCheckOutcome applies the retry/blacklist bookkeeping for one check and
+// persists the item. It is shared by the profile-driven and per-language paths
+// so a profile-assigned file still retries, fails and auto-blacklists exactly
+// like any other monitored item.
+func (m *EpisodeMonitor) recordCheckOutcome(item *MonitoredItem, foundAny bool) error {
 	// Update retry count and status
 	if !foundAny {
 		item.RetryCount++

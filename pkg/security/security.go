@@ -1,7 +1,7 @@
 // file: pkg/security/security.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
-// last-edited: 2026-07-31
+// last-edited: 2026-08-04
 package security
 
 import (
@@ -12,9 +12,19 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"testing"
 
 	"github.com/spf13/viper"
 )
+
+// allowTempDirPaths controls the temp-directory escape hatch in
+// ValidateAndSanitizePath. It is true only in a test binary.
+//
+// It is a variable rather than a direct testing.Testing() call at the use site
+// so the production behaviour is observable: a test can set it to false and
+// assert that a temp path is refused. Without that, the closed case would be
+// untestable by construction — every test runs with the hatch open.
+var allowTempDirPaths = testing.Testing()
 
 // ValidateURL checks if raw is a safe HTTP or HTTPS URL.
 // It blocks known metadata services and dangerous ports.
@@ -130,9 +140,22 @@ func ValidateAndSanitizePath(userPath string) (string, error) {
 		}
 	}
 
-	// Special handling for temporary directories in testing/development scenarios
-	// Allow paths within the system temp directory but still check for path traversal
-	if tempDir := os.TempDir(); tempDir != "" {
+	// Temp-directory escape hatch, for tests only.
+	//
+	// This used to be unconditional, which quietly voided `allowed_base_dirs` in
+	// production: /tmp is world-writable, so any path an attacker could steer
+	// under it was accepted no matter how the operator had configured the
+	// allowed roots. Nothing gated it — no build tag, no config key.
+	//
+	// It exists because the suite builds fixtures under t.TempDir() and 68 test
+	// files depend on those paths validating. testing.Testing() reports whether
+	// this is a test binary, so the hatch is open exactly where it is needed and
+	// closed everywhere else, without every one of those tests having to
+	// configure an allowed root. A production binary never takes this branch.
+	//
+	// The traversal check below is kept even so: a test fixture path containing
+	// ".." should still be rejected rather than normalised into acceptance.
+	if tempDir := os.TempDir(); allowTempDirPaths && tempDir != "" {
 		relPath, err := filepath.Rel(tempDir, absPath)
 		if err == nil && !strings.HasPrefix(relPath, "..") {
 			if strings.Contains(relPath, "..") {

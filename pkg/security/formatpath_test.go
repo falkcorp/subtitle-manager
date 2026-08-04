@@ -1,7 +1,7 @@
 // file: pkg/security/formatpath_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 6d0a94f1-58c3-4e27-b91f-72e5c0846a3b
-// last-edited: 2026-07-31
+// last-edited: 2026-08-04
 
 package security
 
@@ -40,10 +40,11 @@ func TestValidateSubtitleOutputPathWithFormatRejectsBadFormat(t *testing.T) {
 // CodeQL flags that call because it cannot see this constraint. Pinning it
 // here means the assumption breaks a test rather than breaking quietly.
 func TestValidateSubtitleOutputPathWithFormatConfinesPath(t *testing.T) {
-	// A fixed path rather than t.TempDir(): ValidateAndSanitizePath
-	// unconditionally admits anything under os.TempDir(), so a temp-rooted
+	// A fixed path rather than t.TempDir(): the temp-directory escape hatch in
+	// ValidateAndSanitizePath is open inside a test binary, so a temp-rooted
 	// media directory would not exercise the confinement being asserted here.
-	// See the note on that bypass in security.go.
+	// (The hatch is no longer unconditional — it is closed in production. See
+	// allowTempDirPaths in security.go and tempdir_gate_test.go.)
 	const dir = "/opt/media"
 	viper.Set("media_directory", dir)
 	defer viper.Reset()

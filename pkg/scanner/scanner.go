@@ -1,7 +1,7 @@
 // file: pkg/scanner/scanner.go
-// version: 1.6.0
+// version: 1.7.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 package scanner
 
 import (
@@ -345,11 +345,10 @@ func ProcessFileWithProfile(ctx context.Context, path string, db *sql.DB, upgrad
 			return serr
 		}
 	}
-	defaultID, profilesDefined := defaultProfileID(lookupStore)
-	if !profilesDefined {
+	if !anyLanguageProfiles(lookupStore) {
 		return fmt.Errorf("no language profile assigned to %s", sanitizedPath)
 	}
-	langs, ok := assignedProfileLanguages(sanitizedPath, lookupStore, defaultID)
+	langs, ok := assignedProfileLanguages(sanitizedPath, lookupStore)
 	if !ok {
 		return fmt.Errorf("no language profile assigned to %s", sanitizedPath)
 	}

@@ -1,7 +1,7 @@
 // file: pkg/webserver/profiles_test.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 1b0c9d8e-7f6e-2a3b-5c4d-8f7e9a0b1c2d
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 
 package webserver
 
@@ -344,5 +344,104 @@ func TestMediaProfilesHandlerBadPath(t *testing.T) {
 	// Should return bad request for empty path
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+// deleteProfile issues DELETE through the item handler and returns the status.
+func deleteProfile(t *testing.T, id string) (int, string) {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	profilesHandler(nil).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodDelete, "/api/profiles/"+id, nil))
+	return rr.Code, rr.Body.String()
+}
+
+// profileIDs lists the IDs currently stored, through the collection handler.
+func profileIDs(t *testing.T) []string {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	profilesHandler(nil).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodGet, "/api/profiles", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list profiles: got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	var list []profiles.LanguageProfile
+	if err := json.Unmarshal(rr.Body.Bytes(), &list); err != nil {
+		t.Fatalf("list profiles: %v", err)
+	}
+	ids := make([]string, 0, len(list))
+	for _, p := range list {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
+// TestLastProfileIsDeletable pins that the profile list can be emptied.
+//
+// The delete guard asked GetDefaultLanguageProfile whether the target was the
+// default. That helper answers "which profile governs by default" and falls
+// back to the *first* profile when none is flagged — so the last remaining
+// profile always came back as the default and was always refused. There was no
+// sequence of requests that emptied the list.
+func TestLastProfileIsDeletable(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
+	for _, id := range profileIDs(t) {
+		if code, body := deleteProfile(t, id); code != http.StatusNoContent {
+			t.Fatalf("delete seeded profile %s: got %d (body: %s)", id, code, body)
+		}
+	}
+
+	if ids := profileIDs(t); len(ids) != 0 {
+		t.Errorf("profiles remain after deleting every one: %v", ids)
+	}
+}
+
+// TestNonDefaultProfileIsDeletableWhenNothingIsFlagged is the other half of the
+// same bug. With two profiles and no is_default set, GetDefaultLanguageProfile
+// returned whichever came first, making that arbitrary profile permanently
+// undeletable even though the user never chose it as the default.
+func TestNonDefaultProfileIsDeletableWhenNothingIsFlagged(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
+	for _, id := range profileIDs(t) {
+		if code, body := deleteProfile(t, id); code != http.StatusNoContent {
+			t.Fatalf("clear seeded profile %s: got %d (body: %s)", id, code, body)
+		}
+	}
+	first := createTestProfile(t, "first", "en")
+	createTestProfile(t, "second", "fr")
+
+	if code, body := deleteProfile(t, first); code != http.StatusNoContent {
+		t.Fatalf("delete unflagged profile: got %d (body: %s)", code, body)
+	}
+}
+
+// TestDefaultProfileStillProtectedWhenOthersExist pins what the guard is
+// actually for: while alternatives exist, removing the default would leave
+// scans without a fallback, so it stays refused.
+func TestDefaultProfileStillProtectedWhenOthersExist(t *testing.T) {
+	skipIfNoSQLite(t)
+	useTempProfileStore(t)
+
+	for _, id := range profileIDs(t) {
+		if code, body := deleteProfile(t, id); code != http.StatusNoContent {
+			t.Fatalf("clear seeded profile %s: got %d (body: %s)", id, code, body)
+		}
+	}
+	keep := createTestProfile(t, "keep", "en")
+	createTestProfile(t, "other", "fr")
+
+	rr := httptest.NewRecorder()
+	profilesHandler(nil).ServeHTTP(rr,
+		httptest.NewRequest(http.MethodPost, "/api/profiles/"+keep+"/default", nil))
+	if rr.Code != http.StatusOK && rr.Code != http.StatusNoContent {
+		t.Fatalf("set default: got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	if code, _ := deleteProfile(t, keep); code != http.StatusBadRequest {
+		t.Errorf("deleting the default with another profile present: got %d, want 400", code)
 	}
 }

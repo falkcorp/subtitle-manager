@@ -1,5 +1,6 @@
 // file: cmd/profiles.go
-// version: 1.0.0
+// version: 1.1.0
+// last-edited: 2026-08-04
 // guid: 3f4e5d6c-7b8a-9c0d-1e2f-4e5d6c7b8a9c
 
 package cmd
@@ -32,7 +33,7 @@ var listProfilesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := logging.GetLogger("profiles")
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err
@@ -146,7 +147,7 @@ var createProfileCmd = &cobra.Command{
 			return err
 		}
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err
@@ -188,7 +189,7 @@ var assignProfileCmd = &cobra.Command{
 			return fmt.Errorf("invalid media path: %w", err)
 		}
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err
@@ -229,7 +230,7 @@ var removeProfileCmd = &cobra.Command{
 			return fmt.Errorf("invalid media path: %w", err)
 		}
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err
@@ -262,7 +263,7 @@ var showMediaProfileCmd = &cobra.Command{
 			return fmt.Errorf("invalid media path: %w", err)
 		}
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err
@@ -309,7 +310,7 @@ var deleteProfileCmd = &cobra.Command{
 		logger := logging.GetLogger("profiles")
 		profileID := args[0]
 
-		store, err := database.OpenStore(database.GetDatabasePath(), "pebble")
+		store, err := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
 		if err != nil {
 			logger.Errorf("failed to open database: %v", err)
 			return err

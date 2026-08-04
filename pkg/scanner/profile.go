@@ -1,7 +1,7 @@
 // file: pkg/scanner/profile.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 4f7c2a91-8d05-4e63-b7a2-90c1e5d3846b
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 
 package scanner
 
@@ -15,38 +15,28 @@ import (
 	"github.com/jdfalk/subtitle-manager/pkg/security"
 )
 
-// defaultProfileID returns the ID of the profile marked default (or "" when
-// none is) and whether any profiles exist at all.
+// anyLanguageProfiles reports whether the store holds any language profiles at
+// all, so a scan can skip per-file profile resolution entirely when none exist.
 //
-// It reads the list and looks for the flag rather than calling
-// GetDefaultLanguageProfile, which the backends disagree about: PebbleStore
-// falls back to the first profile when none is flagged and *writes a new
-// "default" profile* when the store is empty, while SQLStore strictly requires
-// is_default and reports a miss. A scan must not create rows as a side effect
-// of looking something up — especially not a profile that then cannot be
-// deleted — and it must behave the same on either backend.
+// This used to also return the default profile's ID, which callers passed back
+// in so assignedProfileLanguages could treat "resolved to the default" as "not
+// assigned". GetAssignedProfileID answers that directly now, so only the
+// short-circuit remains.
 //
-// The "any profiles at all" answer matters for the same reason: GetMediaProfile
-// itself falls back to GetDefaultLanguageProfile on a miss, so on an empty
-// store even a plain lookup would create the row. Callers skip profile
-// resolution entirely when there are none.
-func defaultProfileID(store database.SubtitleStore) (string, bool) {
+// It once carried a second, load-bearing reason: PebbleStore's
+// GetDefaultLanguageProfile *created* a "default" profile when the store was
+// empty, and GetMediaProfile called it on every miss, so on an empty store even
+// a plain lookup wrote a row — one that was then flagged default and could not
+// be deleted. Pebble no longer creates on read, so this guard is now only an
+// optimisation and no longer protects correctness.
+func anyLanguageProfiles(store database.SubtitleStore) bool {
 	list, err := store.ListLanguageProfiles()
-	if err != nil || len(list) == 0 {
-		return "", false
-	}
-	for _, p := range list {
-		if p.IsDefault {
-			return p.ID, true
-		}
-	}
-	return "", true
+	return err == nil && len(list) > 0
 }
 
 // assignedProfileLanguages returns the language codes a media file's assigned
 // language profile asks for, highest priority first, and whether the file has
-// an assignment at all. defaultID is the ID from defaultProfileID, hoisted out
-// of the caller's per-file loop.
+// an assignment at all.
 //
 // # Why "assigned" is not the same as "has a profile"
 //
@@ -56,22 +46,18 @@ func defaultProfileID(store database.SubtitleStore) (string, bool) {
 // whether to change how a scan behaves: it would silently switch every file in
 // the library to profile-driven downloading the moment any default exists.
 //
-// A file is therefore treated as assigned only when the profile it resolves to
-// is not the default one.
-//
-// This has a real consequence, not a cosmetic one: a file the user explicitly
-// assigned the *default* profile is indistinguishable from an unassigned file,
-// and will be scanned with the scan's own language rather than that profile's
-// language list. Telling the two apart needs a store method that reports
-// whether a row exists, separate from which profile governs the file. Until
-// then, assigning a non-default profile is the way to get profile-driven
-// languages.
+// This used to be approximated by treating "resolved to the default" as "not
+// assigned", which made a file explicitly assigned the *default* profile
+// indistinguishable from an unassigned one — it got the scan's own language
+// rather than that profile's list. GetAssignedProfileID reports whether a row
+// exists, separately from which profile governs the file, so the explicit
+// assignment is now honoured.
 //
 // The lookup uses the *sanitized* path. ProcessFile sanitizes before doing
 // anything, and the web handler stores a filepath.Clean-ed key, so looking up
 // a raw path here would miss what the UI wrote — the same key disagreement
 // that made per-item assignment collide before.
-func assignedProfileLanguages(path string, store database.SubtitleStore, defaultID string) ([]string, bool) {
+func assignedProfileLanguages(path string, store database.SubtitleStore) ([]string, bool) {
 	logger := logging.GetLogger("scanner")
 
 	if store == nil {
@@ -88,13 +74,16 @@ func assignedProfileLanguages(path string, store database.SubtitleStore, default
 		return nil, false
 	}
 
-	profile, err := store.GetMediaProfile(sanitized)
-	if err != nil || profile == nil {
+	assignedID, err := store.GetAssignedProfileID(sanitized)
+	if err != nil || assignedID == "" {
 		return nil, false
 	}
 
-	// A resolved profile that is merely the default means "no assignment".
-	if defaultID != "" && profile.ID == defaultID {
+	profile, err := store.GetLanguageProfile(assignedID)
+	if err != nil || profile == nil {
+		// A dangling assignment (profile deleted out from under it) is not an
+		// error worth failing the scan over — fall back to the scan's language.
+		logger.Debugf("assignment for %s names missing profile %s", sanitized, assignedID)
 		return nil, false
 	}
 

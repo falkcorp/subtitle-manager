@@ -1,7 +1,7 @@
 // file: pkg/scanner/progress.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 30d76902-4260-48c3-8dbb-acbbdc9bcea7
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 package scanner
 
 import (
@@ -35,11 +35,10 @@ func ScanDirectoryProgress(ctx context.Context, dir, lang, providerName string,
 	// looking it up per file would mean a second full profile-list scan per
 	// file per worker.
 	var (
-		defaultID       string
 		profilesDefined bool
 	)
 	if store != nil {
-		defaultID, profilesDefined = defaultProfileID(store)
+		profilesDefined = anyLanguageProfiles(store)
 	}
 
 	work := pool.New().WithErrors().WithMaxGoroutines(workers)
@@ -59,16 +58,12 @@ func ScanDirectoryProgress(ctx context.Context, dir, lang, providerName string,
 			// language that profile asks for, in priority order, instead of
 			// the single lang this scan was started with. Files without an
 			// assignment are untouched by this — see
-			// assignedProfileLanguages for why "assigned" excludes the
-			// default profile.
+			// assignedProfileLanguages for how "assigned" is determined.
 			//
-			// The profilesDefined guard is a separate statement rather than
-			// part of the condition below: an if-statement's init clause runs
-			// before the condition is evaluated, so folding it in would still
-			// perform the lookup — and GetMediaProfile creates a default
-			// profile as a side effect on an empty Pebble store.
+			// profilesDefined short-circuits the per-file store read when
+			// the library has no profiles at all.
 			if profilesDefined {
-				if langs, ok := assignedProfileLanguages(f, store, defaultID); ok {
+				if langs, ok := assignedProfileLanguages(f, store); ok {
 					logger.Debugf("process %s with assigned profile (%v)", f, langs)
 					if err := processWithAssignedProfile(ctx, f, langs, providerName, p, upgrade, store); err == nil {
 						if cb != nil {

@@ -1,7 +1,7 @@
 // file: pkg/scanner/profile_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 9e2b6c74-51af-4d38-a0e6-7b3c8f1d20a5
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 
 package scanner
 
@@ -187,10 +187,10 @@ func TestAssignedProfileLanguagesOrdersByPriority(t *testing.T) {
 // PebbleStore.GetDefaultLanguageProfile *writes* a new profile with ID
 // "default" when the store is empty. Because a scan now consults profiles per
 // file, calling it would mean a first scan on a fresh install silently
-// conjures a profile row — one that cannot then be deleted, since
-// handleDeleteProfile refuses to remove the default. defaultProfileID reads
-// the list instead, which also makes the behaviour identical on SQLStore,
-// where GetDefaultLanguageProfile does not fall back or create.
+// conjures a profile row — one that could not then be deleted, since
+// handleDeleteProfile refuses to remove the default. Pebble no longer creates
+// on read, and anyLanguageProfiles reads the list, so the behaviour is now
+// identical on SQLStore.
 func TestScanCreatesNoProfileRows(t *testing.T) {
 	dir := t.TempDir()
 	vid := filepath.Join(dir, "movie.mkv")
@@ -222,9 +222,119 @@ func TestScanCreatesNoProfileRows(t *testing.T) {
 	}
 }
 
-// assignedProfileLanguagesForTest resolves the default once and calls through,
-// mirroring what the scan loop does.
+// assignedProfileLanguagesForTest calls through, mirroring the scan loop.
 func assignedProfileLanguagesForTest(path string, store database.SubtitleStore) ([]string, bool) {
-	id, _ := defaultProfileID(store)
-	return assignedProfileLanguages(path, store, id)
+	return assignedProfileLanguages(path, store)
+}
+
+// TestExplicitDefaultProfileAssignmentIsHonoured is the bug this change exists
+// to fix. A file explicitly assigned the *default* profile used to be
+// indistinguishable from an unassigned one, because assignment was inferred
+// from "the resolved profile is not the default" rather than from whether an
+// assignment row existed. Such a file was scanned with the scan's own language
+// instead of the profile's list — the user's explicit choice silently ignored.
+//
+// It is deliberately the mirror image of TestScanIgnoresDefaultProfile: same
+// default profile, same resolved profile, and the only difference is that
+// AssignProfileToMedia was called. The two must reach opposite conclusions.
+func TestExplicitDefaultProfileAssignmentIsHonoured(t *testing.T) {
+	dir := t.TempDir()
+	vid := filepath.Join(dir, "movie.mkv")
+	if err := os.WriteFile(vid, []byte("x"), 0644); err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	viper.Set("media_directory", dir)
+	defer viper.Reset()
+
+	store := profileTestStore(t)
+	defaultID := newProfile(t, store, "default", true,
+		profiles.LanguageConfig{Language: "fr", Priority: 2},
+		profiles.LanguageConfig{Language: "es", Priority: 1})
+
+	if err := store.AssignProfileToMedia(vid, defaultID); err != nil {
+		t.Fatalf("assign default profile: %v", err)
+	}
+
+	m := providersmocks.NewMockProvider(t)
+	m.On("Fetch", mock.Anything, mock.Anything, "es").Return([]byte("es-sub"), nil).Once()
+	m.On("Fetch", mock.Anything, mock.Anything, "fr").Return([]byte("fr-sub"), nil).Once()
+
+	if err := ScanDirectoryProgress(context.Background(), dir, "en", "test", m, false, 1, store, nil); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	m.AssertExpectations(t)
+
+	if _, err := os.Stat(filepath.Join(dir, "movie.en.srt")); err == nil {
+		t.Error("wrote an en subtitle: an explicit assignment to the default profile was ignored")
+	}
+}
+
+// TestDanglingAssignmentFallsBackToScanLanguage covers deleting a profile that
+// files still reference. The assignment row survives the profile, and resolving
+// it must not fail the scan — the file falls back to the scan's own language.
+func TestDanglingAssignmentFallsBackToScanLanguage(t *testing.T) {
+	dir := t.TempDir()
+	vid := filepath.Join(dir, "movie.mkv")
+	if err := os.WriteFile(vid, []byte("x"), 0644); err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	viper.Set("media_directory", dir)
+	defer viper.Reset()
+
+	store := profileTestStore(t)
+	newProfile(t, store, "keep", true, profiles.LanguageConfig{Language: "en", Priority: 1})
+	gone := newProfile(t, store, "gone", false, profiles.LanguageConfig{Language: "fr", Priority: 1})
+	if err := store.AssignProfileToMedia(vid, gone); err != nil {
+		t.Fatalf("assign profile: %v", err)
+	}
+	if err := store.DeleteLanguageProfile(gone); err != nil {
+		t.Fatalf("delete profile: %v", err)
+	}
+
+	m := providersmocks.NewMockProvider(t)
+	m.On("Fetch", mock.Anything, mock.Anything, "en").Return([]byte("en-sub"), nil).Once()
+
+	if err := ScanDirectoryProgress(context.Background(), dir, "en", "test", m, false, 1, store, nil); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	m.AssertExpectations(t)
+}
+
+// TestDeletingTheLastProfileStaysDeleted pins the resurrection bug.
+//
+// PebbleStore's GetDefaultLanguageProfile used to *create* a profile when the
+// store was empty, and GetMediaProfile called it on every miss. So deleting the
+// last profile only lasted until the next lookup, which wrote it back — flagged
+// default, and therefore refused by the delete handler for good. Fixing only
+// the delete guard would have left the bug reappearing one request later.
+func TestDeletingTheLastProfileStaysDeleted(t *testing.T) {
+	store := profileTestStore(t)
+
+	// Pebble seeds a default profile on init, so clear whatever is there.
+	list, err := store.ListLanguageProfiles()
+	if err != nil {
+		t.Fatalf("list profiles: %v", err)
+	}
+	for _, p := range list {
+		if err := store.DeleteLanguageProfile(p.ID); err != nil {
+			t.Fatalf("delete profile %s: %v", p.ID, err)
+		}
+	}
+
+	// The lookup that used to resurrect it.
+	if _, err := store.GetMediaProfile("/media/movie.mkv"); err == nil {
+		t.Log("GetMediaProfile succeeded on an empty store; only the write-back matters")
+	}
+
+	after, err := store.ListLanguageProfiles()
+	if err != nil {
+		t.Fatalf("list profiles: %v", err)
+	}
+	if len(after) != 0 {
+		names := make([]string, 0, len(after))
+		for _, p := range after {
+			names = append(names, p.ID+"/"+p.Name)
+		}
+		t.Errorf("a lookup recreated %d profile(s) %v after the last was deleted", len(after), names)
+	}
 }

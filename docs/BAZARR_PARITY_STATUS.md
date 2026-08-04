@@ -176,12 +176,12 @@ production with a fully green test suite.
   `scoring.LoadProfileFromConfig()` — the global `scoring.*` settings. The
   per-language `Forced`/`HI` preferences and the profile's `CutoffScore` never
   reach the scorer. Only the retired `scoredProfileFetch` ever applied them.
-- **A file explicitly assigned the default profile reads as unassigned**, so it
-  is scanned with the scan's own language rather than that profile's list.
-  `GetMediaProfile` falls back to the default instead of reporting a miss, and
-  there is no store method distinguishing "an assignment row exists" from
-  "this is what governs the file". Fixing it means adding one to the interface
-  and all three implementations.
+- ~~A file explicitly assigned the default profile reads as unassigned.~~
+  **Fixed 2026-08-04.** `GetAssignedProfileID` was added to `SubtitleStore` and
+  all three implementations; it reports whether an assignment row exists,
+  separately from which profile governs the file, and never falls back or
+  creates rows. `assignedProfileLanguages` now uses it instead of inferring
+  assignment from "resolved to something other than the default".
 
 The original diagnosis, for context:
 
@@ -208,17 +208,30 @@ Note when fixing: `MonitoredItem.Languages` is a second, independent
 desired-languages mechanism. Making the monitor loop profile-driven means
 deciding which of the two wins — a product decision, not a refactor.
 
-### The last language profile cannot be deleted — **open**
+### The last language profile cannot be deleted — **fixed 2026-08-04**
 
-`GetDefaultLanguageProfile` returns the first profile in the list when none is
-explicitly marked default, and `handleDeleteProfile` refuses to delete the
-default. With one profile left, that profile is always "the default", so
-`DELETE /api/profiles/{id}` answers 400 forever. Reproduced on the preview
-instance.
+`GetDefaultLanguageProfile` returned the first profile in the list when none was
+explicitly marked default, and `handleDeleteProfile` refused to delete the
+default. With one profile left, that profile was always "the default", so
+`DELETE /api/profiles/{id}` answered 400 forever. Reproduced on the preview
+instance. With several profiles and none flagged, an arbitrary one was likewise
+permanently undeletable.
 
-Related: `cmd/profiles.go` hardcodes `database.OpenStore(..., "pebble")`,
-ignoring `db_backend`, so `subtitle-manager profiles show` reads the wrong
-store on a sqlite or postgres deployment.
+The guard now reads the `IsDefault` flag from the list rather than asking
+`GetDefaultLanguageProfile`, and deleting the *only* profile is permitted —
+there is no other profile for scans to fall back to either way, so refusing
+just left the user stuck.
+
+A second defect sat behind it, and fixing only the guard would have left the
+bug reappearing one request later: `PebbleStore.GetDefaultLanguageProfile`
+**created** a profile when the store was empty, and `GetMediaProfile` called it
+on every miss. Deleting the last profile therefore lasted only until the next
+lookup, which wrote it back — flagged default, and so refused again. Pebble no
+longer creates on read, matching `SQLStore`, which never did.
+
+Also fixed: `cmd/profiles.go` hardcoded `database.OpenStore(..., "pebble")`,
+ignoring `db_backend`, so `subtitle-manager profiles show` read a different
+store from the web UI on a sqlite or postgres deployment.
 
 ## Implementation plan (backend)
 

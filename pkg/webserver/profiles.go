@@ -1,7 +1,7 @@
 // file: pkg/webserver/profiles.go
-// version: 1.4.0
+// version: 1.5.0
 // guid: 0a9b8c7d-6e5f-1a2b-4c3d-7e6f8a9b0c1d
-// last-edited: 2026-08-01
+// last-edited: 2026-08-04
 
 package webserver
 
@@ -207,11 +207,28 @@ func handleDeleteProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, pro
 		return
 	}
 
-	// Check if this is the default profile
-	defaultProfile, err := store.GetDefaultLanguageProfile()
-	if err == nil && defaultProfile.ID == profileID {
-		http.Error(w, "Cannot delete the default profile", http.StatusBadRequest)
+	// Refusing to delete the default profile is deliberate — it would leave
+	// scans with no fallback — but the check reads the IsDefault flag from the
+	// list rather than asking GetDefaultLanguageProfile.
+	//
+	// That helper answers "which profile governs by default", and when nothing
+	// is flagged it answers with the *first* profile. Used as a delete guard
+	// that made an arbitrary profile permanently undeletable in any store where
+	// no default had been set, and made the last remaining profile undeletable
+	// always — you could never empty the list.
+	//
+	// Deleting the only profile is therefore allowed: there is no other profile
+	// for scans to fall back to either way, and refusing leaves the user stuck.
+	profilesList, err := store.ListLanguageProfiles()
+	if err != nil {
+		http.Error(w, "Failed to delete profile", http.StatusInternalServerError)
 		return
+	}
+	for _, p := range profilesList {
+		if p.ID == profileID && p.IsDefault && len(profilesList) > 1 {
+			http.Error(w, "Cannot delete the default profile; set another profile as default first", http.StatusBadRequest)
+			return
+		}
 	}
 
 	if err := store.DeleteLanguageProfile(profileID); err != nil {

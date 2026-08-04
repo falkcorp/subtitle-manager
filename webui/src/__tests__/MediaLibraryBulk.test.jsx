@@ -1,5 +1,5 @@
 // file: webui/src/__tests__/MediaLibraryBulk.test.jsx
-// version: 1.0.0
+// version: 1.1.0
 // guid: 9f4c1e73-2b8d-46a1-b0e5-7c3a9d5e1042
 // last-edited: 2026-08-04
 
@@ -118,6 +118,26 @@ describe('MediaLibrary mass edit', () => {
     // A directory has no profile assignment, so offering a checkbox that does
     // nothing would be worse than offering none.
     expect(screen.queryByLabelText('Select Season 01')).toBeNull();
+  });
+
+  test('select all survives the Library Paths tab, which lists no media', async () => {
+    mockApi(() => Promise.reject(new Error('should not be called')));
+    renderLibrary();
+    await enterMassEditAndSelectBoth();
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+
+    // The toolbar is shown whenever mass edit is on, independent of the active
+    // tab, so this tab is reachable with Select all on screen. getTabContent()
+    // returns null here and an unguarded .filter throws.
+    fireEvent.click(screen.getByRole('tab', { name: 'Library Paths' }));
+    fireEvent.click(screen.getByRole('button', { name: /select all files/i }));
+
+    // Starting from a non-empty selection is what makes this discriminating.
+    // React reports a throw inside an event handler as an unhandled error, which
+    // Vitest does not count as a test failure — so asserting "0 selected" from
+    // an already-empty selection would pass whether the handler ran or threw.
+    // Reaching 0 from 2 is only possible if it ran to completion.
+    expect(screen.getByText('0 selected')).toBeInTheDocument();
   });
 
   test('a partial failure is reported and the failed items stay selected', async () => {

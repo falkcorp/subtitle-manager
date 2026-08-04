@@ -1,5 +1,5 @@
 // file: webui/src/MediaLibrary.jsx
-// version: 2.1.0
+// version: 2.1.1
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
 // last-edited: 2026-08-04
 // @ts-nocheck
@@ -873,7 +873,12 @@ export default function MediaLibrary({ backendAvailable = true }) {
               onClick={() =>
                 setSelectedFiles(
                   new Set(
-                    getTabContent()
+                    // getTabContent() returns null on the Library Paths tab,
+                    // which manages paths rather than listing media. The
+                    // toolbar is shown whenever mass edit is on, independent of
+                    // the active tab, so that tab is reachable with this button
+                    // on screen and an unguarded .filter throws.
+                    (getTabContent() || [])
                       .filter(item => item && !item.is_dir && item.path)
                       .map(item => item.path)
                   )

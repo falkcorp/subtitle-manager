@@ -1,3 +1,8 @@
+// file: pkg/database/store.go
+// version: 1.0.0
+// guid: db0c372c-d86a-47fd-ae26-7685d0d4a60f
+// last-edited: 2026-08-04
+
 package database
 
 import (
@@ -97,6 +102,17 @@ type SubtitleStore interface {
 	RemoveProfileFromMedia(mediaID string) error
 	// GetMediaProfile retrieves the language profile assigned to a media item.
 	GetMediaProfile(mediaID string) (*LanguageProfile, error)
+	// GetAssignedProfileID reports which profile was explicitly assigned to a
+	// media item, returning "" when the item has no assignment of its own.
+	//
+	// This exists because GetMediaProfile falls back to the default profile on a
+	// miss, so it can never answer "was anything assigned here?". That is the
+	// right answer for "which profile governs this file" and the wrong one for
+	// deciding whether to change how a scan behaves — and it makes a file
+	// explicitly assigned the default indistinguishable from an unassigned one.
+	//
+	// Unlike GetMediaProfile this never falls back and never creates rows.
+	GetAssignedProfileID(mediaID string) (string, error)
 	// Subtitle source tracking operations
 	InsertSubtitleSource(src *SubtitleSource) error
 	GetSubtitleSource(sourceHash string) (*SubtitleSource, error)

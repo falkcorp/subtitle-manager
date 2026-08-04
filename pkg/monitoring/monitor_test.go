@@ -1,5 +1,6 @@
 // file: pkg/monitoring/monitor_test.go
-// version: 1.0.1
+// version: 1.1.0
+// last-edited: 2026-08-04
 // guid: 12345678-1234-1234-1234-123456789015
 
 package monitoring
@@ -309,6 +310,11 @@ func (m *MockSubtitleStore) AssignProfileToMedia(mediaID, profileID string) erro
 func (m *MockSubtitleStore) RemoveProfileFromMedia(mediaID string) error          { return nil }
 func (m *MockSubtitleStore) GetMediaProfile(mediaID string) (*database.LanguageProfile, error) {
 	return &database.LanguageProfile{}, nil
+}
+func (m *MockSubtitleStore) GetAssignedProfileID(mediaID string) (string, error) {
+	// These fakes exist for backup/monitoring tests that never assign a
+	// profile; "" is the honest answer for "nothing was assigned".
+	return "", nil
 }
 func (m *MockSubtitleStore) CreateLanguageProfile(profile *database.LanguageProfile) error {
 	return nil

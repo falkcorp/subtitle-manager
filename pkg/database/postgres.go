@@ -1,7 +1,7 @@
 // file: pkg/database/postgres.go
-// version: 1.1.1
+// version: 1.2.0
 // guid: 29e61686-4676-4b4a-b4be-b0cb294239a3
-// last-edited: 2026-07-23
+// last-edited: 2026-08-04
 
 package database
 
@@ -733,6 +733,20 @@ VALUES ($1, $2, $3) ON CONFLICT (media_id) DO UPDATE SET profile_id = EXCLUDED.p
 func (p *PostgresStore) RemoveProfileFromMedia(mediaID string) error {
 	_, err := p.db.Exec(`DELETE FROM media_profiles WHERE media_id = $1`, mediaID)
 	return err
+}
+
+// GetAssignedProfileID reports which profile was explicitly assigned to a media
+// item, or "" when it has none. It never falls back to the default.
+func (p *PostgresStore) GetAssignedProfileID(mediaID string) (string, error) {
+	var profileID string
+	row := p.db.QueryRow(`SELECT profile_id FROM media_profiles WHERE media_id = $1`, mediaID)
+	if err := row.Scan(&profileID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return profileID, nil
 }
 
 // GetMediaProfile retrieves the language profile assigned to a media item.

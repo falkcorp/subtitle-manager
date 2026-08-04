@@ -1,3 +1,8 @@
+// file: pkg/database/database.go
+// version: 1.0.0
+// guid: 6e68e15d-7acf-4121-94f7-b29e4650650d
+// last-edited: 2026-08-04
+
 // Package database provides data storage and retrieval functionality for subtitle-manager.
 // It supports SQLite and other database backends for managing subtitle metadata and operations.
 //
@@ -1481,6 +1486,20 @@ func (s *SQLStore) AssignProfileToMedia(mediaID, profileID string) error {
 func (s *SQLStore) RemoveProfileFromMedia(mediaID string) error {
 	_, err := s.db.Exec(`DELETE FROM media_profiles WHERE media_id = ?`, mediaID)
 	return err
+}
+
+// GetAssignedProfileID reports which profile was explicitly assigned to a media
+// item, or "" when it has none. It never falls back to the default.
+func (s *SQLStore) GetAssignedProfileID(mediaID string) (string, error) {
+	var profileID string
+	row := s.db.QueryRow(`SELECT profile_id FROM media_profiles WHERE media_id = ?`, mediaID)
+	if err := row.Scan(&profileID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return profileID, nil
 }
 
 // GetMediaProfile retrieves the language profile assigned to a media item.

@@ -7,7 +7,7 @@ package mocks
 import (
 	"time"
 
-	common "buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
+	"buf.build/gen/go/falkcorp/gcommon/protocolbuffers/go/commonpb/v2"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -64,7 +64,7 @@ type MockSubtitleStore_AssignProfileToMedia_Call struct {
 // AssignProfileToMedia is a helper method to define mock.On call
 //   - mediaID string
 //   - profileID string
-func (_e *MockSubtitleStore_Expecter) AssignProfileToMedia(mediaID interface{}, profileID interface{}) *MockSubtitleStore_AssignProfileToMedia_Call {
+func (_e *MockSubtitleStore_Expecter) AssignProfileToMedia(mediaID any, profileID any) *MockSubtitleStore_AssignProfileToMedia_Call {
 	return &MockSubtitleStore_AssignProfileToMedia_Call{Call: _e.mock.On("AssignProfileToMedia", mediaID, profileID)}
 }
 
@@ -121,7 +121,7 @@ type MockSubtitleStore_AssignTagToMedia_Call struct {
 // AssignTagToMedia is a helper method to define mock.On call
 //   - mediaID int64
 //   - tagID int64
-func (_e *MockSubtitleStore_Expecter) AssignTagToMedia(mediaID interface{}, tagID interface{}) *MockSubtitleStore_AssignTagToMedia_Call {
+func (_e *MockSubtitleStore_Expecter) AssignTagToMedia(mediaID any, tagID any) *MockSubtitleStore_AssignTagToMedia_Call {
 	return &MockSubtitleStore_AssignTagToMedia_Call{Call: _e.mock.On("AssignTagToMedia", mediaID, tagID)}
 }
 
@@ -178,7 +178,7 @@ type MockSubtitleStore_AssignTagToUser_Call struct {
 // AssignTagToUser is a helper method to define mock.On call
 //   - userID int64
 //   - tagID int64
-func (_e *MockSubtitleStore_Expecter) AssignTagToUser(userID interface{}, tagID interface{}) *MockSubtitleStore_AssignTagToUser_Call {
+func (_e *MockSubtitleStore_Expecter) AssignTagToUser(userID any, tagID any) *MockSubtitleStore_AssignTagToUser_Call {
 	return &MockSubtitleStore_AssignTagToUser_Call{Call: _e.mock.On("AssignTagToUser", userID, tagID)}
 }
 
@@ -482,7 +482,7 @@ type MockSubtitleStore_CreateAPIKey_Call struct {
 // CreateAPIKey is a helper method to define mock.On call
 //   - userID string
 //   - key string
-func (_e *MockSubtitleStore_Expecter) CreateAPIKey(userID interface{}, key interface{}) *MockSubtitleStore_CreateAPIKey_Call {
+func (_e *MockSubtitleStore_Expecter) CreateAPIKey(userID any, key any) *MockSubtitleStore_CreateAPIKey_Call {
 	return &MockSubtitleStore_CreateAPIKey_Call{Call: _e.mock.On("CreateAPIKey", userID, key)}
 }
 
@@ -538,7 +538,7 @@ type MockSubtitleStore_CreateLanguageProfile_Call struct {
 
 // CreateLanguageProfile is a helper method to define mock.On call
 //   - profile *database.LanguageProfile
-func (_e *MockSubtitleStore_Expecter) CreateLanguageProfile(profile interface{}) *MockSubtitleStore_CreateLanguageProfile_Call {
+func (_e *MockSubtitleStore_Expecter) CreateLanguageProfile(profile any) *MockSubtitleStore_CreateLanguageProfile_Call {
 	return &MockSubtitleStore_CreateLanguageProfile_Call{Call: _e.mock.On("CreateLanguageProfile", profile)}
 }
 
@@ -591,7 +591,7 @@ type MockSubtitleStore_CreateOneTimeToken_Call struct {
 //   - userID string
 //   - token string
 //   - duration time.Duration
-func (_e *MockSubtitleStore_Expecter) CreateOneTimeToken(userID interface{}, token interface{}, duration interface{}) *MockSubtitleStore_CreateOneTimeToken_Call {
+func (_e *MockSubtitleStore_Expecter) CreateOneTimeToken(userID any, token any, duration any) *MockSubtitleStore_CreateOneTimeToken_Call {
 	return &MockSubtitleStore_CreateOneTimeToken_Call{Call: _e.mock.On("CreateOneTimeToken", userID, token, duration)}
 }
 
@@ -654,7 +654,7 @@ type MockSubtitleStore_CreateSession_Call struct {
 //   - userID string
 //   - token string
 //   - duration time.Duration
-func (_e *MockSubtitleStore_Expecter) CreateSession(userID interface{}, token interface{}, duration interface{}) *MockSubtitleStore_CreateSession_Call {
+func (_e *MockSubtitleStore_Expecter) CreateSession(userID any, token any, duration any) *MockSubtitleStore_CreateSession_Call {
 	return &MockSubtitleStore_CreateSession_Call{Call: _e.mock.On("CreateSession", userID, token, duration)}
 }
 
@@ -727,7 +727,7 @@ type MockSubtitleStore_CreateUser_Call struct {
 //   - passwordHash string
 //   - email string
 //   - role string
-func (_e *MockSubtitleStore_Expecter) CreateUser(username interface{}, passwordHash interface{}, email interface{}, role interface{}) *MockSubtitleStore_CreateUser_Call {
+func (_e *MockSubtitleStore_Expecter) CreateUser(username any, passwordHash any, email any, role any) *MockSubtitleStore_CreateUser_Call {
 	return &MockSubtitleStore_CreateUser_Call{Call: _e.mock.On("CreateUser", username, passwordHash, email, role)}
 }
 
@@ -793,7 +793,7 @@ type MockSubtitleStore_DeleteDownload_Call struct {
 
 // DeleteDownload is a helper method to define mock.On call
 //   - file string
-func (_e *MockSubtitleStore_Expecter) DeleteDownload(file interface{}) *MockSubtitleStore_DeleteDownload_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteDownload(file any) *MockSubtitleStore_DeleteDownload_Call {
 	return &MockSubtitleStore_DeleteDownload_Call{Call: _e.mock.On("DeleteDownload", file)}
 }
 
@@ -844,7 +844,7 @@ type MockSubtitleStore_DeleteLanguageProfile_Call struct {
 
 // DeleteLanguageProfile is a helper method to define mock.On call
 //   - id string
-func (_e *MockSubtitleStore_Expecter) DeleteLanguageProfile(id interface{}) *MockSubtitleStore_DeleteLanguageProfile_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteLanguageProfile(id any) *MockSubtitleStore_DeleteLanguageProfile_Call {
 	return &MockSubtitleStore_DeleteLanguageProfile_Call{Call: _e.mock.On("DeleteLanguageProfile", id)}
 }
 
@@ -895,7 +895,7 @@ type MockSubtitleStore_DeleteMediaItem_Call struct {
 
 // DeleteMediaItem is a helper method to define mock.On call
 //   - path string
-func (_e *MockSubtitleStore_Expecter) DeleteMediaItem(path interface{}) *MockSubtitleStore_DeleteMediaItem_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteMediaItem(path any) *MockSubtitleStore_DeleteMediaItem_Call {
 	return &MockSubtitleStore_DeleteMediaItem_Call{Call: _e.mock.On("DeleteMediaItem", path)}
 }
 
@@ -946,7 +946,7 @@ type MockSubtitleStore_DeleteMonitoredItem_Call struct {
 
 // DeleteMonitoredItem is a helper method to define mock.On call
 //   - id string
-func (_e *MockSubtitleStore_Expecter) DeleteMonitoredItem(id interface{}) *MockSubtitleStore_DeleteMonitoredItem_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteMonitoredItem(id any) *MockSubtitleStore_DeleteMonitoredItem_Call {
 	return &MockSubtitleStore_DeleteMonitoredItem_Call{Call: _e.mock.On("DeleteMonitoredItem", id)}
 }
 
@@ -997,7 +997,7 @@ type MockSubtitleStore_DeleteSubtitle_Call struct {
 
 // DeleteSubtitle is a helper method to define mock.On call
 //   - file string
-func (_e *MockSubtitleStore_Expecter) DeleteSubtitle(file interface{}) *MockSubtitleStore_DeleteSubtitle_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteSubtitle(file any) *MockSubtitleStore_DeleteSubtitle_Call {
 	return &MockSubtitleStore_DeleteSubtitle_Call{Call: _e.mock.On("DeleteSubtitle", file)}
 }
 
@@ -1048,7 +1048,7 @@ type MockSubtitleStore_DeleteSubtitleSource_Call struct {
 
 // DeleteSubtitleSource is a helper method to define mock.On call
 //   - sourceHash string
-func (_e *MockSubtitleStore_Expecter) DeleteSubtitleSource(sourceHash interface{}) *MockSubtitleStore_DeleteSubtitleSource_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteSubtitleSource(sourceHash any) *MockSubtitleStore_DeleteSubtitleSource_Call {
 	return &MockSubtitleStore_DeleteSubtitleSource_Call{Call: _e.mock.On("DeleteSubtitleSource", sourceHash)}
 }
 
@@ -1099,7 +1099,7 @@ type MockSubtitleStore_DeleteTag_Call struct {
 
 // DeleteTag is a helper method to define mock.On call
 //   - id int64
-func (_e *MockSubtitleStore_Expecter) DeleteTag(id interface{}) *MockSubtitleStore_DeleteTag_Call {
+func (_e *MockSubtitleStore_Expecter) DeleteTag(id any) *MockSubtitleStore_DeleteTag_Call {
 	return &MockSubtitleStore_DeleteTag_Call{Call: _e.mock.On("DeleteTag", id)}
 }
 
@@ -1122,6 +1122,66 @@ func (_c *MockSubtitleStore_DeleteTag_Call) Return(err error) *MockSubtitleStore
 }
 
 func (_c *MockSubtitleStore_DeleteTag_Call) RunAndReturn(run func(id int64) error) *MockSubtitleStore_DeleteTag_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetAssignedProfileID provides a mock function for the type MockSubtitleStore
+func (_mock *MockSubtitleStore) GetAssignedProfileID(mediaID string) (string, error) {
+	ret := _mock.Called(mediaID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAssignedProfileID")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string) (string, error)); ok {
+		return returnFunc(mediaID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string) string); ok {
+		r0 = returnFunc(mediaID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
+		r1 = returnFunc(mediaID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockSubtitleStore_GetAssignedProfileID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAssignedProfileID'
+type MockSubtitleStore_GetAssignedProfileID_Call struct {
+	*mock.Call
+}
+
+// GetAssignedProfileID is a helper method to define mock.On call
+//   - mediaID string
+func (_e *MockSubtitleStore_Expecter) GetAssignedProfileID(mediaID any) *MockSubtitleStore_GetAssignedProfileID_Call {
+	return &MockSubtitleStore_GetAssignedProfileID_Call{Call: _e.mock.On("GetAssignedProfileID", mediaID)}
+}
+
+func (_c *MockSubtitleStore_GetAssignedProfileID_Call) Run(run func(mediaID string)) *MockSubtitleStore_GetAssignedProfileID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockSubtitleStore_GetAssignedProfileID_Call) Return(s string, err error) *MockSubtitleStore_GetAssignedProfileID_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockSubtitleStore_GetAssignedProfileID_Call) RunAndReturn(run func(mediaID string) (string, error)) *MockSubtitleStore_GetAssignedProfileID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1159,7 +1219,7 @@ type MockSubtitleStore_GetDashboardLayout_Call struct {
 
 // GetDashboardLayout is a helper method to define mock.On call
 //   - userID string
-func (_e *MockSubtitleStore_Expecter) GetDashboardLayout(userID interface{}) *MockSubtitleStore_GetDashboardLayout_Call {
+func (_e *MockSubtitleStore_Expecter) GetDashboardLayout(userID any) *MockSubtitleStore_GetDashboardLayout_Call {
 	return &MockSubtitleStore_GetDashboardLayout_Call{Call: _e.mock.On("GetDashboardLayout", userID)}
 }
 
@@ -1276,7 +1336,7 @@ type MockSubtitleStore_GetLanguageProfile_Call struct {
 
 // GetLanguageProfile is a helper method to define mock.On call
 //   - id string
-func (_e *MockSubtitleStore_Expecter) GetLanguageProfile(id interface{}) *MockSubtitleStore_GetLanguageProfile_Call {
+func (_e *MockSubtitleStore_Expecter) GetLanguageProfile(id any) *MockSubtitleStore_GetLanguageProfile_Call {
 	return &MockSubtitleStore_GetLanguageProfile_Call{Call: _e.mock.On("GetLanguageProfile", id)}
 }
 
@@ -1338,7 +1398,7 @@ type MockSubtitleStore_GetMediaAltTitles_Call struct {
 
 // GetMediaAltTitles is a helper method to define mock.On call
 //   - path string
-func (_e *MockSubtitleStore_Expecter) GetMediaAltTitles(path interface{}) *MockSubtitleStore_GetMediaAltTitles_Call {
+func (_e *MockSubtitleStore_Expecter) GetMediaAltTitles(path any) *MockSubtitleStore_GetMediaAltTitles_Call {
 	return &MockSubtitleStore_GetMediaAltTitles_Call{Call: _e.mock.On("GetMediaAltTitles", path)}
 }
 
@@ -1398,7 +1458,7 @@ type MockSubtitleStore_GetMediaFieldLocks_Call struct {
 
 // GetMediaFieldLocks is a helper method to define mock.On call
 //   - path string
-func (_e *MockSubtitleStore_Expecter) GetMediaFieldLocks(path interface{}) *MockSubtitleStore_GetMediaFieldLocks_Call {
+func (_e *MockSubtitleStore_Expecter) GetMediaFieldLocks(path any) *MockSubtitleStore_GetMediaFieldLocks_Call {
 	return &MockSubtitleStore_GetMediaFieldLocks_Call{Call: _e.mock.On("GetMediaFieldLocks", path)}
 }
 
@@ -1460,7 +1520,7 @@ type MockSubtitleStore_GetMediaItem_Call struct {
 
 // GetMediaItem is a helper method to define mock.On call
 //   - path string
-func (_e *MockSubtitleStore_Expecter) GetMediaItem(path interface{}) *MockSubtitleStore_GetMediaItem_Call {
+func (_e *MockSubtitleStore_Expecter) GetMediaItem(path any) *MockSubtitleStore_GetMediaItem_Call {
 	return &MockSubtitleStore_GetMediaItem_Call{Call: _e.mock.On("GetMediaItem", path)}
 }
 
@@ -1522,7 +1582,7 @@ type MockSubtitleStore_GetMediaProfile_Call struct {
 
 // GetMediaProfile is a helper method to define mock.On call
 //   - mediaID string
-func (_e *MockSubtitleStore_Expecter) GetMediaProfile(mediaID interface{}) *MockSubtitleStore_GetMediaProfile_Call {
+func (_e *MockSubtitleStore_Expecter) GetMediaProfile(mediaID any) *MockSubtitleStore_GetMediaProfile_Call {
 	return &MockSubtitleStore_GetMediaProfile_Call{Call: _e.mock.On("GetMediaProfile", mediaID)}
 }
 
@@ -1582,7 +1642,7 @@ type MockSubtitleStore_GetMediaReleaseGroup_Call struct {
 
 // GetMediaReleaseGroup is a helper method to define mock.On call
 //   - path string
-func (_e *MockSubtitleStore_Expecter) GetMediaReleaseGroup(path interface{}) *MockSubtitleStore_GetMediaReleaseGroup_Call {
+func (_e *MockSubtitleStore_Expecter) GetMediaReleaseGroup(path any) *MockSubtitleStore_GetMediaReleaseGroup_Call {
 	return &MockSubtitleStore_GetMediaReleaseGroup_Call{Call: _e.mock.On("GetMediaReleaseGroup", path)}
 }
 
@@ -1644,7 +1704,7 @@ type MockSubtitleStore_GetMonitoredItemsToCheck_Call struct {
 
 // GetMonitoredItemsToCheck is a helper method to define mock.On call
 //   - interval time.Duration
-func (_e *MockSubtitleStore_Expecter) GetMonitoredItemsToCheck(interval interface{}) *MockSubtitleStore_GetMonitoredItemsToCheck_Call {
+func (_e *MockSubtitleStore_Expecter) GetMonitoredItemsToCheck(interval any) *MockSubtitleStore_GetMonitoredItemsToCheck_Call {
 	return &MockSubtitleStore_GetMonitoredItemsToCheck_Call{Call: _e.mock.On("GetMonitoredItemsToCheck", interval)}
 }
 
@@ -1706,7 +1766,7 @@ type MockSubtitleStore_GetSubtitleSource_Call struct {
 
 // GetSubtitleSource is a helper method to define mock.On call
 //   - sourceHash string
-func (_e *MockSubtitleStore_Expecter) GetSubtitleSource(sourceHash interface{}) *MockSubtitleStore_GetSubtitleSource_Call {
+func (_e *MockSubtitleStore_Expecter) GetSubtitleSource(sourceHash any) *MockSubtitleStore_GetSubtitleSource_Call {
 	return &MockSubtitleStore_GetSubtitleSource_Call{Call: _e.mock.On("GetSubtitleSource", sourceHash)}
 }
 
@@ -1734,23 +1794,23 @@ func (_c *MockSubtitleStore_GetSubtitleSource_Call) RunAndReturn(run func(source
 }
 
 // GetUserByEmail provides a mock function for the type MockSubtitleStore
-func (_mock *MockSubtitleStore) GetUserByEmail(email string) (*common.User, error) {
+func (_mock *MockSubtitleStore) GetUserByEmail(email string) (*commonv2.User, error) {
 	ret := _mock.Called(email)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByEmail")
 	}
 
-	var r0 *common.User
+	var r0 *commonv2.User
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*common.User, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (*commonv2.User, error)); ok {
 		return returnFunc(email)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *common.User); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) *commonv2.User); ok {
 		r0 = returnFunc(email)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*common.User)
+			r0 = ret.Get(0).(*commonv2.User)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
@@ -1768,7 +1828,7 @@ type MockSubtitleStore_GetUserByEmail_Call struct {
 
 // GetUserByEmail is a helper method to define mock.On call
 //   - email string
-func (_e *MockSubtitleStore_Expecter) GetUserByEmail(email interface{}) *MockSubtitleStore_GetUserByEmail_Call {
+func (_e *MockSubtitleStore_Expecter) GetUserByEmail(email any) *MockSubtitleStore_GetUserByEmail_Call {
 	return &MockSubtitleStore_GetUserByEmail_Call{Call: _e.mock.On("GetUserByEmail", email)}
 }
 
@@ -1785,34 +1845,34 @@ func (_c *MockSubtitleStore_GetUserByEmail_Call) Run(run func(email string)) *Mo
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByEmail_Call) Return(user *common.User, err error) *MockSubtitleStore_GetUserByEmail_Call {
+func (_c *MockSubtitleStore_GetUserByEmail_Call) Return(user *commonv2.User, err error) *MockSubtitleStore_GetUserByEmail_Call {
 	_c.Call.Return(user, err)
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByEmail_Call) RunAndReturn(run func(email string) (*common.User, error)) *MockSubtitleStore_GetUserByEmail_Call {
+func (_c *MockSubtitleStore_GetUserByEmail_Call) RunAndReturn(run func(email string) (*commonv2.User, error)) *MockSubtitleStore_GetUserByEmail_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUserByID provides a mock function for the type MockSubtitleStore
-func (_mock *MockSubtitleStore) GetUserByID(id string) (*common.User, error) {
+func (_mock *MockSubtitleStore) GetUserByID(id string) (*commonv2.User, error) {
 	ret := _mock.Called(id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByID")
 	}
 
-	var r0 *common.User
+	var r0 *commonv2.User
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*common.User, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (*commonv2.User, error)); ok {
 		return returnFunc(id)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *common.User); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) *commonv2.User); ok {
 		r0 = returnFunc(id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*common.User)
+			r0 = ret.Get(0).(*commonv2.User)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
@@ -1830,7 +1890,7 @@ type MockSubtitleStore_GetUserByID_Call struct {
 
 // GetUserByID is a helper method to define mock.On call
 //   - id string
-func (_e *MockSubtitleStore_Expecter) GetUserByID(id interface{}) *MockSubtitleStore_GetUserByID_Call {
+func (_e *MockSubtitleStore_Expecter) GetUserByID(id any) *MockSubtitleStore_GetUserByID_Call {
 	return &MockSubtitleStore_GetUserByID_Call{Call: _e.mock.On("GetUserByID", id)}
 }
 
@@ -1847,34 +1907,34 @@ func (_c *MockSubtitleStore_GetUserByID_Call) Run(run func(id string)) *MockSubt
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByID_Call) Return(user *common.User, err error) *MockSubtitleStore_GetUserByID_Call {
+func (_c *MockSubtitleStore_GetUserByID_Call) Return(user *commonv2.User, err error) *MockSubtitleStore_GetUserByID_Call {
 	_c.Call.Return(user, err)
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByID_Call) RunAndReturn(run func(id string) (*common.User, error)) *MockSubtitleStore_GetUserByID_Call {
+func (_c *MockSubtitleStore_GetUserByID_Call) RunAndReturn(run func(id string) (*commonv2.User, error)) *MockSubtitleStore_GetUserByID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUserByUsername provides a mock function for the type MockSubtitleStore
-func (_mock *MockSubtitleStore) GetUserByUsername(username string) (*common.User, error) {
+func (_mock *MockSubtitleStore) GetUserByUsername(username string) (*commonv2.User, error) {
 	ret := _mock.Called(username)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByUsername")
 	}
 
-	var r0 *common.User
+	var r0 *commonv2.User
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*common.User, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) (*commonv2.User, error)); ok {
 		return returnFunc(username)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *common.User); ok {
+	if returnFunc, ok := ret.Get(0).(func(string) *commonv2.User); ok {
 		r0 = returnFunc(username)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*common.User)
+			r0 = ret.Get(0).(*commonv2.User)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
@@ -1892,7 +1952,7 @@ type MockSubtitleStore_GetUserByUsername_Call struct {
 
 // GetUserByUsername is a helper method to define mock.On call
 //   - username string
-func (_e *MockSubtitleStore_Expecter) GetUserByUsername(username interface{}) *MockSubtitleStore_GetUserByUsername_Call {
+func (_e *MockSubtitleStore_Expecter) GetUserByUsername(username any) *MockSubtitleStore_GetUserByUsername_Call {
 	return &MockSubtitleStore_GetUserByUsername_Call{Call: _e.mock.On("GetUserByUsername", username)}
 }
 
@@ -1909,12 +1969,12 @@ func (_c *MockSubtitleStore_GetUserByUsername_Call) Run(run func(username string
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByUsername_Call) Return(user *common.User, err error) *MockSubtitleStore_GetUserByUsername_Call {
+func (_c *MockSubtitleStore_GetUserByUsername_Call) Return(user *commonv2.User, err error) *MockSubtitleStore_GetUserByUsername_Call {
 	_c.Call.Return(user, err)
 	return _c
 }
 
-func (_c *MockSubtitleStore_GetUserByUsername_Call) RunAndReturn(run func(username string) (*common.User, error)) *MockSubtitleStore_GetUserByUsername_Call {
+func (_c *MockSubtitleStore_GetUserByUsername_Call) RunAndReturn(run func(username string) (*commonv2.User, error)) *MockSubtitleStore_GetUserByUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1943,7 +2003,7 @@ type MockSubtitleStore_InsertDownload_Call struct {
 
 // InsertDownload is a helper method to define mock.On call
 //   - rec *database.DownloadRecord
-func (_e *MockSubtitleStore_Expecter) InsertDownload(rec interface{}) *MockSubtitleStore_InsertDownload_Call {
+func (_e *MockSubtitleStore_Expecter) InsertDownload(rec any) *MockSubtitleStore_InsertDownload_Call {
 	return &MockSubtitleStore_InsertDownload_Call{Call: _e.mock.On("InsertDownload", rec)}
 }
 
@@ -1994,7 +2054,7 @@ type MockSubtitleStore_InsertMediaItem_Call struct {
 
 // InsertMediaItem is a helper method to define mock.On call
 //   - rec *database.MediaItem
-func (_e *MockSubtitleStore_Expecter) InsertMediaItem(rec interface{}) *MockSubtitleStore_InsertMediaItem_Call {
+func (_e *MockSubtitleStore_Expecter) InsertMediaItem(rec any) *MockSubtitleStore_InsertMediaItem_Call {
 	return &MockSubtitleStore_InsertMediaItem_Call{Call: _e.mock.On("InsertMediaItem", rec)}
 }
 
@@ -2045,7 +2105,7 @@ type MockSubtitleStore_InsertMonitoredItem_Call struct {
 
 // InsertMonitoredItem is a helper method to define mock.On call
 //   - rec *database.MonitoredItem
-func (_e *MockSubtitleStore_Expecter) InsertMonitoredItem(rec interface{}) *MockSubtitleStore_InsertMonitoredItem_Call {
+func (_e *MockSubtitleStore_Expecter) InsertMonitoredItem(rec any) *MockSubtitleStore_InsertMonitoredItem_Call {
 	return &MockSubtitleStore_InsertMonitoredItem_Call{Call: _e.mock.On("InsertMonitoredItem", rec)}
 }
 
@@ -2096,7 +2156,7 @@ type MockSubtitleStore_InsertSubtitle_Call struct {
 
 // InsertSubtitle is a helper method to define mock.On call
 //   - rec *database.SubtitleRecord
-func (_e *MockSubtitleStore_Expecter) InsertSubtitle(rec interface{}) *MockSubtitleStore_InsertSubtitle_Call {
+func (_e *MockSubtitleStore_Expecter) InsertSubtitle(rec any) *MockSubtitleStore_InsertSubtitle_Call {
 	return &MockSubtitleStore_InsertSubtitle_Call{Call: _e.mock.On("InsertSubtitle", rec)}
 }
 
@@ -2147,7 +2207,7 @@ type MockSubtitleStore_InsertSubtitleSource_Call struct {
 
 // InsertSubtitleSource is a helper method to define mock.On call
 //   - src *database.SubtitleSource
-func (_e *MockSubtitleStore_Expecter) InsertSubtitleSource(src interface{}) *MockSubtitleStore_InsertSubtitleSource_Call {
+func (_e *MockSubtitleStore_Expecter) InsertSubtitleSource(src any) *MockSubtitleStore_InsertSubtitleSource_Call {
 	return &MockSubtitleStore_InsertSubtitleSource_Call{Call: _e.mock.On("InsertSubtitleSource", src)}
 }
 
@@ -2198,7 +2258,7 @@ type MockSubtitleStore_InsertTag_Call struct {
 
 // InsertTag is a helper method to define mock.On call
 //   - name string
-func (_e *MockSubtitleStore_Expecter) InsertTag(name interface{}) *MockSubtitleStore_InsertTag_Call {
+func (_e *MockSubtitleStore_Expecter) InsertTag(name any) *MockSubtitleStore_InsertTag_Call {
 	return &MockSubtitleStore_InsertTag_Call{Call: _e.mock.On("InsertTag", name)}
 }
 
@@ -2249,7 +2309,7 @@ type MockSubtitleStore_InvalidateSession_Call struct {
 
 // InvalidateSession is a helper method to define mock.On call
 //   - token string
-func (_e *MockSubtitleStore_Expecter) InvalidateSession(token interface{}) *MockSubtitleStore_InvalidateSession_Call {
+func (_e *MockSubtitleStore_Expecter) InvalidateSession(token any) *MockSubtitleStore_InvalidateSession_Call {
 	return &MockSubtitleStore_InvalidateSession_Call{Call: _e.mock.On("InvalidateSession", token)}
 }
 
@@ -2300,7 +2360,7 @@ type MockSubtitleStore_InvalidateUserSessions_Call struct {
 
 // InvalidateUserSessions is a helper method to define mock.On call
 //   - userID string
-func (_e *MockSubtitleStore_Expecter) InvalidateUserSessions(userID interface{}) *MockSubtitleStore_InvalidateUserSessions_Call {
+func (_e *MockSubtitleStore_Expecter) InvalidateUserSessions(userID any) *MockSubtitleStore_InvalidateUserSessions_Call {
 	return &MockSubtitleStore_InvalidateUserSessions_Call{Call: _e.mock.On("InvalidateUserSessions", userID)}
 }
 
@@ -2417,7 +2477,7 @@ type MockSubtitleStore_ListDownloadsByVideo_Call struct {
 
 // ListDownloadsByVideo is a helper method to define mock.On call
 //   - video string
-func (_e *MockSubtitleStore_Expecter) ListDownloadsByVideo(video interface{}) *MockSubtitleStore_ListDownloadsByVideo_Call {
+func (_e *MockSubtitleStore_Expecter) ListDownloadsByVideo(video any) *MockSubtitleStore_ListDownloadsByVideo_Call {
 	return &MockSubtitleStore_ListDownloadsByVideo_Call{Call: _e.mock.On("ListDownloadsByVideo", video)}
 }
 
@@ -2645,7 +2705,7 @@ type MockSubtitleStore_ListSubtitleSources_Call struct {
 // ListSubtitleSources is a helper method to define mock.On call
 //   - provider string
 //   - limit int
-func (_e *MockSubtitleStore_Expecter) ListSubtitleSources(provider interface{}, limit interface{}) *MockSubtitleStore_ListSubtitleSources_Call {
+func (_e *MockSubtitleStore_Expecter) ListSubtitleSources(provider any, limit any) *MockSubtitleStore_ListSubtitleSources_Call {
 	return &MockSubtitleStore_ListSubtitleSources_Call{Call: _e.mock.On("ListSubtitleSources", provider, limit)}
 }
 
@@ -2767,7 +2827,7 @@ type MockSubtitleStore_ListSubtitlesByVideo_Call struct {
 
 // ListSubtitlesByVideo is a helper method to define mock.On call
 //   - video string
-func (_e *MockSubtitleStore_Expecter) ListSubtitlesByVideo(video interface{}) *MockSubtitleStore_ListSubtitlesByVideo_Call {
+func (_e *MockSubtitleStore_Expecter) ListSubtitlesByVideo(video any) *MockSubtitleStore_ListSubtitlesByVideo_Call {
 	return &MockSubtitleStore_ListSubtitlesByVideo_Call{Call: _e.mock.On("ListSubtitlesByVideo", video)}
 }
 
@@ -2884,7 +2944,7 @@ type MockSubtitleStore_ListTagsForMedia_Call struct {
 
 // ListTagsForMedia is a helper method to define mock.On call
 //   - mediaID int64
-func (_e *MockSubtitleStore_Expecter) ListTagsForMedia(mediaID interface{}) *MockSubtitleStore_ListTagsForMedia_Call {
+func (_e *MockSubtitleStore_Expecter) ListTagsForMedia(mediaID any) *MockSubtitleStore_ListTagsForMedia_Call {
 	return &MockSubtitleStore_ListTagsForMedia_Call{Call: _e.mock.On("ListTagsForMedia", mediaID)}
 }
 
@@ -2946,7 +3006,7 @@ type MockSubtitleStore_ListTagsForUser_Call struct {
 
 // ListTagsForUser is a helper method to define mock.On call
 //   - userID int64
-func (_e *MockSubtitleStore_Expecter) ListTagsForUser(userID interface{}) *MockSubtitleStore_ListTagsForUser_Call {
+func (_e *MockSubtitleStore_Expecter) ListTagsForUser(userID any) *MockSubtitleStore_ListTagsForUser_Call {
 	return &MockSubtitleStore_ListTagsForUser_Call{Call: _e.mock.On("ListTagsForUser", userID)}
 }
 
@@ -2974,23 +3034,23 @@ func (_c *MockSubtitleStore_ListTagsForUser_Call) RunAndReturn(run func(userID i
 }
 
 // ListUsers provides a mock function for the type MockSubtitleStore
-func (_mock *MockSubtitleStore) ListUsers() ([]*common.User, error) {
+func (_mock *MockSubtitleStore) ListUsers() ([]*commonv2.User, error) {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListUsers")
 	}
 
-	var r0 []*common.User
+	var r0 []*commonv2.User
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() ([]*common.User, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func() ([]*commonv2.User, error)); ok {
 		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func() []*common.User); ok {
+	if returnFunc, ok := ret.Get(0).(func() []*commonv2.User); ok {
 		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*common.User)
+			r0 = ret.Get(0).([]*commonv2.User)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func() error); ok {
@@ -3018,12 +3078,12 @@ func (_c *MockSubtitleStore_ListUsers_Call) Run(run func()) *MockSubtitleStore_L
 	return _c
 }
 
-func (_c *MockSubtitleStore_ListUsers_Call) Return(users []*common.User, err error) *MockSubtitleStore_ListUsers_Call {
+func (_c *MockSubtitleStore_ListUsers_Call) Return(users []*commonv2.User, err error) *MockSubtitleStore_ListUsers_Call {
 	_c.Call.Return(users, err)
 	return _c
 }
 
-func (_c *MockSubtitleStore_ListUsers_Call) RunAndReturn(run func() ([]*common.User, error)) *MockSubtitleStore_ListUsers_Call {
+func (_c *MockSubtitleStore_ListUsers_Call) RunAndReturn(run func() ([]*commonv2.User, error)) *MockSubtitleStore_ListUsers_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3052,7 +3112,7 @@ type MockSubtitleStore_RemoveProfileFromMedia_Call struct {
 
 // RemoveProfileFromMedia is a helper method to define mock.On call
 //   - mediaID string
-func (_e *MockSubtitleStore_Expecter) RemoveProfileFromMedia(mediaID interface{}) *MockSubtitleStore_RemoveProfileFromMedia_Call {
+func (_e *MockSubtitleStore_Expecter) RemoveProfileFromMedia(mediaID any) *MockSubtitleStore_RemoveProfileFromMedia_Call {
 	return &MockSubtitleStore_RemoveProfileFromMedia_Call{Call: _e.mock.On("RemoveProfileFromMedia", mediaID)}
 }
 
@@ -3104,7 +3164,7 @@ type MockSubtitleStore_RemoveTagFromMedia_Call struct {
 // RemoveTagFromMedia is a helper method to define mock.On call
 //   - mediaID int64
 //   - tagID int64
-func (_e *MockSubtitleStore_Expecter) RemoveTagFromMedia(mediaID interface{}, tagID interface{}) *MockSubtitleStore_RemoveTagFromMedia_Call {
+func (_e *MockSubtitleStore_Expecter) RemoveTagFromMedia(mediaID any, tagID any) *MockSubtitleStore_RemoveTagFromMedia_Call {
 	return &MockSubtitleStore_RemoveTagFromMedia_Call{Call: _e.mock.On("RemoveTagFromMedia", mediaID, tagID)}
 }
 
@@ -3161,7 +3221,7 @@ type MockSubtitleStore_RemoveTagFromUser_Call struct {
 // RemoveTagFromUser is a helper method to define mock.On call
 //   - userID int64
 //   - tagID int64
-func (_e *MockSubtitleStore_Expecter) RemoveTagFromUser(userID interface{}, tagID interface{}) *MockSubtitleStore_RemoveTagFromUser_Call {
+func (_e *MockSubtitleStore_Expecter) RemoveTagFromUser(userID any, tagID any) *MockSubtitleStore_RemoveTagFromUser_Call {
 	return &MockSubtitleStore_RemoveTagFromUser_Call{Call: _e.mock.On("RemoveTagFromUser", userID, tagID)}
 }
 
@@ -3218,7 +3278,7 @@ type MockSubtitleStore_SetDashboardLayout_Call struct {
 // SetDashboardLayout is a helper method to define mock.On call
 //   - userID string
 //   - layout string
-func (_e *MockSubtitleStore_Expecter) SetDashboardLayout(userID interface{}, layout interface{}) *MockSubtitleStore_SetDashboardLayout_Call {
+func (_e *MockSubtitleStore_Expecter) SetDashboardLayout(userID any, layout any) *MockSubtitleStore_SetDashboardLayout_Call {
 	return &MockSubtitleStore_SetDashboardLayout_Call{Call: _e.mock.On("SetDashboardLayout", userID, layout)}
 }
 
@@ -3274,7 +3334,7 @@ type MockSubtitleStore_SetDefaultLanguageProfile_Call struct {
 
 // SetDefaultLanguageProfile is a helper method to define mock.On call
 //   - id string
-func (_e *MockSubtitleStore_Expecter) SetDefaultLanguageProfile(id interface{}) *MockSubtitleStore_SetDefaultLanguageProfile_Call {
+func (_e *MockSubtitleStore_Expecter) SetDefaultLanguageProfile(id any) *MockSubtitleStore_SetDefaultLanguageProfile_Call {
 	return &MockSubtitleStore_SetDefaultLanguageProfile_Call{Call: _e.mock.On("SetDefaultLanguageProfile", id)}
 }
 
@@ -3326,7 +3386,7 @@ type MockSubtitleStore_SetMediaAltTitles_Call struct {
 // SetMediaAltTitles is a helper method to define mock.On call
 //   - path string
 //   - titles []string
-func (_e *MockSubtitleStore_Expecter) SetMediaAltTitles(path interface{}, titles interface{}) *MockSubtitleStore_SetMediaAltTitles_Call {
+func (_e *MockSubtitleStore_Expecter) SetMediaAltTitles(path any, titles any) *MockSubtitleStore_SetMediaAltTitles_Call {
 	return &MockSubtitleStore_SetMediaAltTitles_Call{Call: _e.mock.On("SetMediaAltTitles", path, titles)}
 }
 
@@ -3383,7 +3443,7 @@ type MockSubtitleStore_SetMediaFieldLocks_Call struct {
 // SetMediaFieldLocks is a helper method to define mock.On call
 //   - path string
 //   - locks string
-func (_e *MockSubtitleStore_Expecter) SetMediaFieldLocks(path interface{}, locks interface{}) *MockSubtitleStore_SetMediaFieldLocks_Call {
+func (_e *MockSubtitleStore_Expecter) SetMediaFieldLocks(path any, locks any) *MockSubtitleStore_SetMediaFieldLocks_Call {
 	return &MockSubtitleStore_SetMediaFieldLocks_Call{Call: _e.mock.On("SetMediaFieldLocks", path, locks)}
 }
 
@@ -3440,7 +3500,7 @@ type MockSubtitleStore_SetMediaReleaseGroup_Call struct {
 // SetMediaReleaseGroup is a helper method to define mock.On call
 //   - path string
 //   - group string
-func (_e *MockSubtitleStore_Expecter) SetMediaReleaseGroup(path interface{}, group interface{}) *MockSubtitleStore_SetMediaReleaseGroup_Call {
+func (_e *MockSubtitleStore_Expecter) SetMediaReleaseGroup(path any, group any) *MockSubtitleStore_SetMediaReleaseGroup_Call {
 	return &MockSubtitleStore_SetMediaReleaseGroup_Call{Call: _e.mock.On("SetMediaReleaseGroup", path, group)}
 }
 
@@ -3497,7 +3557,7 @@ type MockSubtitleStore_SetMediaTitle_Call struct {
 // SetMediaTitle is a helper method to define mock.On call
 //   - path string
 //   - title string
-func (_e *MockSubtitleStore_Expecter) SetMediaTitle(path interface{}, title interface{}) *MockSubtitleStore_SetMediaTitle_Call {
+func (_e *MockSubtitleStore_Expecter) SetMediaTitle(path any, title any) *MockSubtitleStore_SetMediaTitle_Call {
 	return &MockSubtitleStore_SetMediaTitle_Call{Call: _e.mock.On("SetMediaTitle", path, title)}
 }
 
@@ -3553,7 +3613,7 @@ type MockSubtitleStore_UpdateLanguageProfile_Call struct {
 
 // UpdateLanguageProfile is a helper method to define mock.On call
 //   - profile *database.LanguageProfile
-func (_e *MockSubtitleStore_Expecter) UpdateLanguageProfile(profile interface{}) *MockSubtitleStore_UpdateLanguageProfile_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateLanguageProfile(profile any) *MockSubtitleStore_UpdateLanguageProfile_Call {
 	return &MockSubtitleStore_UpdateLanguageProfile_Call{Call: _e.mock.On("UpdateLanguageProfile", profile)}
 }
 
@@ -3604,7 +3664,7 @@ type MockSubtitleStore_UpdateMonitoredItem_Call struct {
 
 // UpdateMonitoredItem is a helper method to define mock.On call
 //   - rec *database.MonitoredItem
-func (_e *MockSubtitleStore_Expecter) UpdateMonitoredItem(rec interface{}) *MockSubtitleStore_UpdateMonitoredItem_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateMonitoredItem(rec any) *MockSubtitleStore_UpdateMonitoredItem_Call {
 	return &MockSubtitleStore_UpdateMonitoredItem_Call{Call: _e.mock.On("UpdateMonitoredItem", rec)}
 }
 
@@ -3658,7 +3718,7 @@ type MockSubtitleStore_UpdateSubtitleSourceStats_Call struct {
 //   - downloadCount int
 //   - successCount int
 //   - avgRating *float64
-func (_e *MockSubtitleStore_Expecter) UpdateSubtitleSourceStats(sourceHash interface{}, downloadCount interface{}, successCount interface{}, avgRating interface{}) *MockSubtitleStore_UpdateSubtitleSourceStats_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateSubtitleSourceStats(sourceHash any, downloadCount any, successCount any, avgRating any) *MockSubtitleStore_UpdateSubtitleSourceStats_Call {
 	return &MockSubtitleStore_UpdateSubtitleSourceStats_Call{Call: _e.mock.On("UpdateSubtitleSourceStats", sourceHash, downloadCount, successCount, avgRating)}
 }
 
@@ -3725,7 +3785,7 @@ type MockSubtitleStore_UpdateTag_Call struct {
 // UpdateTag is a helper method to define mock.On call
 //   - id int64
 //   - name string
-func (_e *MockSubtitleStore_Expecter) UpdateTag(id interface{}, name interface{}) *MockSubtitleStore_UpdateTag_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateTag(id any, name any) *MockSubtitleStore_UpdateTag_Call {
 	return &MockSubtitleStore_UpdateTag_Call{Call: _e.mock.On("UpdateTag", id, name)}
 }
 
@@ -3782,7 +3842,7 @@ type MockSubtitleStore_UpdateUserPassword_Call struct {
 // UpdateUserPassword is a helper method to define mock.On call
 //   - userID string
 //   - passwordHash string
-func (_e *MockSubtitleStore_Expecter) UpdateUserPassword(userID interface{}, passwordHash interface{}) *MockSubtitleStore_UpdateUserPassword_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateUserPassword(userID any, passwordHash any) *MockSubtitleStore_UpdateUserPassword_Call {
 	return &MockSubtitleStore_UpdateUserPassword_Call{Call: _e.mock.On("UpdateUserPassword", userID, passwordHash)}
 }
 
@@ -3839,7 +3899,7 @@ type MockSubtitleStore_UpdateUserRole_Call struct {
 // UpdateUserRole is a helper method to define mock.On call
 //   - username string
 //   - role string
-func (_e *MockSubtitleStore_Expecter) UpdateUserRole(username interface{}, role interface{}) *MockSubtitleStore_UpdateUserRole_Call {
+func (_e *MockSubtitleStore_Expecter) UpdateUserRole(username any, role any) *MockSubtitleStore_UpdateUserRole_Call {
 	return &MockSubtitleStore_UpdateUserRole_Call{Call: _e.mock.On("UpdateUserRole", username, role)}
 }
 
@@ -3904,7 +3964,7 @@ type MockSubtitleStore_ValidateAPIKey_Call struct {
 
 // ValidateAPIKey is a helper method to define mock.On call
 //   - key string
-func (_e *MockSubtitleStore_Expecter) ValidateAPIKey(key interface{}) *MockSubtitleStore_ValidateAPIKey_Call {
+func (_e *MockSubtitleStore_Expecter) ValidateAPIKey(key any) *MockSubtitleStore_ValidateAPIKey_Call {
 	return &MockSubtitleStore_ValidateAPIKey_Call{Call: _e.mock.On("ValidateAPIKey", key)}
 }
 
@@ -3964,7 +4024,7 @@ type MockSubtitleStore_ValidateOneTimeToken_Call struct {
 
 // ValidateOneTimeToken is a helper method to define mock.On call
 //   - token string
-func (_e *MockSubtitleStore_Expecter) ValidateOneTimeToken(token interface{}) *MockSubtitleStore_ValidateOneTimeToken_Call {
+func (_e *MockSubtitleStore_Expecter) ValidateOneTimeToken(token any) *MockSubtitleStore_ValidateOneTimeToken_Call {
 	return &MockSubtitleStore_ValidateOneTimeToken_Call{Call: _e.mock.On("ValidateOneTimeToken", token)}
 }
 
@@ -4024,7 +4084,7 @@ type MockSubtitleStore_ValidateSession_Call struct {
 
 // ValidateSession is a helper method to define mock.On call
 //   - token string
-func (_e *MockSubtitleStore_Expecter) ValidateSession(token interface{}) *MockSubtitleStore_ValidateSession_Call {
+func (_e *MockSubtitleStore_Expecter) ValidateSession(token any) *MockSubtitleStore_ValidateSession_Call {
 	return &MockSubtitleStore_ValidateSession_Call{Call: _e.mock.On("ValidateSession", token)}
 }
 

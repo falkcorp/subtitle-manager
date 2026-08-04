@@ -1,9 +1,14 @@
 // file: pkg/database/pebble.go
+// version: 1.0.0
+// guid: f376d786-9298-4568-a0d8-7d4167d0f7c0
+// last-edited: 2026-08-04
+
 package database
 
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -1617,25 +1622,18 @@ func (p *PebbleStore) GetDefaultLanguageProfile() (*LanguageProfile, error) {
 		}
 	}
 
-	// No default found, return the first profile or create one
+	// No profile is flagged default; fall back to the first one so callers that
+	// merely want "some governing profile" still get an answer.
 	if len(profilesList) > 0 {
 		return &profilesList[0], nil
 	}
 
-	// Create and return a default profile
-	defaultProfile := &LanguageProfile{
-		ID:          "default",
-		Name:        "Default",
-		Languages:   []profilesPkg.LanguageConfig{{Language: "en", Priority: 1, Forced: false, HI: false}},
-		CutoffScore: 80,
-		IsDefault:   true,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-	if err := p.CreateLanguageProfile(defaultProfile); err != nil {
-		return nil, err
-	}
-	return defaultProfile, nil
+	// An empty store used to be answered by *creating* a "default" profile here.
+	// That made a read mutate the database, and GetMediaProfile calls this on
+	// every miss — so deleting the last profile only lasted until the next
+	// lookup, which resurrected it, flagged default, and therefore undeletable
+	// again. SQLStore has always reported a miss instead; this now matches it.
+	return nil, fmt.Errorf("no language profiles exist")
 }
 
 // AssignProfileToMedia assigns a language profile to a media item.
@@ -1657,6 +1655,26 @@ func (p *PebbleStore) AssignProfileToMedia(mediaID, profileID string) error {
 // RemoveProfileFromMedia removes language profile assignment from a media item.
 func (p *PebbleStore) RemoveProfileFromMedia(mediaID string) error {
 	return p.db.Delete(mediaProfileKey(mediaID), pebble.Sync)
+}
+
+// GetAssignedProfileID reports which profile was explicitly assigned to a media
+// item, or "" when it has none. It never falls back to the default and never
+// creates rows.
+func (p *PebbleStore) GetAssignedProfileID(mediaID string) (string, error) {
+	assignmentData, closer, err := p.db.Get(mediaProfileKey(mediaID))
+	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer closer.Close()
+
+	var assignment profilesPkg.MediaProfileAssignment
+	if err := json.Unmarshal(assignmentData, &assignment); err != nil {
+		return "", err
+	}
+	return assignment.ProfileID, nil
 }
 
 // GetMediaProfile retrieves the language profile assigned to a media item.

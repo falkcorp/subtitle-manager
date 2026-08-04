@@ -1,5 +1,5 @@
 # file: .github/workflows/ci.yml
-# version: 2.1.0
+# version: 2.1.1
 # guid: f1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6
 
 name: Continuous Integration
@@ -70,8 +70,11 @@ jobs:
           - goos: windows
             goarch: amd64
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      # SHA-pinned to match every other workflow here; this repo's policy
+      # rejects tag refs, which fails the job at set-up time rather than at the
+      # build step.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25'
           cache: true

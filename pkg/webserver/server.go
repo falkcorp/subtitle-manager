@@ -1,7 +1,7 @@
 // file: pkg/webserver/server.go
-// version: 1.5.0
+// version: 1.6.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
-// last-edited: 2026-07-30
+// last-edited: 2026-08-04
 
 package webserver
 
@@ -331,6 +331,14 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	mux.Handle(prefix+"/api/profiles", authMiddleware(db, "basic", profilesHandler(db)))
 	mux.Handle(prefix+"/api/profiles/", authMiddleware(db, "basic", profilesHandler(db)))
 	mux.Handle(prefix+"/api/media/profile/", authMiddleware(db, "basic", mediaProfilesHandler(db)))
+
+	// Bulk assignment needs an EXACT pattern, not a subtree. /api/media/ above
+	// is registered as a subtree for mediaTagsHandler, so without this line the
+	// tag handler would answer bulk requests with 200 and a wrong body instead
+	// of 404 — the failure mode that hid /api/providers/available for a
+	// release. An exact pattern outranks the enclosing subtree in ServeMux.
+	// "basic" matches the single-item assignment route it batches.
+	mux.Handle(prefix+"/api/media/profiles/bulk", authMiddleware(db, "basic", bulkMediaProfilesHandler(db)))
 
 	// The frontend calls /api/language-profiles; the handler and its ID
 	// extraction are written against /api/profiles. Alias rather than

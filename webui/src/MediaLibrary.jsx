@@ -1,6 +1,7 @@
 // file: webui/src/MediaLibrary.jsx
-// version: 2.0.0
+// version: 2.1.0
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+// last-edited: 2026-08-04
 // @ts-nocheck
 
 import {
@@ -24,14 +25,20 @@ import {
   CardActionArea,
   CardContent,
   CardMedia,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   Grid,
   IconButton,
+  InputLabel,
   Link,
+  MenuItem,
+  Paper,
+  Select,
   Tab,
   Tabs,
   TextField,
@@ -73,6 +80,13 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const [addLibraryDialog, setAddLibraryDialog] = useState(false);
   const [newLibraryPath, setNewLibraryPath] = useState('');
   const [libraryPaths, setLibraryPaths] = useState([]);
+  // Mass edit: the language profiles available to assign, the one chosen in the
+  // toolbar, and the outcome of the last bulk request. bulkResult is kept so a
+  // partial success stays on screen — the endpoint reports per-item outcomes
+  // and collapsing that to a toast would hide which files did not take.
+  const [languageProfiles, setLanguageProfiles] = useState([]);
+  const [bulkProfileId, setBulkProfileId] = useState('');
+  const [bulkResult, setBulkResult] = useState(null);
   const navigate = useNavigate();
 
   // Fetch poster and basic details from OMDb
@@ -205,9 +219,28 @@ export default function MediaLibrary({ backendAvailable = true }) {
     }
   };
 
+  /**
+   * Load the language profiles offered by the mass-edit toolbar.
+   *
+   * Uses /api/language-profiles, the spelling the rest of the frontend uses;
+   * the server aliases it onto /api/profiles.
+   */
+  const loadLanguageProfiles = async () => {
+    try {
+      const response = await apiFetch('/api/language-profiles');
+      if (response.ok) {
+        const data = await response.json();
+        setLanguageProfiles(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load language profiles:', error);
+    }
+  };
+
   useEffect(() => {
     loadCurrentDirectory();
     loadLibraryPaths();
+    loadLanguageProfiles();
 
     // Set up task polling if backend is available
     if (backendAvailable) {
@@ -400,6 +433,22 @@ export default function MediaLibrary({ backendAvailable = true }) {
             >
               <CardContent>
                 <Box display="flex" alignItems="center">
+                  {/*
+                    Selection is offered only in mass-edit mode and only for
+                    files: directories have no profile assignment, and showing a
+                    checkbox that silently does nothing is worse than none.
+                    The click must not bubble — the enclosing Card navigates.
+                  */}
+                  {bulkMode && !item.is_dir && (
+                    <Checkbox
+                      checked={selectedFiles.has(item.path)}
+                      onClick={event => event.stopPropagation()}
+                      onChange={() => toggleFileSelection(item.path)}
+                      inputProps={{
+                        'aria-label': `Select ${item.name || 'file'}`,
+                      }}
+                    />
+                  )}
                   <Box sx={{ mr: 2 }}>
                     {item.is_dir ? (
                       <FolderIcon color="primary" />
@@ -579,32 +628,60 @@ export default function MediaLibrary({ backendAvailable = true }) {
   };
 
   /**
-   * Handle bulk operations
+   * Assign (or clear) a language profile across every selected file.
+   *
+   * This replaces a previous handleBulkOperation that posted to
+   * /api/bulk-operation. That endpoint was never mounted, and nothing in the
+   * component ever called the function — there was no selection UI to trigger
+   * it — so there was no request contract to preserve. Its errors also went to
+   * console.error only, which is precisely how a bulk action fails invisibly.
+   *
+   * An empty profileId clears the assignment, matching the endpoint's contract.
    */
-  const handleBulkOperation = async type => {
+  const handleBulkProfileAssign = async profileId => {
     if (selectedFiles.size === 0) return;
 
-    const files = Array.from(selectedFiles)
-      .map(path => items.find(item => item?.path === path))
-      .filter(Boolean);
-
-    setProgress({ type, file: `${files.length} files`, progress: 0 });
+    const mediaIds = Array.from(selectedFiles);
+    setProgress({
+      type: 'profile',
+      file: `${mediaIds.length} files`,
+      progress: 0,
+    });
+    setBulkResult(null);
 
     try {
-      await apiFetch('/api/bulk-operation', {
+      const response = await apiFetch('/api/media/profiles/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          files: files.map(f => f?.path).filter(Boolean),
-          language: 'en',
-        }),
+        body: JSON.stringify({ profile_id: profileId, media_ids: mediaIds }),
       });
 
+      // A non-OK status here is a whole-request failure (unknown profile,
+      // malformed body). Per-item failures come back inside a 200.
+      if (!response.ok) {
+        const detail = await response.text();
+        setError(
+          `Failed to assign profile: ${detail.trim() || response.status}`
+        );
+        return;
+      }
+
+      const data = await response.json();
+      setBulkResult(data);
+      // Only clear the selection when everything landed. Leaving the failed
+      // items selected lets the user retry them without reselecting.
+      if (!data.failed) {
+        setSelectedFiles(new Set());
+      } else {
+        const failedIds = new Set(
+          (data.results || []).filter(r => !r.ok).map(r => r.media_id)
+        );
+        setSelectedFiles(failedIds);
+      }
       await loadCurrentDirectory();
-      setSelectedFiles(new Set());
     } catch (error) {
-      console.error(`Failed bulk ${type}:`, error);
+      console.error('Failed bulk profile assign:', error);
+      setError('Failed to assign profile');
     } finally {
       setProgress(null);
     }
@@ -699,6 +776,24 @@ export default function MediaLibrary({ backendAvailable = true }) {
             </>
           )}
 
+          {/*
+            Mass edit is a mode rather than always-on checkboxes: selection
+            controls on every row make ordinary browsing noisier, and the
+            enclosing Card is itself a navigation target.
+          */}
+          <Button
+            variant={bulkMode ? 'contained' : 'outlined'}
+            size="small"
+            onClick={() => {
+              setBulkMode(!bulkMode);
+              setSelectedFiles(new Set());
+              setBulkResult(null);
+            }}
+            disabled={!backendAvailable}
+          >
+            {bulkMode ? 'Exit Mass Edit' : 'Mass Edit'}
+          </Button>
+
           {/* View mode toggle */}
           <ToggleButtonGroup
             value={viewMode}
@@ -715,6 +810,97 @@ export default function MediaLibrary({ backendAvailable = true }) {
           </ToggleButtonGroup>
         </Box>
       </Box>
+
+      {/* Mass-edit toolbar */}
+      {bulkMode && (
+        <Paper sx={{ p: 2, mb: 2 }} variant="outlined">
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={2}
+            flexWrap="wrap"
+            data-testid="mass-edit-toolbar"
+          >
+            <Typography variant="body2">
+              {selectedFiles.size} selected
+            </Typography>
+
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel id="bulk-profile-label">Language profile</InputLabel>
+              <Select
+                labelId="bulk-profile-label"
+                label="Language profile"
+                value={bulkProfileId}
+                onChange={event => setBulkProfileId(event.target.value)}
+              >
+                {/*
+                  The empty value is a real choice, not a placeholder: the
+                  endpoint treats an empty profile_id as "clear the
+                  assignment", which is how a file is returned to the scan's
+                  own language.
+                */}
+                <MenuItem value="">
+                  <em>None (clear assignment)</em>
+                </MenuItem>
+                {languageProfiles.map(profile => (
+                  <MenuItem key={profile.id} value={profile.id}>
+                    {profile.name}
+                    {profile.is_default ? ' (default)' : ''}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Button
+              variant="contained"
+              size="small"
+              disabled={selectedFiles.size === 0 || !!progress}
+              onClick={() => handleBulkProfileAssign(bulkProfileId)}
+            >
+              Apply to {selectedFiles.size}
+            </Button>
+
+            <Button
+              size="small"
+              disabled={selectedFiles.size === 0}
+              onClick={() => setSelectedFiles(new Set())}
+            >
+              Clear selection
+            </Button>
+
+            <Button
+              size="small"
+              onClick={() =>
+                setSelectedFiles(
+                  new Set(
+                    getTabContent()
+                      .filter(item => item && !item.is_dir && item.path)
+                      .map(item => item.path)
+                  )
+                )
+              }
+            >
+              Select all files
+            </Button>
+          </Box>
+
+          {bulkResult && (
+            <Alert
+              severity={bulkResult.failed ? 'warning' : 'success'}
+              sx={{ mt: 2 }}
+              onClose={() => setBulkResult(null)}
+            >
+              {bulkResult.failed
+                ? `${bulkResult.succeeded} of ${
+                    bulkResult.succeeded + bulkResult.failed
+                  } assigned — ${bulkResult.failed} failed and remain selected.`
+                : `${bulkResult.succeeded} ${
+                    bulkResult.profile_id ? 'assigned' : 'cleared'
+                  }.`}
+            </Alert>
+          )}
+        </Paper>
+      )}
 
       {/* Sonarr-style Navigation Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>

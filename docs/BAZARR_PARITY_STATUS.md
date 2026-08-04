@@ -1,7 +1,7 @@
 <!-- file: docs/BAZARR_PARITY_STATUS.md -->
-<!-- version: 1.14.0 -->
+<!-- version: 1.15.0 -->
 <!-- guid: 2b9f4a1e-8c3d-4f76-9a05-1d7e6b2c4f88 -->
-<!-- last-edited: 2026-08-01 -->
+<!-- last-edited: 2026-08-04 -->
 
 # Bazarr Backend Parity — Status & Gap Inventory
 
@@ -103,7 +103,7 @@ effort — it is not fully achievable autonomously.
 | Language profiles (multi-lang, priority, cutoff) | 🟡 | multi-language and priority order consumed by library scans; the profile's **cutoff score is not** — `ProcessFile` scores against global `scoring.*` config, not `profile.CutoffScore` |
 | Forced / HI honored at download & naming | 🔴 | only `FetchWithProfile` mapped per-language Forced/HI onto scoring prefs, and no download path calls it; the wired scan path goes through `ProcessFile`, which reads global scoring config |
 | Default profile auto-assigned to new *arr items | 🟡 | single global default; no auto-assign |
-| Mass-edit (bulk profile assign) | 🔴 | single-item only |
+| Mass-edit (bulk profile assign) | ✅ | `POST /api/media/profiles/bulk`, per-item results; Mass Edit mode in `MediaLibrary.jsx` |
 | Single-language filename option | ✅ | `subtitles.single_language` → `video.srt` |
 | **UTF-8 re-encoding** | ✅ | `pkg/postprocess.EncodeUTF8` wired into `ProcessFile` |
 | **chmod on written subtitles** | ✅ | `postprocess.chmod` |

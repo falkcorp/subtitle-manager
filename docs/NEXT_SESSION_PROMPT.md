@@ -1,7 +1,7 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 1.2.0 -->
+<!-- version: 2.0.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
-<!-- last-edited: 2026-08-02 -->
+<!-- last-edited: 2026-08-04 -->
 
 # Next-session prompt
 
@@ -29,7 +29,9 @@ silently lost two fix commits that way once.
 
 `origin/main` is green: `go build ./...`, `go test -race ./...`,
 `go test -tags sqlite ./...` (**CI does not build this tag — run it locally,
-it has caught post-merge breakage twice**), and the frontend suite.
+it has caught post-merge breakage twice**), and the frontend suite. CI now also
+cross-compiles the four goreleaser targets, so a Unix-only syscall can no longer
+pass every check and break only the release.
 A running instance for evaluation lives at `~/subtitle-manager-preview/`
 (`sh start.sh` → http://127.0.0.1:8080, `admin` / `evaluate-me-2026`).
 
@@ -37,90 +39,94 @@ Read `docs/BAZARR_PARITY_STATUS.md` for the full matrix and
 `docs/PROVIDER_BUILDOUT_PROMPT.md` for the provider plan. **Verify claims in
 both against the code before acting on them** — several have been wrong, most
 recently three ✅ rows claiming language profiles were wired to downloads when
-nothing read them.
+nothing read them. Both docs were updated on 2026-08-04 and should be accurate
+as of then.
 
-## What the last session (2026-08-01) did
+## What the last session (2026-08-04) did
 
-Started on mass-edit, found the underlying feature was broken, and fixed that
-instead. Three PRs, all merged:
+Six PRs, all merged. The language-profile work is **finished**; what is left is
+mostly providers and polish.
 
-- **#2230** — per-item profile assignment collided on one key. The UI
-  percent-encodes the media path into the URL; `net/http` decodes it before the
-  handler runs, so the handler's first-segment extraction made every file under
-  `/media` share the key `media`. New `pathRest` helper + `filepath.Clean`
-  normalisation.
-- **#2231** — corrected three parity rows and recorded the findings.
-- **#2232** — library scans now honour an assigned language profile, resolved
-  through the same store and key the UI writes, downloading every language in
-  priority order. Also fixed `pkg/webserver/scan.go` opening its own store with
-  `database.OpenStore` — Pebble's exclusive lock made that fail silently,
-  leaving `store` nil, which would have made the whole feature a no-op in
-  production while every test passed.
+- **#2238** — mass-edit / bulk profile assign: `POST /api/media/profiles/bulk`
+  plus a Mass Edit mode in `MediaLibrary.jsx`. The route is an **exact**
+  `ServeMux` pattern because `/api/media/` is a subtree for the tags handler,
+  which would otherwise answer it with a 200 and the wrong body.
+- **#2239** — the three profile bugs. A file assigned the *default* profile now
+  counts as assigned (new `GetAssignedProfileID` on `SubtitleStore`); the last
+  profile can be deleted; and `PebbleStore.GetDefaultLanguageProfile` no longer
+  *creates* a profile on an empty store, which used to resurrect a just-deleted
+  one on the next lookup. `cmd/profiles.go` honours `db_backend`.
+- **#2241** — `ValidateAndSanitizePath` no longer accepts anything under
+  `os.TempDir()` in production. Gated on `testing.Testing()`, so no test changed.
+- **#2242** — profiles now govern the monitor loop, watcher, Sonarr/Radarr
+  webhooks and the `sonarr`/`radarr` CLI, not just library scans.
+- **#2243** — **releases had been failing since ~2026-08-03**: `syscall.Statfs`
+  does not exist on Windows, so goreleaser's windows build died and took the
+  release with it, invisibly, because CI only compiled the runner's platform.
+  Fixed per-platform, and CI gained a `cross-build` job over all four goreleaser
+  targets.
+
+### Decisions made, for you to disagree with
+
+- **An assigned profile beats `MonitoredItem.Languages`.** That field is
+  *accumulated*, not curated — `pkg/monitoring/sync.go` unions in every language
+  it is ever asked for and never removes one, so it cannot express "stop wanting
+  German". An assignment is a deliberate per-file choice.
+- **Requests that name a language directly are not overridden**: the web
+  download endpoint's `?lang=`, the custom webhook's validated `lang`, and
+  `fetch <file> <lang>`.
+- **Deleting the only language profile is allowed.** There is no other profile
+  to fall back to either way, and refusing left the user permanently stuck.
+
+### Process notes worth keeping
+
+- A PR branched off another unmerged branch ends up `CONFLICTING` once that
+  branch rebase-merges, and **GitHub cannot build a merge ref for a conflicting
+  PR, so `Continuous Integration` never queues at all**. It looks like a broken
+  trigger. Check `gh pr view N --json mergeable,mergeStateStatus` first. Branch
+  from `origin/main`.
+- `workflow_dispatch` on `ci.yml` **skips Go CI** — `Detect Changes` has no diff
+  to compare against — so it is not a substitute signal.
+- Every action in this repo is **SHA-pinned**; a tag ref fails at "Set up job",
+  which reads like an infrastructure flake rather than a config error.
+- Plain `go test` misses what CI catches: run **`go test -race`** on any package
+  whose tests mutate package globals (`providers.SetInstances`,
+  `security.allowTempDirPaths`).
 
 ## What to pick up, roughly in order
 
-1. **Mass-edit / bulk profile assign** (`BAZARR_PARITY_STATUS.md`, 🔴). This is
-   what the last session was originally sent to do and is now unblocked —
-   assignments finally mean something. Self-contained and user-visible.
-   Suggested shape: `POST /api/media/profiles/bulk` registered as its own exact
-   route (not string-matched inside `mediaProfilesHandler`), `basic` auth to
-   match the single-item route, validate `profile_id` once then return a
-   per-item results array so the UI can say "7 of 9 assigned". Note
-   `MediaLibrary.jsx` already posts to `/api/bulk-operation`, which is not
-   mounted — decide whether to remove that dead call or implement it, but don't
-   hang the new profile action off its error handling, which swallows failures
-   into `console.error`.
+1. **Providers, Phase 2 (credential-gated).** This is now the biggest remaining
+   parity gap. Phase 1 (keyless) is genuinely exhausted — eight candidates
+   probed live 2026-07-31, tabulated in `PROVIDER_BUILDOUT_PROMPT.md`. Phase 2
+   needs credentials in my `~/.subtitle-manager.yaml`; **only wire config key
+   names and protocol, never handle the secret values, and use httptest mocks.**
+   Ask me which providers I have configured rather than guessing. Note
+   `opensubtitlescom` is still a stub despite the prompt doc claiming otherwise.
 
-2. **Profiles are still unwired outside library scans.** Monitor loop, watcher,
-   webhooks, scheduler and *arr all call `scanner.ProcessFile` with a single
-   language. Wiring them needs a decision first: `MonitoredItem.Languages` is a
-   second, independent desired-languages mechanism, and something has to win.
-   Ask me rather than picking.
+2. **Two CodeQL "uncontrolled data in path expression" alerts** on
+   `pkg/webserver/subtitlepath.go`. Believed safe; both constraints pinned by
+   `pkg/security/formatpath_test.go`. Dismiss them or don't — it is a judgement
+   call I did not want to make for you.
 
-3. **Three known bugs, none fixed.**
-   - A file explicitly assigned the *default* profile is indistinguishable from
-     an unassigned one, so it gets the scan's language rather than that
-     profile's list. Needs a store method reporting whether an assignment row
-     exists, separate from which profile governs the file (interface + 3
-     implementations + mocks).
-   - The last remaining language profile cannot be deleted:
-     `GetDefaultLanguageProfile` returns the first profile when none is flagged,
-     and `handleDeleteProfile` refuses to delete the default.
-   - `cmd/profiles.go` hardcodes `database.OpenStore(..., "pebble")`, ignoring
-     `db_backend`.
+3. **Cutoff score and Forced/HI are still dropped** on the profile path.
+   `processWithAssignedProfile` passes a bare language code, so `ProcessFile`
+   scores with the global `scoring.*` settings and the profile's `CutoffScore`
+   and per-language `Forced`/`HI` never reach the scorer. This is the last real
+   hole in the profile feature.
 
-4. **Whisper: RESOLVED 2026-08-02, no config change needed.** The transcription
-   fallback works end-to-end; leave `whisper.transcribe_url` alone.
+4. **`/api/providers/status` is a lazily-filled cache** that stays `{}` until
+   `POST /api/providers/refresh`, and that refresh hardcodes only
+   `opensubtitles` + `subscene` — so real providers never appear and the stub
+   `subscene` reports `available: true`.
 
-   The GPU host runs a custom FastAPI Whisper server that previously served only
-   `/transcribe` and discarded segment timings, so `WhisperTranscribe` — which
-   speaks the native `/asr` protocol — got a 404. That server now also serves
-   `/asr`, returning real SRT/VTT built from `segment.start`/`.end`. Verified
-   against a real media file: 196 monotonic cues over 10 minutes, driven through
-   the `transcribe` CLI rather than curl.
-
-   Two constraints worth knowing before touching it: the GPU has no room for a
-   second resident model, so one process serves both this project and another;
-   and inference is therefore serialised behind a lock, meaning a long
-   transcription blocks the other project's requests for its duration. The
-   deployment is **not** in this repo — the operator's notes have the details.
-   Do not record host addresses here; this file is public.
-
-5. **Two findings from an earlier session, still open.**
-   - `security.ValidateAndSanitizePath` accepts **any** absolute path under
-     `os.TempDir()`, with no build tag and no config gate, voiding
-     `allowed_base_dirs` in production. Several tests rely on it, so it needs
-     its own PR plus test fallout work.
-   - Two open CodeQL "uncontrolled data in path expression" alerts on
-     `pkg/webserver/subtitlepath.go`. Believed safe; both constraints pinned
-     with tests in `pkg/security/formatpath_test.go`. Dismiss them or don't.
-
-6. **Providers are blocked, not merely unfinished.** Phase 1 (keyless) is
-   genuinely exhausted — eight candidates probed live on 2026-07-31, results
-   tabulated in `PROVIDER_BUILDOUT_PROMPT.md`. Phase 2 needs credentials in my
-   local `~/.subtitle-manager.yaml`; **only wire config key names and protocol,
-   never handle the secret values, and use httptest mocks.** Ask me which
-   providers I've configured rather than guessing.
+5. **Whisper is done; leave it alone.** `whisper.transcribe_url` points at the
+   server's GPU container (`large-v3-turbo`, int8). Verified 2026-08-04 end to
+   end through the `transcribe` CLI: 10 minutes of audio, 76 s, 333 cues.
+   `ASR_QUANTIZATION=int8` is **mandatory** — the image defaults to float32 on
+   GPU and OOMs a 4 GB card during model load. That model **cannot translate**,
+   which is safe only because both `ASROptions{}` call sites in
+   `pkg/transcriber` omit `Task`. Do not record host addresses here; this file
+   is public.
 
 ## How I want you to work
 

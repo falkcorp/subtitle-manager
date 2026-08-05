@@ -1,5 +1,5 @@
 // file: cmd/profiles.go
-// version: 1.1.0
+// version: 1.2.0
 // last-edited: 2026-08-04
 // guid: 3f4e5d6c-7b8a-9c0d-1e2f-4e5d6c7b8a9c
 
@@ -197,10 +197,15 @@ var assignProfileCmd = &cobra.Command{
 		defer store.Close()
 
 		// Verify profile exists
+		// Pebble returns (nil, nil) for an unknown ID, so an error check alone
+		// would accept one. See database.ProfileMissing.
 		profile, err := store.GetLanguageProfile(profileID)
-		if err != nil {
-			logger.Errorf("profile not found: %v", err)
+		if database.ProfileMissing(profile, err) {
 			return fmt.Errorf("profile %s not found", profileID)
+		}
+		if err != nil {
+			logger.Errorf("failed to look up profile: %v", err)
+			return err
 		}
 
 		// Assign profile to media using the validated path
@@ -318,10 +323,15 @@ var deleteProfileCmd = &cobra.Command{
 		defer store.Close()
 
 		// Check if it's the default profile
+		// Pebble returns (nil, nil) for an unknown ID, so an error check alone
+		// would accept one. See database.ProfileMissing.
 		profile, err := store.GetLanguageProfile(profileID)
-		if err != nil {
-			logger.Errorf("profile not found: %v", err)
+		if database.ProfileMissing(profile, err) {
 			return fmt.Errorf("profile %s not found", profileID)
+		}
+		if err != nil {
+			logger.Errorf("failed to look up profile: %v", err)
+			return err
 		}
 
 		if profile.IsDefault {

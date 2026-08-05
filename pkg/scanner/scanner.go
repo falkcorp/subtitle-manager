@@ -1,5 +1,5 @@
 // file: pkg/scanner/scanner.go
-// version: 1.7.0
+// version: 1.8.0
 // guid: ad2ef6ba-8afa-4ced-8508-0c535dbb23fd
 // last-edited: 2026-08-04
 package scanner
@@ -120,7 +120,7 @@ func ProcessFile(ctx context.Context, path, lang string, providerName string, p 
 	var matchScore *float64
 	scoredHandled := false
 	if sp, ok := p.(scoredProvider); ok && scoringEnabled() {
-		res, ferr := fetchBestScored(ctx, sp, path, lang)
+		res, ferr := fetchBestScored(ctx, sp, path, lang, store)
 		if ferr != nil {
 			err = ferr
 		} else if res == nil {

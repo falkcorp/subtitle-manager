@@ -1,7 +1,7 @@
 <!-- file: docs/PROVIDER_BUILDOUT_PROMPT.md -->
-<!-- version: 1.2.0 -->
+<!-- version: 1.3.0 -->
 <!-- guid: 0d3f8b21-5c47-4e90-a2b6-9f1c0e7d4a38 -->
-<!-- last-edited: 2026-07-31 -->
+<!-- last-edited: 2026-08-04 -->
 
 # Next-session prompt: provider build-out
 
@@ -35,6 +35,63 @@ the config-key wiring; `gh pr merge <N> --rebase --admin`). For each provider,
 **confirm the real API/protocol from its current docs before implementing — do
 not guess** — and skip pure-HTML-scraping providers unless I say otherwise
 (note any you skip and why).
+
+## 2026-08-04: OpenSubtitles works; ~22 registered providers are stub shells
+
+### OpenSubtitles is done (#2248, #2250, #2252)
+
+`opensubtitlescom` was a stub pointing at `api.opensubtitlescom.com` — not a
+real host — hitting `GET /subtitles/{name}/{lang}`, an endpoint in no version of
+the API. It is now a thin wrapper over `pkg/providers/opensubtitles`, which is a
+genuine REST v1 client.
+
+That client had three defects on the download path, all fixed and all confirmed
+against the published contract rather than inferred:
+
+- `GET {api}/download?file_id=` instead of `POST /download {"file_id":N}`
+  followed by a GET of the returned `link`
+- the id read from `attributes.subtitle_id`; it lives at
+  `attributes.files[].file_id`, and they are different values
+- the required `Api-Key` header never sent, though `opensubtitles.api_key` was
+  read by the CLI
+
+Credentials are now read from `opensubtitles.*` **and** the
+`providers.opensubtitles.*` / `providers.opensubtitlescom.*` spellings the
+Bazarr importer writes — an imported config previously left the provider
+unauthenticated with the username and password sitting in the file unread.
+
+### The stub-shell problem, with data
+
+**22 of 51 hostnames referenced by provider packages do not resolve at all**,
+measured 2026-08-04. They follow the same fabricated `api.<name>.com` pattern as
+the `opensubtitlescom` stub:
+
+```
+api.addic7ed.com      api.animekalesi.com   api.avistaz.com       api.bsplayer.com
+api.hosszupuska.com   api.karagarga.com     api.legendasdivx.com  api.legendasnet.com
+api.subdivx.com       api.subs4series.com   api.subssabbz.com     api.subsynchro.com
+api.subtitrarinoi.com api.subtitriidlv.com  api.subtitulamos.com  api.titrariro.com
+api.tusubtitulo.com   api.yavka.com         api.yifysubtitles.com api.zimuku.com
+```
+
+This is not cosmetic. With no provider instances configured, `FetchFromAll`
+falls back to **every registered provider**, so each shell takes a slot in a
+fetch wave and costs a DNS failure before the real providers are reached. It is
+also why a failed search used to be so uninformative — the reported error was
+whichever shell happened to fail last (`no subtitle found: ... lookup
+api.zimuku.com: no such host`).
+
+**Deliberately not acted on.** Deciding which of these to implement, retire, or
+repoint is a product call, and a wrong guess silently removes a provider someone
+relies on. Two candidates are worth checking individually rather than in bulk:
+`www.podnapisi.net` also failed to resolve in this sweep despite podnapisi being
+implemented and reported working, and `api.opensubtitles.org` resolves but is a
+legacy endpoint the v1 client cannot speak.
+
+Suggested next step: audit the registry rather than the hostnames — for each
+registered name, does the package implement a real protocol, or is it a
+`GET {host}/subtitles/{name}/{lang}` shell? The latter can be unregistered as a
+group with no behaviour loss, since they have never returned a subtitle.
 
 ## Phase 1 — keyless providers
 - [x] **Gestdown** (`gestdown.info`) — done, PR #2201. Keyless REST proxy for

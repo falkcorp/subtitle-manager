@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/logging"
 	"github.com/jdfalk/subtitle-manager/pkg/providers"
+	"github.com/jdfalk/subtitle-manager/pkg/scanner"
 	"github.com/jdfalk/subtitle-manager/pkg/tagging"
 )
 
@@ -40,8 +42,41 @@ uses language preferences from the media item's assigned language profile.`,
 		var actualLang string
 		var err error
 
-		// Get database connection for profile-based fetching
-		if useProfile || len(tagNames) > 0 {
+		// --profile routes through the scanner, which is the single place that
+		// resolves an assigned language profile.
+		//
+		// It used to call providers.FetchWithProfile against a raw *sql.DB
+		// opened with database.OpenSQLStore regardless of the configured
+		// backend, so on Pebble — the default — it died with "unable to open
+		// database file: is a directory". That path also read the second,
+		// integer-keyed media_profiles implementation, which is not where the
+		// web UI or the CLI write assignments, so even on SQLite it looked up
+		// the wrong table.
+		//
+		// The scanner path downloads every language the profile asks for in
+		// priority order and applies the profile's cutoff score and Forced/HI
+		// flags, none of which the old call did.
+		if useProfile {
+			store, errStore := database.OpenStore(database.GetDatabasePath(), database.GetDatabaseBackend())
+			if errStore != nil {
+				return errStore
+			}
+			defer store.Close()
+
+			handled, perr := scanner.ProcessWithProfileIfAssigned(context.Background(), media, "", nil, false, store)
+			if perr != nil {
+				return perr
+			}
+			if !handled {
+				return fmt.Errorf("no language profile assigned to %s; assign one with `subtitle-manager profiles assign`, or drop --profile", media)
+			}
+			// The scanner names each file per language, so the positional
+			// output argument does not apply here.
+			logger.Infof("downloaded subtitles for %s using its assigned language profile", media)
+			return nil
+		}
+
+		if len(tagNames) > 0 {
 			dbPath := database.GetDatabasePath()
 			store, errStore := database.OpenSQLStore(dbPath)
 			if errStore != nil {
@@ -49,14 +84,7 @@ uses language preferences from the media item's assigned language profile.`,
 			}
 			defer store.Close()
 
-			if useProfile && len(tagNames) > 0 {
-				// Use both profiles and tags
-				tm := tagging.NewTagManager(store.DB())
-				data, name, actualLang, err = providers.FetchWithProfileTagged(context.Background(), store.DB(), media, key, tagNames, tm)
-			} else if useProfile {
-				// Use profiles only
-				data, name, actualLang, err = providers.FetchWithProfile(context.Background(), store.DB(), media, key)
-			} else {
+			{
 				// Use tags only (existing behavior)
 				tm := tagging.NewTagManager(store.DB())
 				data, name, err = providers.FetchFromTagged(context.Background(), media, lang, key, tagNames, tm)

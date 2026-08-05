@@ -1,5 +1,5 @@
 // file: pkg/providers/opensubtitles/opensubtitles.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 5af27051-d855-4321-9990-c4a59eaabbd5
 // last-edited: 2026-08-04
 
@@ -111,7 +111,11 @@ type Client struct {
 	// APIURL allows overriding the REST endpoint, mainly for testing.
 	APIURL string
 	// UserAgent identifies this application to the OpenSubtitles API.
-	UserAgent  string
+	UserAgent string
+	// APIKey is sent as the Api-Key header. The v1 API requires it on every
+	// request alongside the bearer token; it was previously read from config by
+	// the CLI and then never given to the client.
+	APIKey     string
 	HTTPClient *http.Client
 
 	// Authentication
@@ -136,6 +140,7 @@ func New(_ string) *Client {
 	return &Client{
 		APIURL:     apiURL,
 		UserAgent:  ua,
+		APIKey:     viper.GetString("opensubtitles.api_key"),
 		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 		username:   username,
 		password:   password,
@@ -191,13 +196,14 @@ func resolveAPIURL(configured string) string {
 // and quietly rewrites config for every other component besides.
 //
 // Empty values fall back to the same defaults New() uses.
-func NewWithCredentials(apiURL, userAgent, username, password string) *Client {
+func NewWithCredentials(apiURL, userAgent, username, password, apiKey string) *Client {
 	if userAgent == "" {
 		userAgent = "subtitle-manager v1.0"
 	}
 	return &Client{
 		APIURL:     resolveAPIURL(apiURL),
 		UserAgent:  userAgent,
+		APIKey:     apiKey,
 		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 		username:   username,
 		password:   password,
@@ -227,7 +233,7 @@ func (c *Client) login(ctx context.Context) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", c.UserAgent)
-	req.Header.Set("Api-Key", "") // Empty API key for username/password login
+	req.Header.Set("Api-Key", c.APIKey)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -427,36 +433,33 @@ func (c *Client) SearchWithResults(ctx context.Context, mediaPath, lang string) 
 }
 
 // Fetch downloads the first matching subtitle for mediaPath in lang.
+//
+// It goes through SearchWithResults rather than Search because the download
+// step needs attributes.files[].file_id, which the []string form throws away.
 func (c *Client) Fetch(ctx context.Context, mediaPath, lang string) ([]byte, error) {
-	urls, err := c.Search(ctx, mediaPath, lang)
+	results, err := c.SearchWithResults(ctx, mediaPath, lang)
 	if err != nil {
 		return nil, err
 	}
-	if len(urls) == 0 {
+	if len(results) == 0 {
 		return nil, fmt.Errorf("no subtitles found")
 	}
-	return c.download(ctx, urls[0])
-}
-
-// downloadURLForResult builds the download URL for a specific search result,
-// mirroring the construction used by Search. It returns "" when the result
-// carries no subtitle identifier.
-func (c *Client) downloadURLForResult(result SearchResult) string {
-	if result.Attributes.SubtitleID == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s/download?file_id=%s", c.APIURL, result.Attributes.SubtitleID)
+	return c.FetchByResult(ctx, results[0])
 }
 
 // FetchByResult downloads the subtitle for a specific search result rather than
 // the first match. This is what lets a caller score candidates and then
 // download the selected best one.
 func (c *Client) FetchByResult(ctx context.Context, result SearchResult) ([]byte, error) {
-	url := c.downloadURLForResult(result)
-	if url == "" {
-		return nil, fmt.Errorf("search result has no downloadable subtitle id")
+	fileID, ok := fileIDForResult(result)
+	if !ok {
+		return nil, fmt.Errorf("search result has no downloadable file id")
 	}
-	return c.download(ctx, url)
+	link, err := c.resolveDownloadLink(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+	return c.download(ctx, link)
 }
 
 // download performs an authenticated GET of a subtitle download URL and returns
@@ -479,4 +482,89 @@ func (c *Client) download(ctx context.Context, url string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+// setAuthHeaders applies the headers every authenticated v1 request needs.
+//
+// The API requires Api-Key *and* Authorization together; the client previously
+// sent only the bearer token, and set Api-Key to the empty string on login.
+func (c *Client) setAuthHeaders(req *http.Request, token string) {
+	req.Header.Set("User-Agent", c.UserAgent)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	if c.APIKey != "" {
+		req.Header.Set("Api-Key", c.APIKey)
+	}
+}
+
+// fileIDForResult returns the identifier the download endpoint expects.
+//
+// It comes from attributes.files[].file_id, NOT attributes.subtitle_id — those
+// are different values, and the client used to send the latter. A subtitle can
+// span several files (multi-CD releases); the first is the one to fetch.
+func fileIDForResult(result SearchResult) (int, bool) {
+	for _, f := range result.Attributes.Files {
+		if f.FileID != 0 {
+			return f.FileID, true
+		}
+	}
+	return 0, false
+}
+
+// resolveDownloadLink exchanges a file ID for a time-limited download URL.
+//
+// This is the step that was missing entirely. The v1 API does not serve the
+// subtitle from /download: it takes POST /download with a JSON body
+// {"file_id": N} and answers with {"link": "..."} plus the caller's remaining
+// quota. The client instead issued GET /download?file_id=... and returned that
+// response body verbatim, which is the JSON envelope on a good day and an error
+// page otherwise — never a subtitle.
+//
+// Each call consumes one download from the account's daily allowance, which is
+// why the link is resolved for the single chosen result rather than for every
+// search hit.
+func (c *Client) resolveDownloadLink(ctx context.Context, fileID int) (string, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return "", fmt.Errorf("authentication failed: %w", err)
+	}
+
+	payload, err := json.Marshal(map[string]int{"file_id": fileID})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.APIURL+"/download", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	c.setAuthHeaders(req, token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var dr DownloadResponse
+	if err := json.Unmarshal(body, &dr); err != nil {
+		return "", fmt.Errorf("decoding download response: %w", err)
+	}
+	if dr.Link == "" {
+		// A quota-exhausted account answers 200 with a message and no link, so
+		// this is a normal condition to report clearly rather than a parse bug.
+		if dr.Message != "" {
+			return "", fmt.Errorf("no download link returned: %s", dr.Message)
+		}
+		return "", fmt.Errorf("no download link returned")
+	}
+	return dr.Link, nil
 }

@@ -89,11 +89,10 @@ func absBaseDir(dir string) string {
 	if err != nil {
 		return ""
 	}
-	// Resolve the configured directory too, so both sides of the comparison are
-	// in the same form regardless of which spelling the operator wrote.
-	if resolved, rerr := filepath.EvalSymlinks(abs); rerr == nil {
-		return filepath.Clean(resolved)
-	}
+	// Deliberately NOT symlink-resolved. This list is also what the file
+	// browser shows as its roots, and an operator who configured /media should
+	// see /media rather than /mnt/storage. Resolution happens inside
+	// ValidateAndSanitizePath, where it is only needed for the comparison.
 	return filepath.Clean(abs)
 }
 
@@ -196,15 +195,21 @@ func ValidateAndSanitizePath(userPath string) (string, error) {
 	}
 
 	for _, baseDir := range allowedBaseDirs {
-		for _, candidate := range [...]string{absPath, resolvedPath} {
-			relPath, err := filepath.Rel(baseDir, candidate)
-			if err != nil || strings.HasPrefix(relPath, "..") {
-				continue
+		bases := []string{baseDir}
+		if rb, err := filepath.EvalSymlinks(baseDir); err == nil && rb != baseDir {
+			bases = append(bases, rb)
+		}
+		for _, base := range bases {
+			for _, candidate := range [...]string{absPath, resolvedPath} {
+				relPath, err := filepath.Rel(base, candidate)
+				if err != nil || strings.HasPrefix(relPath, "..") {
+					continue
+				}
+				if strings.Contains(relPath, "..") {
+					return "", fmt.Errorf("path traversal detected: %s", cleanPath)
+				}
+				return absPath, nil
 			}
-			if strings.Contains(relPath, "..") {
-				return "", fmt.Errorf("path traversal detected: %s", cleanPath)
-			}
-			return absPath, nil
 		}
 	}
 

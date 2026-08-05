@@ -1,4 +1,7 @@
 // file: cmd/fetch.go
+// version: 1.1.0
+// guid: fd890931-aa0b-4e11-afed-e19063ec7343
+// last-edited: 2026-08-04
 package cmd
 
 import (

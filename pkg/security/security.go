@@ -1,5 +1,5 @@
 // file: pkg/security/security.go
-// version: 1.5.0
+// version: 1.6.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
 // last-edited: 2026-08-04
 package security
@@ -89,6 +89,11 @@ func absBaseDir(dir string) string {
 	if err != nil {
 		return ""
 	}
+	// Resolve the configured directory too, so both sides of the comparison are
+	// in the same form regardless of which spelling the operator wrote.
+	if resolved, rerr := filepath.EvalSymlinks(abs); rerr == nil {
+		return filepath.Clean(resolved)
+	}
 	return filepath.Clean(abs)
 }
 
@@ -132,6 +137,28 @@ func GetAllowedBaseDirs() []string {
 	return dirs
 }
 
+// resolveExisting resolves symlinks in the deepest existing ancestor of p and
+// re-appends the remainder.
+//
+// filepath.EvalSymlinks fails outright when the path does not exist, which is
+// the normal case here: subtitle output paths are validated before the file is
+// written. Resolving the part that does exist gives a comparable path either
+// way.
+func resolveExisting(p string) (string, error) {
+	rest := ""
+	for cur := p; ; {
+		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(resolved, rest), nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return "", fmt.Errorf("no existing ancestor for %s", p)
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
 // ValidateAndSanitizePath cleans userPath and ensures it resides in an allowed directory.
 // An absolute, sanitized path is returned on success.
 func ValidateAndSanitizePath(userPath string) (string, error) {
@@ -152,9 +179,28 @@ func ValidateAndSanitizePath(userPath string) (string, error) {
 		}
 	}
 
+	// Compare the resolved form as well as the literal one. A media directory
+	// reached through a symlink otherwise never matches: on macOS /tmp is a
+	// symlink to /private/tmp, and on Linux a library at /media -> /mnt/... is
+	// an ordinary setup. Without this, filepath.Rel between the two spellings
+	// yields "../.." and every file under the configured directory is refused.
+	//
+	// resolvedPath is only consulted for the *allow* decision. The traversal
+	// check below still runs against the literal path, and the literal path is
+	// what gets returned, so resolving cannot be used to smuggle anything past
+	// the boundary — a resolved path that escapes every base directory is still
+	// rejected.
+	resolvedPath := absPath
+	if r, err := resolveExisting(absPath); err == nil {
+		resolvedPath = r
+	}
+
 	for _, baseDir := range allowedBaseDirs {
-		relPath, err := filepath.Rel(baseDir, absPath)
-		if err == nil && !strings.HasPrefix(relPath, "..") {
+		for _, candidate := range [...]string{absPath, resolvedPath} {
+			relPath, err := filepath.Rel(baseDir, candidate)
+			if err != nil || strings.HasPrefix(relPath, "..") {
+				continue
+			}
 			if strings.Contains(relPath, "..") {
 				return "", fmt.Errorf("path traversal detected: %s", cleanPath)
 			}

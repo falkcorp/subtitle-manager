@@ -21,3 +21,19 @@ paths before comparison — which also means the boundary is enforced rather tha
 accidentally bypassed.
 
 Both were found by running the CLI end to end rather than by the test suite.
+
+#### `fetch --profile` crashed on the default backend
+
+It opened its own SQLite store with `database.OpenSQLStore` regardless of the
+configured backend, so on Pebble — the default — it died with
+`unable to open database file: is a directory`. It also read the second,
+integer-keyed `media_profiles` implementation, which is not where the web UI or
+the CLI write assignments, so even on SQLite it consulted the wrong table.
+
+It now routes through `scanner.ProcessWithProfileIfAssigned`, the single place
+that resolves an assigned profile — so it works on any backend, downloads every
+language the profile asks for in priority order, and applies the profile's
+cutoff score and Forced/HI flags. None of that happened before.
+
+Verified end to end: a two-language profile assigned through the CLI now
+produces correctly named per-language subtitle files on a Pebble store.

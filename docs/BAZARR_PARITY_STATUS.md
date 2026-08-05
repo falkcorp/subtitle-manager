@@ -184,11 +184,13 @@ production with a fully green test suite.
   Deliberately **not** overridden: requests that name a language directly, i.e.
   the web download endpoint's `?lang=`, the custom webhook's validated `lang`,
   and `fetch <file> <lang>`. Those are one specific request, not a policy.
-- **Cutoff score and Forced/HI are dropped.** `processWithAssignedProfile`
-  passes a bare language code, so `ProcessFile` scores candidates with
-  `scoring.LoadProfileFromConfig()` — the global `scoring.*` settings. The
-  per-language `Forced`/`HI` preferences and the profile's `CutoffScore` never
-  reach the scorer. Only the retired `scoredProfileFetch` ever applied them.
+- ~~Cutoff score and Forced/HI are dropped.~~ **Fixed 2026-08-04.**
+  `applyAssignedProfileOverrides` layers the file's assigned profile over the
+  global scoring profile inside `fetchBestScored`: `CutoffScore` replaces the
+  minimum score, and a language marked `Forced`/`HI` turns on the matching
+  allow/prefer flags for that language only. A *false* flag is not a
+  prohibition — it returns to the global policy rather than narrowing to
+  nothing — and an unassigned file is scored exactly as before.
 - ~~A file explicitly assigned the default profile reads as unassigned.~~
   **Fixed 2026-08-04.** `GetAssignedProfileID` was added to `SubtitleStore` and
   all three implementations; it reports whether an assignment row exists,

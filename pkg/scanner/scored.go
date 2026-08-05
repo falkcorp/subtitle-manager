@@ -1,7 +1,7 @@
 // file: pkg/scanner/scored.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 9f2c8b41-6d0e-4a7c-b3f5-1e8a0c2d4b6a
-// last-edited: 2026-07-31
+// last-edited: 2026-08-04
 
 package scanner
 
@@ -52,7 +52,7 @@ type scoredResult struct {
 // score. It returns (nil, nil) when no candidate clears the threshold (a normal
 // "nothing good enough" outcome, not an error) and a non-nil error only on a
 // search or download failure.
-func fetchBestScored(ctx context.Context, sp scoredProvider, mediaPath, lang string) (*scoredResult, error) {
+func fetchBestScored(ctx context.Context, sp scoredProvider, mediaPath, lang string, store database.SubtitleStore) (*scoredResult, error) {
 	results, err := sp.SearchWithResults(ctx, mediaPath, lang)
 	if err != nil {
 		return nil, err
@@ -65,6 +65,9 @@ func fetchBestScored(ctx context.Context, sp scoredProvider, mediaPath, lang str
 	if err := scoring.ValidateProfile(profile); err != nil {
 		profile = scoring.DefaultProfile()
 	}
+	// A file with its own language profile scores against that profile's cutoff
+	// and Forced/HI preferences rather than only the global scoring.* settings.
+	profile = applyAssignedProfileOverrides(profile, mediaPath, lang, store)
 
 	subs := make([]scoring.Subtitle, len(results))
 	for i, r := range results {

@@ -1,5 +1,6 @@
 // file: cmd/monitor.go
-// version: 1.1.0
+// version: 1.2.0
+// last-edited: 2026-08-04
 // guid: 12345678-1234-1234-1234-123456789014
 
 package cmd
@@ -10,8 +11,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
+	"github.com/jdfalk/subtitle-manager/pkg/arr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	"github.com/jdfalk/subtitle-manager/pkg/monitoring"
 	"github.com/jdfalk/subtitle-manager/pkg/radarr"
@@ -140,17 +141,7 @@ func runMonitorStart(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	// Create Sonarr client if configured
-	var sonarrClient *sonarr.Client
-	if sonarrURL := viper.GetString("sonarr_url"); sonarrURL != "" {
-		sonarrClient = sonarr.NewClient(sonarrURL, viper.GetString("sonarr_api_key"))
-	}
-
-	// Create Radarr client if configured
-	var radarrClient *radarr.Client
-	if radarrURL := viper.GetString("radarr_url"); radarrURL != "" {
-		radarrClient = radarr.NewClient(radarrURL, viper.GetString("radarr_api_key"))
-	}
+	sonarrClient, radarrClient := arrClients()
 
 	// Create monitor
 	monitor := monitoring.NewEpisodeMonitor(
@@ -177,17 +168,7 @@ func runMonitorSync(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	// Create Sonarr client if configured
-	var sonarrClient *sonarr.Client
-	if sonarrURL := viper.GetString("sonarr_url"); sonarrURL != "" {
-		sonarrClient = sonarr.NewClient(sonarrURL, viper.GetString("sonarr_api_key"))
-	}
-
-	// Create Radarr client if configured
-	var radarrClient *radarr.Client
-	if radarrURL := viper.GetString("radarr_url"); radarrURL != "" {
-		radarrClient = radarr.NewClient(radarrURL, viper.GetString("radarr_api_key"))
-	}
+	sonarrClient, radarrClient := arrClients()
 
 	// Create monitor
 	monitor := monitoring.NewEpisodeMonitor(
@@ -241,15 +222,7 @@ func runMonitorAutoSync(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	var sonarrClient *sonarr.Client
-	if sonarrURL := viper.GetString("sonarr_url"); sonarrURL != "" {
-		sonarrClient = sonarr.NewClient(sonarrURL, viper.GetString("sonarr_api_key"))
-	}
-
-	var radarrClient *radarr.Client
-	if radarrURL := viper.GetString("radarr_url"); radarrURL != "" {
-		radarrClient = radarr.NewClient(radarrURL, viper.GetString("radarr_api_key"))
-	}
+	sonarrClient, radarrClient := arrClients()
 
 	sched := monitoring.NewScheduledMonitor(
 		sonarrClient,
@@ -411,4 +384,24 @@ func runMonitorBlacklistRemove(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Removed item %s from blacklist\n", itemID)
 	return nil
+}
+
+// arrClients builds the Sonarr and Radarr clients from whichever config scheme
+// is in use, returning nil for a service that is not configured.
+//
+// All three monitor entry points construct the same pair, and each used to read
+// the flat sonarr_url/radarr_url keys directly — so a setup done through the
+// settings UI or the Bazarr importer, which write integrations.*, left the
+// monitor loop with no clients and nothing said so. arr.Resolve reads the
+// canonical keys first and falls back to the flat ones.
+func arrClients() (*sonarr.Client, *radarr.Client) {
+	var sc *sonarr.Client
+	if conn, ok := arr.Resolve(arr.Sonarr); ok {
+		sc = sonarr.NewClient(conn.URL, conn.APIKey)
+	}
+	var rc *radarr.Client
+	if conn, ok := arr.Resolve(arr.Radarr); ok {
+		rc = radarr.NewClient(conn.URL, conn.APIKey)
+	}
+	return sc, rc
 }

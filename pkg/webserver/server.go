@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.6.0
+// version: 1.7.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-08-04
 
@@ -22,6 +22,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/jdfalk/subtitle-manager/pkg/arr"
 	"github.com/jdfalk/subtitle-manager/pkg/arrnotify"
 	"github.com/jdfalk/subtitle-manager/pkg/bazarr"
 	"github.com/jdfalk/subtitle-manager/pkg/database"
@@ -465,45 +466,23 @@ func StartServer(addr string) error {
 		maintenance.StartHistoryPruning(context.Background(), store,
 			viper.GetInt("history.retention_days"),
 			viper.GetString("history.prune_frequency"))
-		if viper.GetBool("integrations.radarr.enabled") {
-			host := viper.GetString("integrations.radarr.host")
-			port := viper.GetString("integrations.radarr.port")
-			key := viper.GetString("integrations.radarr.api_key")
-			ssl := viper.GetBool("integrations.radarr.ssl")
-			base := strings.Trim(viper.GetString("integrations.radarr.base_url"), "/")
-			interval := viper.GetInt("integrations.radarr.sync_interval")
-			if interval == 0 {
-				interval = 60
-			}
-			scheme := "http"
-			if ssl {
-				scheme = "https"
-			}
-			url := fmt.Sprintf("%s://%s:%v/%s", scheme, host, port, base)
-			c := radarr.NewClient(url, key)
-			logger.Infof("starting Radarr sync every %d minutes", interval)
-			ctx := context.Background()
-			radarr.StartSync(ctx, time.Duration(interval)*time.Minute, c, store)
+		// URL composition and interval lookup both moved into pkg/arr, which is
+		// now the single source of truth for *arr configuration. This block used
+		// to duplicate arr.BaseURL inline, and read the interval from
+		// integrations.radarr.sync_interval but integrations.sonarr.
+		// episode_sync_interval — so the obvious-looking sonarr.sync_interval was
+		// silently ignored. arr.SyncInterval accepts either spelling.
+		if conn, ok := arr.Resolve(arr.Radarr); ok {
+			interval := arr.SyncInterval(arr.Radarr)
+			c := radarr.NewClient(conn.URL, conn.APIKey)
+			logger.Infof("starting Radarr sync every %s", interval)
+			radarr.StartSync(context.Background(), interval, c, store)
 		}
-		if viper.GetBool("integrations.sonarr.enabled") {
-			host := viper.GetString("integrations.sonarr.host")
-			port := viper.GetString("integrations.sonarr.port")
-			key := viper.GetString("integrations.sonarr.api_key")
-			ssl := viper.GetBool("integrations.sonarr.ssl")
-			base := strings.Trim(viper.GetString("integrations.sonarr.base_url"), "/")
-			interval := viper.GetInt("integrations.sonarr.episode_sync_interval")
-			if interval == 0 {
-				interval = 60
-			}
-			scheme := "http"
-			if ssl {
-				scheme = "https"
-			}
-			url := fmt.Sprintf("%s://%s:%v/%s", scheme, host, port, base)
-			c := sonarr.NewClient(url, key)
-			logger.Infof("starting Sonarr sync every %d minutes", interval)
-			ctx := context.Background()
-			sonarr.StartSync(ctx, time.Duration(interval)*time.Minute, c, store)
+		if conn, ok := arr.Resolve(arr.Sonarr); ok {
+			interval := arr.SyncInterval(arr.Sonarr)
+			c := sonarr.NewClient(conn.URL, conn.APIKey)
+			logger.Infof("starting Sonarr sync every %s", interval)
+			sonarr.StartSync(context.Background(), interval, c, store)
 		}
 	}
 

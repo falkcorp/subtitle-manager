@@ -1,5 +1,5 @@
 // file: pkg/webserver/profiles.go
-// version: 1.5.0
+// version: 1.6.0
 // guid: 0a9b8c7d-6e5f-1a2b-4c3d-7e6f8a9b0c1d
 // last-edited: 2026-08-04
 
@@ -151,12 +151,12 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request, db *sql.DB, profil
 	}
 
 	profile, err := store.GetLanguageProfile(profileID)
+	if database.ProfileMissing(profile, err) {
+		http.Error(w, "Profile not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Profile not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Failed to get profile", http.StatusInternalServerError)
-		}
+		http.Error(w, "Failed to get profile", http.StatusInternalServerError)
 		return
 	}
 
@@ -354,14 +354,15 @@ func handleAssignMediaProfile(w http.ResponseWriter, r *http.Request, db *sql.DB
 		return
 	}
 
-	// Verify profile exists
-	_, err = store.GetLanguageProfile(request.ProfileID)
+	// Verify profile exists. See database.ProfileMissing: Pebble signals a miss
+	// with (nil, nil), so checking only the error accepts unknown IDs there.
+	profile, err := store.GetLanguageProfile(request.ProfileID)
+	if database.ProfileMissing(profile, err) {
+		http.Error(w, "Profile not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Profile not found", http.StatusNotFound)
-		} else {
-			http.Error(w, "Failed to verify profile", http.StatusInternalServerError)
-		}
+		http.Error(w, "Failed to verify profile", http.StatusInternalServerError)
 		return
 	}
 

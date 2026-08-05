@@ -1,5 +1,5 @@
 // file: pkg/webserver/profiles_bulk.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 5f2c1a7e-9b34-4d68-a0e1-3c7d92f45b18
 // last-edited: 2026-08-04
 
@@ -112,12 +112,18 @@ func bulkMediaProfilesHandler(db *sql.DB) http.Handler {
 		// errors would bury a single fixable mistake in a results array.
 		clearing := req.ProfileID == ""
 		if !clearing {
-			if _, err := store.GetLanguageProfile(req.ProfileID); err != nil {
-				if err == sql.ErrNoRows {
-					http.Error(w, "Profile not found", http.StatusNotFound)
-				} else {
-					http.Error(w, "Failed to verify profile", http.StatusInternalServerError)
-				}
+			// database.ProfileMissing rather than "err != nil": PebbleStore
+			// returns (nil, nil) for an unknown ID while the SQL backends
+			// return sql.ErrNoRows, so the naive check passed on Pebble — the
+			// default backend — and wrote assignments pointing at nothing while
+			// reporting every one as succeeded.
+			profile, err := store.GetLanguageProfile(req.ProfileID)
+			if database.ProfileMissing(profile, err) {
+				http.Error(w, "Profile not found", http.StatusNotFound)
+				return
+			}
+			if err != nil {
+				http.Error(w, "Failed to verify profile", http.StatusInternalServerError)
 				return
 			}
 		}

@@ -1,5 +1,5 @@
 // file: cmd/profiles.go
-// version: 1.2.0
+// version: 1.3.0
 // last-edited: 2026-08-04
 // guid: 3f4e5d6c-7b8a-9c0d-1e2f-4e5d6c7b8a9c
 
@@ -74,8 +74,11 @@ var listProfilesCmd = &cobra.Command{
 				defaultStr = "✓"
 			}
 
+			// The full ID, not a prefix. `profiles assign` takes an exact ID,
+			// so a truncated one made the obvious workflow — list, copy, assign
+			// — fail with "profile <prefix> not found".
 			fmt.Fprintf(w, "%s\t%s\t%s\t%d%%\t%s\n",
-				profile.ID[:8], // Show only first 8 chars of ID
+				profile.ID,
 				profile.Name,
 				defaultStr,
 				profile.CutoffScore,

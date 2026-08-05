@@ -1,5 +1,5 @@
 // file: pkg/security/tempdir_gate_test.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 5a3e91c7-06b4-4d82-bf15-9e7c3a2048d6
 // last-edited: 2026-08-04
 
@@ -112,14 +112,12 @@ func TestTraversalStillRejectedUnderTempDir(t *testing.T) {
 func TestRelativeMediaDirectoryIsHonoured(t *testing.T) {
 	withProductionPathRules(t)
 
-	// EvalSymlinks because on macOS t.TempDir() hands back /var/folders/... while
-	// the working directory resolves to /private/var/folders/... . Without this
-	// the test compares two spellings of the same directory and fails for a
-	// reason that has nothing to do with what it is checking.
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	// No EvalSymlinks here on purpose. On macOS t.TempDir() hands back
+	// /var/folders/... while the working directory resolves to
+	// /private/var/folders/... — exactly the two-spellings problem this used to
+	// paper over by resolving in the test. ValidateAndSanitizePath handles it
+	// now, so leaving the raw path in place is itself a check on that.
+	root := t.TempDir()
 	media := filepath.Join(root, "media")
 	if err := os.MkdirAll(media, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -147,5 +145,60 @@ func TestRelativeMediaDirectoryIsHonoured(t *testing.T) {
 	outside := filepath.Join(root, "elsewhere", "secret.mkv")
 	if got, err := ValidateAndSanitizePath(outside); err == nil {
 		t.Errorf("accepted %q, which is outside the configured directory", got)
+	}
+}
+
+// TestSymlinkedMediaDirectoryIsHonoured pins that a library reached through a
+// symlink validates.
+//
+// This is an ordinary setup, not an edge case: on macOS /tmp is a symlink to
+// /private/tmp, and on Linux a media root at /media -> /mnt/storage is common.
+// filepath.Abs does not resolve symlinks, so the two spellings produced
+// filepath.Rel == "../.." and every file under the configured directory was
+// refused. Hit for real while assigning a profile from the CLI.
+func TestSymlinkedMediaDirectoryIsHonoured(t *testing.T) {
+	withProductionPathRules(t)
+
+	real := t.TempDir()
+	media := filepath.Join(real, "media")
+	if err := os.MkdirAll(filepath.Join(media, "show"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(media, "show", "episode.mkv")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A second name for the same directory, as /tmp is for /private/tmp.
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(media, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	// Configure via the link, ask about the real path.
+	viper.Set("media_directory", link)
+	t.Cleanup(viper.Reset)
+	if _, err := ValidateAndSanitizePath(file); err != nil {
+		t.Errorf("real path rejected with the directory configured via a symlink: %v", err)
+	}
+
+	// Configure via the real path, ask about the link.
+	viper.Set("media_directory", media)
+	viaLink := filepath.Join(link, "show", "episode.mkv")
+	if _, err := ValidateAndSanitizePath(viaLink); err != nil {
+		t.Errorf("symlinked path rejected with the real directory configured: %v", err)
+	}
+
+	// The boundary still holds: a symlink pointing outside must not grant access.
+	outside := filepath.Join(t.TempDir(), "secret.mkv")
+	if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	escape := filepath.Join(media, "escape.mkv")
+	if err := os.Symlink(outside, escape); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := ValidateAndSanitizePath(outside); err == nil {
+		t.Error("accepted a path outside every configured directory")
 	}
 }

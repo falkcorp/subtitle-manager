@@ -1,5 +1,5 @@
 // file: pkg/providers/opensubtitles/download_flow_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 4c02e7b3-58a1-4d96-b7e2-1a05f39c684d
 // last-edited: 2026-08-04
 
@@ -179,5 +179,43 @@ func TestFileIDPrefersFilesArray(t *testing.T) {
 	id, ok := fileIDForResult(r)
 	if !ok || id != 4242 {
 		t.Errorf("got (%d, %t), want (4242, true)", id, ok)
+	}
+}
+
+// TestBazarrImportedCredentialsAreUsed pins the fallback that makes an imported
+// config work.
+//
+// pkg/bazarr.mapProviderSettings writes credentials under
+// providers.opensubtitles.*, while this client only ever read the top-level
+// opensubtitles.* spelling. Importing a Bazarr config — the documented
+// migration path — therefore produced a config containing a username and
+// password that nothing read, leaving the provider unauthenticated with no
+// indication why. Confirmed on a real imported config before this was fixed.
+func TestBazarrImportedCredentialsAreUsed(t *testing.T) {
+	viper.Reset()
+	defer viper.Reset()
+	viper.Set("providers.opensubtitles.username", "imported-user")
+	viper.Set("providers.opensubtitles.password", "imported-pass")
+	viper.Set("providers.opensubtitles.api_key", "imported-key")
+
+	c := New("")
+	if c.username != "imported-user" || c.password != "imported-pass" {
+		t.Errorf("credentials not adopted: username=%q", c.username)
+	}
+	if c.APIKey != "imported-key" {
+		t.Errorf("APIKey = %q, want the imported key", c.APIKey)
+	}
+}
+
+// TestTopLevelCredentialsWin is the control: the fallback must never override a
+// config that already works.
+func TestTopLevelCredentialsWin(t *testing.T) {
+	viper.Reset()
+	defer viper.Reset()
+	viper.Set("opensubtitles.username", "primary")
+	viper.Set("providers.opensubtitles.username", "imported")
+
+	if got := New("").username; got != "primary" {
+		t.Errorf("username = %q, want the top-level value", got)
 	}
 }

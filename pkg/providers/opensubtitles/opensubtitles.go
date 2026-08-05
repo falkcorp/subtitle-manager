@@ -1,5 +1,5 @@
 // file: pkg/providers/opensubtitles/opensubtitles.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: 5af27051-d855-4321-9990-c4a59eaabbd5
 // last-edited: 2026-08-04
 
@@ -126,25 +126,41 @@ type Client struct {
 	tokenExp time.Time
 }
 
-// New returns a new Client configured with username/password from viper config.
+// New returns a new Client configured from viper.
+//
+// Settings are read from opensubtitles.<key>, falling back to
+// providers.opensubtitles.<key>.
+//
+// The fallback is not cosmetic: the Bazarr importer writes credentials under
+// providers.opensubtitles.* (see pkg/bazarr.mapProviderSettings), while this
+// client only ever read the top-level spelling. So importing a Bazarr config —
+// the documented way to migrate — produced a config with a username and
+// password sitting in it that nothing read, and the provider stayed
+// unauthenticated with no indication why. Confirmed on a real imported config.
 func New(_ string) *Client {
-	apiURL := resolveAPIURL(viper.GetString("opensubtitles.api_url"))
-	ua := viper.GetString("opensubtitles.user_agent")
+	ua := providerSetting("user_agent")
 	if ua == "" {
 		ua = "subtitle-manager v1.0"
 	}
 
-	username := viper.GetString("opensubtitles.username")
-	password := viper.GetString("opensubtitles.password")
-
 	return &Client{
-		APIURL:     apiURL,
+		APIURL:     resolveAPIURL(providerSetting("api_url")),
 		UserAgent:  ua,
-		APIKey:     viper.GetString("opensubtitles.api_key"),
+		APIKey:     providerSetting("api_key"),
 		HTTPClient: &http.Client{Timeout: 15 * time.Second},
-		username:   username,
-		password:   password,
+		username:   providerSetting("username"),
+		password:   providerSetting("password"),
 	}
+}
+
+// providerSetting reads opensubtitles.<key>, falling back to
+// providers.opensubtitles.<key>. The top-level spelling wins so an existing
+// working config cannot be changed by the fallback.
+func providerSetting(key string) string {
+	if v := viper.GetString("opensubtitles." + key); v != "" {
+		return v
+	}
+	return viper.GetString("providers.opensubtitles." + key)
 }
 
 // DefaultAPIURL is the OpenSubtitles.com REST v1 base this client speaks.

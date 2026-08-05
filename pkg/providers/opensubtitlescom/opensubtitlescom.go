@@ -1,5 +1,5 @@
 // file: pkg/providers/opensubtitlescom/opensubtitlescom.go
-// version: 2.0.0
+// version: 2.1.0
 // guid: 7d3a0c58-2e91-4b46-a5f0-91c48e7d2b03
 // last-edited: 2026-08-04
 
@@ -52,6 +52,7 @@ func New() *Client {
 		pick("user_agent"),
 		pick("username"),
 		pick("password"),
+		pick("api_key"),
 	)}
 }
 

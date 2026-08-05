@@ -1,5 +1,5 @@
 // file: pkg/providers/opensubtitles/opensubtitles_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 6bd3fcef-66ea-425f-be25-cbcea87859fe
 // last-edited: 2026-08-04
 
@@ -105,8 +105,17 @@ func TestFetchByResult(t *testing.T) {
 	c.APIURL = srv.URL
 	c.HTTPClient = srv.Client()
 
+	// The download id comes from attributes.files[].file_id. This test used to
+	// set only attributes.subtitle_id, which encoded the very assumption that
+	// was wrong — they are different values, and the API 404s on the latter.
 	var result SearchResult
 	result.Attributes.SubtitleID = "42"
+	result.Attributes.Files = append(result.Attributes.Files, struct {
+		FileID   int    `json:"file_id"`
+		CDNumber int    `json:"cd_number"`
+		FileName string `json:"file_name"`
+	}{FileID: 42, FileName: "s.srt"})
+
 	data, err := c.FetchByResult(context.Background(), result)
 	if err != nil {
 		t.Fatalf("fetch by result error: %v", err)
@@ -115,9 +124,9 @@ func TestFetchByResult(t *testing.T) {
 		t.Fatalf("unexpected data: %s", data)
 	}
 
-	// A result with no subtitle id cannot be downloaded.
+	// A result with no file id cannot be downloaded.
 	if _, err := c.FetchByResult(context.Background(), SearchResult{}); err == nil {
-		t.Fatal("expected error for result with no subtitle id")
+		t.Fatal("expected error for result with no file id")
 	}
 }
 

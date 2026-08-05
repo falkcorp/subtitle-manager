@@ -1,5 +1,5 @@
 // file: pkg/security/security.go
-// version: 1.4.0
+// version: 1.5.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
 // last-edited: 2026-08-04
 package security
@@ -70,13 +70,35 @@ func ValidateURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
+// absBaseDir resolves a configured base directory to an absolute path.
+//
+// ValidateAndSanitizePath compares absolute paths, so a relative
+// media_directory such as "./media" could never match anything and rejected
+// every file under it. That was masked until now by the unconditional
+// temp-directory escape hatch, which accepted the paths anyway whenever the
+// library happened to live under /tmp; closing that hatch in production exposed
+// the underlying bug.
+//
+// A path that cannot be resolved is dropped rather than passed through
+// relative, since a relative entry can only ever produce false negatives here.
+func absBaseDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	return filepath.Clean(abs)
+}
+
 // GetAllowedBaseDirs returns directories considered safe for file browsing.
 func GetAllowedBaseDirs() []string {
 	var dirs []string
-	if mediaDir := viper.GetString("media_directory"); mediaDir != "" {
+	if mediaDir := absBaseDir(viper.GetString("media_directory")); mediaDir != "" {
 		dirs = append(dirs, mediaDir)
 	}
-	if subDir := viper.GetString("subtitle_directory"); subDir != "" {
+	if subDir := absBaseDir(viper.GetString("subtitle_directory")); subDir != "" {
 		dirs = append(dirs, subDir)
 	}
 

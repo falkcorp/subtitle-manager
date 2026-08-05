@@ -1,5 +1,5 @@
 // file: pkg/security/tempdir_gate_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 5a3e91c7-06b4-4d82-bf15-9e7c3a2048d6
 // last-edited: 2026-08-04
 
@@ -98,5 +98,54 @@ func TestTraversalStillRejectedUnderTempDir(t *testing.T) {
 	escaping := filepath.Join(os.TempDir(), "..", "..", "etc", "passwd")
 	if got, err := ValidateAndSanitizePath(escaping); err == nil {
 		t.Errorf("accepted %q (returned %q)", escaping, got)
+	}
+}
+
+// TestRelativeMediaDirectoryIsHonoured pins that a relative media_directory
+// actually protects (and permits) the files under it.
+//
+// ValidateAndSanitizePath compares absolute paths, so a configured "./media"
+// could never match and rejected every file beneath it. The unconditional
+// temp-directory hatch masked this whenever the library sat under /tmp; closing
+// that hatch in production exposed it, and `profiles assign` began failing with
+// "path not in allowed directories" on a perfectly ordinary config.
+func TestRelativeMediaDirectoryIsHonoured(t *testing.T) {
+	withProductionPathRules(t)
+
+	// EvalSymlinks because on macOS t.TempDir() hands back /var/folders/... while
+	// the working directory resolves to /private/var/folders/... . Without this
+	// the test compares two spellings of the same directory and fails for a
+	// reason that has nothing to do with what it is checking.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	media := filepath.Join(root, "media")
+	if err := os.MkdirAll(media, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Configure it the way a user in that directory would.
+	prev, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(prev) })
+
+	viper.Set("media_directory", "./media")
+	t.Cleanup(viper.Reset)
+
+	inside := filepath.Join(media, "show", "episode.mkv")
+	if _, err := ValidateAndSanitizePath(inside); err != nil {
+		t.Errorf("rejected a file inside a relative media_directory: %v", err)
+	}
+
+	// The relative form must not become a way past the boundary either.
+	outside := filepath.Join(root, "elsewhere", "secret.mkv")
+	if got, err := ValidateAndSanitizePath(outside); err == nil {
+		t.Errorf("accepted %q, which is outside the configured directory", got)
 	}
 }

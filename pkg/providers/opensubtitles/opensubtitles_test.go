@@ -1,3 +1,8 @@
+// file: pkg/providers/opensubtitles/opensubtitles_test.go
+// version: 1.0.0
+// guid: 6bd3fcef-66ea-425f-be25-cbcea87859fe
+// last-edited: 2026-08-04
+
 package opensubtitles
 
 import (
@@ -127,5 +132,43 @@ func TestNewUsesConfig(t *testing.T) {
 	}
 	if c.UserAgent != "ua" {
 		t.Fatalf("expected user_agent ua, got %s", c.UserAgent)
+	}
+}
+
+// TestResolveAPIURLCorrectsLegacyHosts pins that a config carried over from the
+// old XML-RPC or legacy REST API does not silently break every request.
+//
+// This client only speaks REST v1 (POST /login, GET /subtitles?moviehash=...,
+// POST /download). Verified 2026-08-04: rest.opensubtitles.org answers the v1
+// search path with 400, while api.opensubtitles.com/api/v1 answers 403 —
+// i.e. the endpoint exists and only wants credentials.
+func TestResolveAPIURLCorrectsLegacyHosts(t *testing.T) {
+	for _, legacy := range []string{
+		"https://rest.opensubtitles.org",
+		"https://api.opensubtitles.org/xml-rpc",
+		"http://www.opensubtitles.org",
+	} {
+		if got := resolveAPIURL(legacy); got != DefaultAPIURL {
+			t.Errorf("resolveAPIURL(%q) = %q, want %q", legacy, got, DefaultAPIURL)
+		}
+	}
+}
+
+// TestResolveAPIURLHonoursDeliberateOverrides is the control. Overriding the
+// base URL is how these tests point the client at httptest, and second-guessing
+// an operator's deliberate value would be worse than a clear failure — so only
+// hosts that provably cannot serve this client are replaced.
+func TestResolveAPIURLHonoursDeliberateOverrides(t *testing.T) {
+	for _, keep := range []string{
+		"http://127.0.0.1:8080",
+		"https://api.opensubtitles.com/api/v1",
+		"https://mirror.example.com/api/v1",
+	} {
+		if got := resolveAPIURL(keep); got != keep {
+			t.Errorf("resolveAPIURL(%q) = %q, want it unchanged", keep, got)
+		}
+	}
+	if got := resolveAPIURL(""); got != DefaultAPIURL {
+		t.Errorf("empty config = %q, want the default", got)
 	}
 }

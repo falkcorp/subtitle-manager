@@ -1,7 +1,7 @@
 // file: pkg/providers/opensubtitles/opensubtitles.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 5af27051-d855-4321-9990-c4a59eaabbd5
-// last-edited: 2026-07-23
+// last-edited: 2026-08-04
 
 package opensubtitles
 
@@ -12,10 +12,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/spf13/viper"
+
+	"github.com/jdfalk/subtitle-manager/pkg/logging"
 )
 
 // LoginResponse represents the response from the OpenSubtitles login API
@@ -120,10 +124,7 @@ type Client struct {
 
 // New returns a new Client configured with username/password from viper config.
 func New(_ string) *Client {
-	apiURL := viper.GetString("opensubtitles.api_url")
-	if apiURL == "" {
-		apiURL = "https://api.opensubtitles.com/api/v1"
-	}
+	apiURL := resolveAPIURL(viper.GetString("opensubtitles.api_url"))
 	ua := viper.GetString("opensubtitles.user_agent")
 	if ua == "" {
 		ua = "subtitle-manager v1.0"
@@ -135,6 +136,68 @@ func New(_ string) *Client {
 	return &Client{
 		APIURL:     apiURL,
 		UserAgent:  ua,
+		HTTPClient: &http.Client{Timeout: 15 * time.Second},
+		username:   username,
+		password:   password,
+	}
+}
+
+// DefaultAPIURL is the OpenSubtitles.com REST v1 base this client speaks.
+const DefaultAPIURL = "https://api.opensubtitles.com/api/v1"
+
+// legacyHosts are OpenSubtitles endpoints that predate the REST v1 API. This
+// client only speaks v1 — POST /login, GET /subtitles?moviehash=..., POST
+// /download — so pointing it at one of these produces nothing but failures.
+//
+// They appear in real configs because they were the correct value for the old
+// XML-RPC and legacy REST APIs, and a config carried forward from either keeps
+// the stale host. Verified 2026-08-04: rest.opensubtitles.org answers the v1
+// search path with 400, while api.opensubtitles.com/api/v1 answers 403 (missing
+// key), i.e. the endpoint exists and only wants credentials.
+var legacyHosts = map[string]bool{
+	"rest.opensubtitles.org": true,
+	"api.opensubtitles.org":  true,
+	"www.opensubtitles.org":  true,
+	"opensubtitles.org":      true,
+}
+
+// resolveAPIURL returns the API base to use, correcting a known-legacy host.
+//
+// An explicitly configured URL is otherwise honoured untouched — overriding it
+// is how the tests point the client at httptest, and second-guessing an
+// operator's deliberate value would be worse than a clear failure. Only hosts
+// that provably cannot serve this client's requests are replaced, and that is
+// said out loud rather than done silently.
+func resolveAPIURL(configured string) string {
+	if configured == "" {
+		return DefaultAPIURL
+	}
+	u, err := url.Parse(configured)
+	if err != nil || !legacyHosts[strings.ToLower(u.Hostname())] {
+		return configured
+	}
+	logging.GetLogger("opensubtitles").Warnf(
+		"opensubtitles.api_url is %q, which is a legacy endpoint this client cannot use; falling back to %s. Remove the setting or set it to the v1 base to silence this.",
+		configured, DefaultAPIURL)
+	return DefaultAPIURL
+}
+
+// NewWithCredentials builds a client from explicit values.
+//
+// It exists so a caller that resolves configuration itself does not have to
+// mutate global viper state to influence New(). Provider constructors run
+// inside the fetch wave's goroutines, one per provider per fetch, so a
+// viper.Set there is a data race against viper's non-thread-safe global map —
+// and quietly rewrites config for every other component besides.
+//
+// Empty values fall back to the same defaults New() uses.
+func NewWithCredentials(apiURL, userAgent, username, password string) *Client {
+	if userAgent == "" {
+		userAgent = "subtitle-manager v1.0"
+	}
+	return &Client{
+		APIURL:     resolveAPIURL(apiURL),
+		UserAgent:  userAgent,
 		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 		username:   username,
 		password:   password,

@@ -1,7 +1,7 @@
 // file: pkg/providers/multi.go
-// version: 2.0.0
+// version: 2.1.0
 // guid: 2f8c1a05-6d43-4b79-9e20-3a7c5d8b0164
-// last-edited: 2026-07-30
+// last-edited: 2026-08-04
 
 package providers
 
@@ -167,6 +167,15 @@ func fetchFromInstances(ctx context.Context, insts []Instance, mediaPath, lang, 
 		})
 	}
 
+	// Carry the last provider error rather than discarding it. It was already
+	// computed for the failure event two lines up and then thrown away, so the
+	// CLI and the UI reported a bare "no subtitle found" for every cause —
+	// including "this provider has no credentials configured", which is the one
+	// the operator can actually act on. The prefix is kept so existing callers
+	// and tests that match on it still do.
+	if lastError != nil {
+		return nil, "", fmt.Errorf("no subtitle found: %w", lastError)
+	}
 	return nil, "", fmt.Errorf("no subtitle found")
 }
 

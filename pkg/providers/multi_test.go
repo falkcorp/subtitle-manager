@@ -1,14 +1,16 @@
 // file: pkg/providers/multi_test.go
-// version: 2.0.0
+// version: 2.1.0
 // guid: 6b1e9c04-8a37-4d52-9f60-2c5d0a7b3841
-// last-edited: 2026-07-30
+// last-edited: 2026-08-04
 
 package providers
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -479,4 +481,37 @@ func TestSearchFailedEmissionIsUnchanged(t *testing.T) {
 				"a full library scan would fire one webhook per file", got)
 		}
 	})
+}
+
+// TestFetchFromAllSurfacesProviderError pins that the reason a fetch failed
+// reaches the caller.
+//
+// The last provider error was computed for the failure event and then discarded,
+// so every cause — a dead host, a bad response, or "this provider has no
+// credentials configured" — arrived as a bare "no subtitle found". The last of
+// those is the one an operator can act on, and it was exactly the message
+// missing when OpenSubtitles was unconfigured.
+func TestFetchFromAllSurfacesProviderError(t *testing.T) {
+	prev := ListInstances()
+	t.Cleanup(func() { SetInstances(prev) })
+
+	RegisterFactory("errtest", func() Provider { return failingProvider{} })
+	SetInstances([]Instance{{ID: "errtest", Name: "errtest", Enabled: true}})
+
+	_, _, err := FetchFromAll(context.Background(), "/media/movie.mkv", "en", "")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "no subtitle found") {
+		t.Errorf("error %q lost the familiar prefix", err)
+	}
+	if !strings.Contains(err.Error(), "credentials not configured") {
+		t.Errorf("error %q does not surface the provider's reason", err)
+	}
+}
+
+type failingProvider struct{}
+
+func (failingProvider) Fetch(ctx context.Context, mediaPath, lang string) ([]byte, error) {
+	return nil, errors.New("credentials not configured")
 }

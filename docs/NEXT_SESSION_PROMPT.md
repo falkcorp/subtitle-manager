@@ -1,7 +1,7 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 2.0.0 -->
+<!-- version: 3.0.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
-<!-- last-edited: 2026-08-04 -->
+<!-- last-edited: 2026-08-05 -->
 
 # Next-session prompt
 
@@ -25,129 +25,184 @@ confirmation each time, and no bulk/mass label operations. After merging, check
 the merged commits actually cover every commit that was in the PR — a PR
 silently lost two fix commits that way once.
 
-## Where things stand
+## Where things stand (verified 2026-08-05)
 
-`origin/main` is green: `go build ./...`, `go test -race ./...`,
-`go test -tags sqlite ./...` (**CI does not build this tag — run it locally,
-it has caught post-merge breakage twice**), and the frontend suite. CI now also
-cross-compiles the four goreleaser targets, so a Unix-only syscall can no longer
-pass every check and break only the release.
-A running instance for evaluation lives at `~/subtitle-manager-preview/`
-(`sh start.sh` → http://127.0.0.1:8080, `admin` / `evaluate-me-2026`).
+`origin/main` is green and **releases publish again**. Verified directly, not
+inferred: `go build ./...`, `go test ./...`, `go test -tags sqlite ./...`
+(**CI does not build this tag — run it locally**), `go test -race` on the
+packages whose tests mutate globals, the 64-test frontend suite, and a
+`GOOS=windows` cross-build. CI now cross-compiles all four goreleaser targets.
 
-Read `docs/BAZARR_PARITY_STATUS.md` for the full matrix and
-`docs/PROVIDER_BUILDOUT_PROMPT.md` for the provider plan. **Verify claims in
-both against the code before acting on them** — several have been wrong, most
-recently three ✅ rows claiming language profiles were wired to downloads when
-nothing read them. Both docs were updated on 2026-08-04 and should be accurate
-as of then.
+**Downloading works today with no credentials.** Verified end to end on a Pebble
+store: a two-language profile produced `...en.srt` (476 cues) and `...es.srt`
+(523 cues) from `gestdown` via `fetch --profile`, correctly named and recorded
+in download history.
 
-## What the last session (2026-08-04) did
+Read `docs/BAZARR_PARITY_STATUS.md` and `docs/PROVIDER_BUILDOUT_PROMPT.md`.
+**Verify claims in both against the code before acting** — several have been
+wrong before, though both were corrected on 2026-08-04.
 
-Six PRs, all merged. The language-profile work is **finished**; what is left is
-mostly providers and polish.
+## What to pick up, in priority order
 
-- **#2238** — mass-edit / bulk profile assign: `POST /api/media/profiles/bulk`
-  plus a Mass Edit mode in `MediaLibrary.jsx`. The route is an **exact**
-  `ServeMux` pattern because `/api/media/` is a subtree for the tags handler,
-  which would otherwise answer it with a 200 and the wrong body.
-- **#2239** — the three profile bugs. A file assigned the *default* profile now
-  counts as assigned (new `GetAssignedProfileID` on `SubtitleStore`); the last
-  profile can be deleted; and `PebbleStore.GetDefaultLanguageProfile` no longer
-  *creates* a profile on an empty store, which used to resurrect a just-deleted
-  one on the next lookup. `cmd/profiles.go` honours `db_backend`.
-- **#2241** — `ValidateAndSanitizePath` no longer accepts anything under
-  `os.TempDir()` in production. Gated on `testing.Testing()`, so no test changed.
-- **#2242** — profiles now govern the monitor loop, watcher, Sonarr/Radarr
-  webhooks and the `sonarr`/`radarr` CLI, not just library scans.
-- **#2243** — **releases had been failing since ~2026-08-03**: `syscall.Statfs`
-  does not exist on Windows, so goreleaser's windows build died and took the
-  release with it, invisibly, because CI only compiled the runner's platform.
-  Fixed per-platform, and CI gained a `cross-build` job over all four goreleaser
-  targets.
+### 1. Verify the web UI in an actual browser — nothing here is proven
 
-### Decisions made, for you to disagree with
+This is the biggest gap in confidence, not necessarily in code. The last session
+exercised **API endpoints with curl only**. Every one returned sensible JSON, and
+API routes 401 rather than falling through to the SPA — but **no page was ever
+rendered or clicked**.
 
-- **An assigned profile beats `MonitoredItem.Languages`.** That field is
-  *accumulated*, not curated — `pkg/monitoring/sync.go` unions in every language
-  it is ever asked for and never removes one, so it cannot express "stop wanting
-  German". An assignment is a deliberate per-file choice.
-- **Requests that name a language directly are not overridden**: the web
-  download endpoint's `?lang=`, the custom webhook's validated `lang`, and
-  `fetch <file> <lang>`.
-- **Deleting the only language profile is allowed.** There is no other profile
-  to fall back to either way, and refusing left the user permanently stuck.
+There are 20 pages (`webui/src/*.jsx`): Dashboard, MediaLibrary, LibraryScan,
+MediaDetails, Wanted, History, Settings, Setup, System, UserManagement,
+TagManagement, Scheduling, Convert, Extract, Translate, Verify, ConfigEditor…
 
-### Process notes worth keeping
+Confirm by using it:
 
-- A PR branched off another unmerged branch ends up `CONFLICTING` once that
-  branch rebase-merges, and **GitHub cannot build a merge ref for a conflicting
-  PR, so `Continuous Integration` never queues at all**. It looks like a broken
-  trigger. Check `gh pr view N --json mergeable,mergeStateStatus` first. Branch
-  from `origin/main`.
-- `workflow_dispatch` on `ci.yml` **skips Go CI** — `Detect Changes` has no diff
-  to compare against — so it is not a substitute signal.
-- Every action in this repo is **SHA-pinned**; a tag ref fails at "Set up job",
-  which reads like an infrastructure flake rather than a config error.
-- Plain `go test` misses what CI catches: run **`go test -race`** on any package
-  whose tests mutate package globals (`providers.SetInstances`,
-  `security.allowTempDirPaths`).
+- **Does library scanning work from the UI?** `/api/scan`, `/api/scan/status`,
+  `/api/library/scan`, `/api/library/scan/status` and `/api/library/rescan` are
+  all mounted. Does the UI drive them, show progress, and produce real results?
+- **Is there actually a file on disk afterwards?** The recurring bug class in
+  this repo is a write nothing reads, or a UI reporting success while nothing
+  happened. Check the filesystem, not the toast.
+- **Does Mass Edit work end to end in the browser?** The bulk profile endpoint
+  and its UI shipped in #2238; the UI has unit tests but has never been driven
+  by a human or by browser automation.
 
-## What to pick up, roughly in order
+Use the Chrome tools if available. A running instance for evaluation lives at
+`~/subtitle-manager-preview/` (`sh start.sh`).
 
-1. **Providers, Phase 2 (credential-gated).** This is now the biggest remaining
-   parity gap. Phase 1 (keyless) is genuinely exhausted — eight candidates
-   probed live 2026-07-31, tabulated in `PROVIDER_BUILDOUT_PROMPT.md`. Phase 2
-   needs credentials in my `~/.subtitle-manager.yaml`; **only wire config key
-   names and protocol, never handle the secret values, and use httptest mocks.**
-   Ask me which providers I have configured rather than guessing. Note
-   `opensubtitlescom` is still a stub despite the prompt doc claiming otherwise.
+### 2. Decide what "multiple subtitles, multiplexed" means
 
-2. **Two CodeQL "uncontrolled data in path expression" alerts** on
-   `pkg/webserver/subtitlepath.go`. Believed safe; both constraints pinned by
-   `pkg/security/formatpath_test.go`. Dismiss them or don't — it is a judgement
-   call I did not want to make for you.
+The operator asked: *"it should grab multiple but then it has to multiplex them
+together — are we doing that?"* **Ask which of these is wanted** rather than
+guessing; they are three different features:
 
-3. **Cutoff score and Forced/HI are still dropped** on the profile path.
-   `processWithAssignedProfile` passes a bare language code, so `ProcessFile`
-   scores with the global `scoring.*` settings and the profile's `CutoffScore`
-   and per-language `Forced`/`HI` never reach the scorer. This is the last real
-   hole in the profile feature.
+- **Separate files per language** — works today, verified above
+  (`video.en.srt`, `video.es.srt`). Note `singleLanguageNaming()` collapses these
+  to one filename, which would make a multi-language profile overwrite itself;
+  `assignedProfileLanguages` currently truncates to the top language when that
+  setting is on.
+- **One subtitle file containing two languages** — `cmd/dualsub.go` already does
+  this (bilingual "double-subs" tagged as a sentinel language). It exists as a
+  CLI command only; it is **not** wired into the profile/scan path and has no UI.
+- **Muxing tracks into the MKV container** — nothing does this. Needs
+  mkvmerge/ffmpeg and is a much larger piece of work.
 
-4. **`/api/providers/status` is a lazily-filled cache** that stays `{}` until
-   `POST /api/providers/refresh`, and that refresh hardcodes only
-   `opensubtitles` + `subscene` — so real providers never appear and the stub
-   `subscene` reports `available: true`.
+My read: the profile path already produces multiple files correctly, so the real
+ask is probably dualsub-on-download or container muxing. Get that decided first.
 
-5. **Whisper is done; leave it alone.** `whisper.transcribe_url` points at the
-   server's GPU container (`large-v3-turbo`, int8). Verified 2026-08-04 end to
-   end through the `transcribe` CLI: 10 minutes of audio, 76 s, 333 cues.
-   `ASR_QUANTIZATION=int8` is **mandatory** — the image defaults to float32 on
-   GPU and OOMs a 4 GB card during model load. That model **cannot translate**,
-   which is safe only because both `ASROptions{}` call sites in
-   `pkg/transcriber` omit `Task`. Do not record host addresses here; this file
-   is public.
+### 3. OpenSubtitles needs an API key — and it CANNOT be harvested
+
+**Verified 2026-08-05, so do not spend time re-checking:** an OpenSubtitles API
+key is mandatory. A live login against the v1 API with real credentials returned
+**403 with no `Api-Key` header** and 429 with an empty one.
+
+There is **no key to pull from Bazarr**. Bazarr's config carries only
+`opensubtitlescom.username` / `.password`; it embeds its own API key in its
+source rather than storing one per install. The *arr configs do hold 32-char
+keys, but those are Sonarr's and Radarr's own API keys, not OpenSubtitles'. All
+were checked.
+
+So this is genuinely operator-blocked: a key must be registered at
+opensubtitles.com. Everything else on that provider is already fixed — the v1
+download handshake, the `file_id` source, the `Api-Key` header, and reading both
+Bazarr credential spellings.
+
+**Ask the operator for the key rather than searching for it again.** When wiring
+providers: only handle config key *names* and protocol, never the secret values,
+and use httptest mocks.
+
+### 4. Cloudflare Access JWT verification + broader OAuth
+
+**GitHub OAuth already exists** (`/api/oauth/github/login`, `/callback`,
+`/generate`, `/regenerate`, `/reset`, plus `pkg/authserver`).
+
+**Cloudflare is entirely absent** — zero matches for `cloudflare`, `CF-Access`
+or `jwt` anywhere in `pkg/`. This is greenfield:
+
+- Accept and **verify** the `Cf-Access-Jwt-Assertion` header against the team's
+  JWKS endpoint (fetch and cache the keys; verify `aud`, `iss`, `exp`).
+- Map a verified identity onto a subtitle-manager user and role.
+- **Fail closed.** The obvious mistake is trusting the header when verification
+  is unconfigured or the JWKS fetch fails — that lets anyone authenticate by
+  setting a header. Make it a hard refusal and test that path explicitly.
+- Decide whether it replaces or supplements the session cookie.
+
+Ask whether other providers (Google, generic OIDC) are wanted too.
+
+### 5. ZFS-aware tuning
+
+The deployment host uses ZFS and nothing in the repo acknowledges that. Worth
+investigating, but **measure before changing anything** — every item below is a
+hypothesis, not a known win:
+
+- Pebble/SQLite on ZFS: record size vs page size, and whether double
+  write-caching (ZFS ARC plus the DB's own) costs anything.
+- `sync` behaviour: Pebble writes with `pebble.Sync`, which interacts with the
+  ZIL/SLOG.
+- Whether large media scans benefit from different readahead.
+- ZFS snapshots as the backup mechanism instead of the app's own backup code.
+
+### 6. Bazarr API compatibility layer (operator's idea — lower priority)
+
+*"Is it possible to have a Bazarr API compatibility layer so that applications
+that don't know how to use our app can just drop it in?"*
+
+Yes, and it is a good idea for adoption. Note that what exists today is **config
+import only** — `/api/setup/bazarr`, `/api/setup/bazarr/upload`,
+`/api/bazarr/preview`, `/api/bazarr/config` read a Bazarr config. There is no
+Bazarr-shaped API surface.
+
+Scope it before building. The useful subset is probably what the *arr ecosystem
+actually calls — `/api/system/status`, `/api/episodes`, `/api/movies`,
+`/api/providers`, `/api/history`, and the webhook endpoints. A faithful clone of
+all of Bazarr's API is far bigger than a shim for the handful of routes other
+tools use. Start by finding what actually calls Bazarr's API in the operator's
+stack.
+
+### 7. Still open from earlier sessions
+
+- **22 of 51 provider hostnames do not resolve** — fabricated `api.<name>.com`
+  shells that take a slot in every fetch wave. Data and suggested approach are in
+  `PROVIDER_BUILDOUT_PROMPT.md`. Audit the *registry*, not the hostnames.
+- **Two CodeQL "uncontrolled data in path expression" alerts** on
+  `pkg/webserver/subtitlepath.go`. Believed safe, pinned by
+  `pkg/security/formatpath_test.go`. Dismiss them or don't — operator's call.
+- **`pkg/webserver` profile tests default to SQLite while the product defaults
+  to Pebble.** That gap has now hidden two real bugs. Running the profile suite
+  against both backends is worthwhile structural work.
 
 ## How I want you to work
 
-- One focused PR per item, off a worktree from `origin/main`. Each needs a
+- One focused PR per item, off a worktree from **`origin/main`**. Each needs a
   `changelog.d/` fragment and **mandatory** file version headers
-  (`file:` / `version:` / `guid:` / `last-edited:`, in that order — bump on
-  every change, including files you only touched lightly).
-- `rm -rf .standards` in a new worktree and use `git -c submodule.recurse=false`
-  — the submodule otherwise breaks git operations there.
+  (`file:` / `version:` / `guid:` / `last-edited:`, bumped on every change).
+- `rm -rf .standards` in a new worktree and use `git -c submodule.recurse=false`.
 - **Prove every test is non-vacuous**: break the fix, confirm the matching test
-  fails, restore. This has caught roughly a dozen tests that passed for the
-  wrong reason.
-- **Don't trust a passing test as evidence the feature works.** Nearly every
-  real bug here was invisible until something was actually run. The 2026-08-01
-  session is the case in point twice over: a green suite would have shipped a
-  feature that did nothing in production, and a "live verification" that
-  appeared to disprove a working fix turned out to have been answered by an
-  orphaned binary holding the port. **When you verify live, confirm which
-  process answered** — `lsof -nP -iTCP:<port> -sTCP:LISTEN -t` against your own
-  PID, and check for a stale listener before starting anything.
-- Document decisions in the PR body and the parity doc as you go, so I can
-  review and disagree later.
+  fails, restore. This has caught roughly a dozen tests that passed for the wrong
+  reason.
+- **Never chain verification and publication in one command.** A
+  `go test && git push` chain pushed a commit with a failing security test on
+  2026-08-04. Run the suites, read the result, *then* push.
+- **Don't trust a passing test as evidence the feature works.** Six real bugs on
+  2026-08-04 were invisible to a green suite and appeared only when the binary
+  was run — including one in code shipped earlier the same day. Run the thing.
+- **Fix the product, not the test.** A test was patched to work around a symlink
+  mismatch that turned out to be a real defect in path validation; that hid it
+  for hours.
+- **When you verify live, confirm which process answered** — check for a stale
+  listener before starting anything.
 
----
+### Traps that cost real time on 2026-08-04
+
+- A PR branched off another *unmerged* branch goes `CONFLICTING` once that branch
+  rebase-merges, and **GitHub cannot build a merge ref for a conflicting PR, so
+  CI never queues at all** — it looks like a broken trigger. Check
+  `gh pr view N --json mergeable,mergeStateStatus` first.
+- `workflow_dispatch` on `ci.yml` **skips Go CI** (`Detect Changes` has no diff),
+  so it is not a substitute signal. `Go CI` also correctly shows `skipping` on
+  docs-only PRs.
+- Every action is **SHA-pinned**; a tag ref fails at "Set up job" with no useful
+  message.
+- The 0-second `Code Quality Check` / `AI Labeling` failures are stale
+  concurrency-cancelled jobs. The real gates are **`Go CI (1.25)`** and
+  **`Analyze (go)`**.

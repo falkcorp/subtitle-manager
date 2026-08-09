@@ -53,10 +53,17 @@ claim gets corrected in the text, not silently dropped — see *Honesty rules*.
 
 ---
 
+Start the file with a version header of your own — copy this shape, generate a
+fresh GUID, and set the path to the file you are actually creating. It is shown
+fenced here so that this template does not itself carry a second, invalid
+header:
+
+```markdown
 <!-- file: docs/executive-summaries/YYYY-MM-DD-slug-executive-summary.md -->
 <!-- version: 1.0.0 -->
-<!-- guid: GENERATE-A-NEW-GUID -->
+<!-- guid: generate-a-fresh-guid -->
 <!-- last-edited: YYYY-MM-DD -->
+```
 
 # Executive Summary: `<Period>` Roundup
 

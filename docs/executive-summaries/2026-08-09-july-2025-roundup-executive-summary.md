@@ -5,9 +5,9 @@
 
 # Executive Summary: July 2025 Roundup
 
-**Shipped:** PRs [#1275–#1768](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-07-01..2025-07-31),
-covering 2025-07-01 through 2025-07-31 (211 merged pull requests, of which 157
-were substantive and 54 were automated dependency updates).
+**Shipped:** [211 merged pull requests](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-07-01..2025-07-31),
+covering 2025-07-01 through 2025-07-31, of which 157 were substantive and 54 were
+automated dependency updates.
 **Related doc:** [2026-08-09-june-2025-roundup-executive-summary.md](2026-08-09-june-2025-roundup-executive-summary.md)
 **Note:** Written 2026-08-09 as part of a backfill; reconstructed from the merge
 record rather than contemporaneous notes.

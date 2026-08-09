@@ -5,8 +5,8 @@
 
 # Executive Summary: July 2026 Roundup
 
-**Shipped:** PRs [#2161–#2227](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-07-01..2026-07-31),
-covering 2026-07-01 through 2026-07-31 (66 merged pull requests, 60 substantive).
+**Shipped:** [66 merged pull requests](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-07-01..2026-07-31),
+covering 2026-07-01 through 2026-07-31, of which 60 were substantive.
 **Related doc:** [2026-08-09-maintenance-period-2025-08-to-2026-06-executive-summary.md](2026-08-09-maintenance-period-2025-08-to-2026-06-executive-summary.md)
 **Note:** Written 2026-08-09 as part of a backfill; reconstructed from the merge
 record.

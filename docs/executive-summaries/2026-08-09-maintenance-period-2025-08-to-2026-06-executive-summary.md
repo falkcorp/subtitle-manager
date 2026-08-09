@@ -5,9 +5,8 @@
 
 # Executive Summary: August 2025 – June 2026 Maintenance Period
 
-**Shipped:** PRs [#1741–#2160](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-08-01..2026-06-30),
-covering 2025-08-01 through 2026-06-30 (340 merged pull requests across eleven
-months).
+**Shipped:** [340 merged pull requests](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-08-01..2026-06-30),
+covering 2025-08-01 through 2026-06-30 (eleven months).
 **Related doc:** [2026-08-09-july-2025-roundup-executive-summary.md](2026-08-09-july-2025-roundup-executive-summary.md)
 **Note:** Written 2026-08-09 as part of a backfill; reconstructed from the merge
 record.

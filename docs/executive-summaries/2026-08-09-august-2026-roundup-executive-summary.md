@@ -5,8 +5,8 @@
 
 # Executive Summary: August 2026 Roundup (month to date)
 
-**Shipped:** PRs [#2228–#2256](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-08-01..2026-08-09),
-covering 2026-08-01 through 2026-08-09 (26 merged pull requests).
+**Shipped:** [26 merged pull requests](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-08-01..2026-08-09),
+covering 2026-08-01 through 2026-08-09.
 **Related doc:** [2026-08-09-july-2026-roundup-executive-summary.md](2026-08-09-july-2026-roundup-executive-summary.md)
 **Status:** This covers a partial month and will be updated in place as August
 continues.
@@ -125,9 +125,13 @@ Access requires an API key registered with the service. Investigation
 established, with live testing, that:
 
 - No usable key exists anywhere in the operator's existing systems.
-- Bazarr — the incumbent tool — works because it ships its own registered key
-  compiled into the application. Copying that key would mean impersonating
-  another product and sharing its rate limit; it was deliberately not done.
+- Bazarr — the incumbent tool — ships its own registered key compiled into the
+  application, which is why it never asks a user for one. (Its source was read
+  directly to establish this. Note that on the operator's own installation
+  Bazarr's OpenSubtitles source is not switched on, so this is what its code
+  does, not a demonstration of it working there.) Copying that key would mean
+  impersonating another product and sharing its rate limit; it was deliberately
+  not done.
 - A key supplied on 2026-08-06 does not work. Tested against the live service, it
   behaves identically to a deliberately invalid key and to sending no key at all.
 - The operator's paid "VIP" status is on the **legacy** OpenSubtitles system,

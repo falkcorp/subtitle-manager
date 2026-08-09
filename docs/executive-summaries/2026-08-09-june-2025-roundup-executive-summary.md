@@ -5,8 +5,8 @@
 
 # Executive Summary: June 2025 Roundup
 
-**Shipped:** PRs [#1–#1334](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-06-01..2025-06-30),
-covering 2025-06-01 through 2025-06-30 (270 merged pull requests, 774 commits).
+**Shipped:** [270 merged pull requests](https://github.com/falkcorp/subtitle-manager/pulls?q=is%3Apr+is%3Amerged+merged%3A2025-06-01..2025-06-30),
+covering 2025-06-01 through 2025-06-30 (774 commits).
 **Note:** This document was written on 2026-08-09 as part of a backfill of the
 project's history. It reconstructs the month from the merge record rather than
 from contemporaneous notes.

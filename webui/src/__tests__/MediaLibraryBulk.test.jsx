@@ -1,7 +1,7 @@
 // file: webui/src/__tests__/MediaLibraryBulk.test.jsx
-// version: 1.1.0
+// version: 1.2.0
 // guid: 9f4c1e73-2b8d-46a1-b0e5-7c3a9d5e1042
-// last-edited: 2026-08-04
+// last-edited: 2026-08-10
 
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -15,10 +15,15 @@ import MediaLibrary from '../MediaLibrary.jsx';
 // endpoint reports per-item outcomes inside a 200 and an earlier version of
 // this component swallowed bulk failures into console.error.
 
+// `isDirectory` is the key pkg/webserver actually marshals (MediaItem in
+// pkg/webserver/server.go). This fixture previously said `is_dir`, which the
+// server has never sent — so this suite stayed green while the Media Library
+// page rendered completely empty in production. Fixtures go from observed
+// server payloads, never from what the component happens to read.
 const FILES = [
-  { name: 'A.mkv', path: '/media/A.mkv', is_dir: false, size: 1 },
-  { name: 'B.mkv', path: '/media/B.mkv', is_dir: false, size: 1 },
-  { name: 'Season 01', path: '/media/Season 01', is_dir: true },
+  { name: 'A.mkv', path: '/media/A.mkv', isDirectory: false, size: 1 },
+  { name: 'B.mkv', path: '/media/B.mkv', isDirectory: false, size: 1 },
+  { name: 'Season 01', path: '/media/Season 01', isDirectory: true },
 ];
 
 const PROFILES = [

@@ -1,7 +1,7 @@
 // file: webui/src/MediaLibrary.jsx
-// version: 2.1.1
+// version: 2.2.0
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
-// last-edited: 2026-08-04
+// last-edited: 2026-08-10
 // @ts-nocheck
 
 import {
@@ -49,6 +49,25 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './services/api.js';
+
+/**
+ * Video containers the library lists and mass edit may act on.
+ */
+const MEDIA_EXTENSIONS = /\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v)$/i;
+
+/**
+ * True for a playable media file — not a directory, and a known video container.
+ *
+ * Shared by the listing filter and by "Select all files" so the two cannot
+ * drift. They previously used different tests: the listing hid sidecar
+ * subtitles while the selection swept them in, so two visible episodes
+ * reported "4 assigned" and attached a language profile to two .srt files.
+ *
+ * @param {Object} item - A media item from GET /api/library/browse.
+ * @returns {boolean} Whether the item is a media file.
+ */
+const isMediaFile = item =>
+  Boolean(item) && !item.isDirectory && MEDIA_EXTENSIONS.test(item.name || '');
 
 /**
  * MediaLibrary provides integrated media file and subtitle management.
@@ -208,7 +227,17 @@ export default function MediaLibrary({ backendAvailable = true }) {
       );
       if (response.ok) {
         const data = await response.json();
-        setItems(data.items || []);
+        // Normalise the directory flag once, here at the boundary, rather than
+        // at each of the nine places that read it. The server marshals
+        // `isDirectory` (see MediaItem in pkg/webserver/server.go); this
+        // component previously read `is_dir`, which is always undefined, so
+        // every directory was filtered out and the page rendered blank.
+        setItems(
+          (data.items || []).map(item => ({
+            ...item,
+            isDirectory: Boolean(item?.isDirectory),
+          }))
+        );
       } else {
         setItems([]);
       }
@@ -351,7 +380,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
         );
       case 2: // TV Shows Only
         return items.filter(
-          item => item.type === 'tv' || (!item.type && item.is_dir)
+          item => item.type === 'tv' || (!item.type && item.isDirectory)
         );
       case 3: // Library Paths
         return null; // Special case for library management
@@ -408,22 +437,25 @@ export default function MediaLibrary({ backendAvailable = true }) {
       {itemsToRender
         .filter(
           item =>
-            item.is_dir ||
+            item.isDirectory ||
             item.name?.match(/\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v)$/i)
         )
         .map(item => (
           <Grid item xs={12} key={item.path || Math.random()}>
             <Card
               sx={{
-                cursor: item.is_dir ? 'pointer' : 'default',
+                cursor: item.isDirectory ? 'pointer' : 'default',
                 '&:hover': {
                   backgroundColor: 'action.hover',
                 },
               }}
               onClick={() => {
-                if (item.is_dir) {
-                  setCurrentPath(item.path);
-                  loadCurrentDirectory();
+                if (item.isDirectory) {
+                  // Set the path and let the effect reload. Calling
+                  // loadCurrentDirectory() here as well refetched the
+                  // *previous* directory, because the call closed over the
+                  // currentPath from this render.
+                  navigateToPath(item.path);
                 } else {
                   navigate(
                     `/details?title=${encodeURIComponent(item.name || '')}&path=${encodeURIComponent(item.path || '')}`
@@ -439,7 +471,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
                     checkbox that silently does nothing is worse than none.
                     The click must not bubble — the enclosing Card navigates.
                   */}
-                  {bulkMode && !item.is_dir && (
+                  {bulkMode && !item.isDirectory && (
                     <Checkbox
                       checked={selectedFiles.has(item.path)}
                       onClick={event => event.stopPropagation()}
@@ -450,7 +482,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
                     />
                   )}
                   <Box sx={{ mr: 2 }}>
-                    {item.is_dir ? (
+                    {item.isDirectory ? (
                       <FolderIcon color="primary" />
                     ) : (
                       <MovieIcon color="action" />
@@ -466,7 +498,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
                       </Typography>
                     )}
                   </Box>
-                  {!item.is_dir && (
+                  {!item.isDirectory && (
                     <IconButton size="small">
                       <MoreIcon />
                     </IconButton>
@@ -879,7 +911,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
                     // the active tab, so that tab is reachable with this button
                     // on screen and an unguarded .filter throws.
                     (getTabContent() || [])
-                      .filter(item => item && !item.is_dir && item.path)
+                      .filter(item => isMediaFile(item) && item.path)
                       .map(item => item.path)
                   )
                 )
@@ -933,7 +965,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
               <Link
                 component="button"
                 variant="body1"
-                onClick={() => loadDirectory('/')}
+                onClick={() => navigateToPath('/')}
                 underline="hover"
               >
                 Home
@@ -954,7 +986,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
                       key={path}
                       component="button"
                       variant="body1"
-                      onClick={() => loadDirectory(path)}
+                      onClick={() => navigateToPath(path)}
                       underline="hover"
                     >
                       {segment}
@@ -970,7 +1002,7 @@ export default function MediaLibrary({ backendAvailable = true }) {
               {getTabContent()
                 .filter(
                   item =>
-                    item.is_dir ||
+                    item.isDirectory ||
                     item.name?.match(/\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v)$/i)
                 )
                 .map(item => (

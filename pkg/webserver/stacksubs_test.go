@@ -1,5 +1,5 @@
 // file: pkg/webserver/stacksubs_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 2f7a6c05-4b91-4de8-83c2-90e5b71fa634
 // last-edited: 2026-08-11
 
@@ -70,7 +70,7 @@ func TestStackSubtitlesHandlerWritesBilingualFile(t *testing.T) {
 	dir, en, es := writeSubs(t)
 	out := filepath.Join(dir, "Episode.eo.srt")
 
-	rec := postStack(t, map[string]string{"primary": en, "secondary": es, "output": out})
+	rec := postStack(t, map[string]string{"primary": en, "secondary": es})
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (body %q)", rec.Code, rec.Body.String())
@@ -112,6 +112,32 @@ func TestStackSubtitlesHandlerDefaultsToSentinelOutput(t *testing.T) {
 	}
 	if _, err := os.Stat(want); err != nil {
 		t.Errorf("default output not written: %v", err)
+	}
+}
+
+// The write destination is derived from the primary, never from the caller.
+// CodeQL flagged the os.Create here as a path-injection sink when the request
+// carried an output path; the field was removed rather than annotated, because
+// this is a write and not a read-only stat like the other flagged sites.
+// An "output" in the body must therefore be inert, not honoured.
+func TestStackSubtitlesHandlerIgnoresCallerSuppliedOutput(t *testing.T) {
+	dir, en, es := writeSubs(t)
+	elsewhere := filepath.Join(t.TempDir(), "attacker-chosen.srt")
+
+	rec := postStack(t, map[string]string{
+		"primary":   en,
+		"secondary": es,
+		"output":    elsewhere,
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %q)", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(elsewhere); err == nil {
+		t.Fatal("caller-supplied output path was honoured; it must be ignored")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Episode.eo.srt")); err != nil {
+		t.Errorf("derived output not written: %v", err)
 	}
 }
 

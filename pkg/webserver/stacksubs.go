@@ -1,5 +1,5 @@
 // file: pkg/webserver/stacksubs.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 9e51cb27-6d04-4a83-bf15-70c9e2a4d386
 // last-edited: 2026-08-11
 
@@ -21,10 +21,15 @@ import (
 
 // stackRequest asks for two subtitles that already exist in the library to be
 // combined into one bilingual file.
+//
+// There is deliberately no caller-supplied output path. The destination is
+// always derived from the validated primary — same directory, same base name,
+// sentinel language tag, .srt — so this endpoint cannot be used to choose where
+// a file gets written. It is the only write here, and narrowing it to one
+// deterministic name is worth more than the flexibility.
 type stackRequest struct {
 	Primary   string `json:"primary"`
 	Secondary string `json:"secondary"`
-	Output    string `json:"output,omitempty"`
 }
 
 // stackResponse reports where the bilingual file was written.
@@ -75,12 +80,18 @@ func stackSubtitlesHandler() http.Handler {
 			return
 		}
 
-		outPath := req.Output
-		if strings.TrimSpace(outPath) == "" {
-			outPath = sentinelOutputPath(primary)
-		}
-		out, err := security.ValidateAndSanitizePath(outPath)
+		// Derived from the already-validated primary, never from the request,
+		// then re-validated so the constructed name is confined to the allowed
+		// base directories too.
+		out, err := security.ValidateAndSanitizePath(sentinelOutputPath(primary))
 		if err != nil {
+			http.Error(w, "invalid output path", http.StatusBadRequest)
+			return
+		}
+		// The write must land beside the subtitle it was built from. Any other
+		// directory means the derivation went wrong, and this is the one call
+		// here that creates a file.
+		if filepath.Dir(out) != filepath.Dir(primary) {
 			http.Error(w, "invalid output path", http.StatusBadRequest)
 			return
 		}

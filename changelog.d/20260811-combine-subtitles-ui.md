@@ -38,3 +38,16 @@ keyed on language saw two English tracks for one episode.
 actually generated. The trade is that a genuine Esperanto subtitle would be
 labelled the same way; that is much the rarer case, and `eo` is this product's
 documented sentinel.
+
+#### The stacking endpoint no longer accepts a caller-chosen output path
+
+CodeQL flagged the `os.Create` in the new handler as a path-injection sink: the
+destination came, in part, from the request body. The field was removed rather
+than annotated as a false positive, because this is the one call in the handler
+that *writes* a file — unlike the existing flagged sites in
+`subtitlepath.go`, which are read-only existence checks.
+
+The destination is now always derived from the already-validated primary
+subtitle — same directory, same base name, sentinel language tag, `.srt` — and
+re-validated, with an explicit check that it lands beside the file it was built
+from. An `output` field in the body is inert, which a test pins.

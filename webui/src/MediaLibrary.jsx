@@ -1,7 +1,7 @@
 // file: webui/src/MediaLibrary.jsx
-// version: 2.2.0
+// version: 2.3.0
 // guid: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
-// last-edited: 2026-08-10
+// last-edited: 2026-08-11
 // @ts-nocheck
 
 import {
@@ -32,6 +32,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   Grid,
   IconButton,
   InputLabel,
@@ -106,6 +107,12 @@ export default function MediaLibrary({ backendAvailable = true }) {
   const [languageProfiles, setLanguageProfiles] = useState([]);
   const [bulkProfileId, setBulkProfileId] = useState('');
   const [bulkResult, setBulkResult] = useState(null);
+  // Combine (bilingual "double subs"): which subtitles are ticked per media
+  // file, keyed by the file's path. Selection ORDER is meaningful — the first
+  // pick becomes the primary language and renders on top of the stacked cue.
+  const [subtitleSelection, setSubtitleSelection] = useState({});
+  const [combineResult, setCombineResult] = useState(null);
+  const [combineError, setCombineError] = useState(null);
   const navigate = useNavigate();
 
   // Fetch poster and basic details from OMDb
@@ -504,6 +511,67 @@ export default function MediaLibrary({ backendAvailable = true }) {
                     </IconButton>
                   )}
                 </Box>
+
+                {/*
+                  The browse endpoint has always reported each media file's
+                  sidecars; the UI simply never showed them. Ticking two and
+                  pressing Combine produces a bilingual "double subs" file.
+                  Clicks must not bubble — the enclosing Card navigates.
+                */}
+                {!item.isDirectory && item.subtitles?.length > 0 && (
+                  <Box sx={{ pl: 5, pt: 1 }} onClick={e => e.stopPropagation()}>
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      flexWrap="wrap"
+                      gap={1}
+                    >
+                      {item.subtitles.map(subtitle => (
+                        <FormControlLabel
+                          key={subtitle.path}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={(
+                                subtitleSelection[item.path] || []
+                              ).includes(subtitle.path)}
+                              onChange={() =>
+                                toggleSubtitleSelection(
+                                  item.path,
+                                  subtitle.path
+                                )
+                              }
+                              inputProps={{
+                                'aria-label': `Select subtitle ${subtitle.language}`,
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="body2">
+                              {subtitle.language}
+                            </Typography>
+                          }
+                        />
+                      ))}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        aria-label={`Combine subtitles for ${item.name}`}
+                        disabled={
+                          (subtitleSelection[item.path] || []).length !== 2
+                        }
+                        onClick={() => combineSubtitles(item)}
+                      >
+                        Combine
+                      </Button>
+                    </Box>
+                    {(subtitleSelection[item.path] || []).length === 2 && (
+                      <Typography variant="caption" color="text.secondary">
+                        First pick renders on top of each cue.
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -558,6 +626,63 @@ export default function MediaLibrary({ backendAvailable = true }) {
       setError('Failed to resync from external services');
     } finally {
       setProgress(null);
+    }
+  };
+
+  /**
+   * Tick or untick one of a media file's subtitles.
+   *
+   * Order is preserved rather than sorted: the first subtitle picked is sent as
+   * the primary and renders on top of each stacked cue, so re-ordering the
+   * selection would silently change the output.
+   *
+   * @param {string} filePath - Path of the media file the subtitle belongs to.
+   * @param {string} subPath - Path of the subtitle being toggled.
+   */
+  const toggleSubtitleSelection = (filePath, subPath) => {
+    setSubtitleSelection(prev => {
+      const current = prev[filePath] || [];
+      const next = current.includes(subPath)
+        ? current.filter(p => p !== subPath)
+        : [...current, subPath];
+      return { ...prev, [filePath]: next };
+    });
+  };
+
+  /**
+   * Combine the two selected subtitles into one bilingual file.
+   *
+   * Both languages must already exist on disk — this does not translate, so no
+   * translation service is involved. The server picks the sentinel-language
+   * output name so media servers treat the result as a distinct track.
+   *
+   * @param {Object} item - The media file whose subtitles are selected.
+   */
+  const combineSubtitles = async item => {
+    const selected = subtitleSelection[item.path] || [];
+    if (selected.length !== 2) return;
+
+    setCombineError(null);
+    setCombineResult(null);
+    try {
+      const response = await apiFetch('/api/subtitles/stack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primary: selected[0], secondary: selected[1] }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCombineResult(`Combined into ${data.output}`);
+        setSubtitleSelection(prev => ({ ...prev, [item.path]: [] }));
+        await loadCurrentDirectory();
+      } else {
+        // A silent failure here would look exactly like success, which is the
+        // recurring defect elsewhere in this UI.
+        const detail = await response.text();
+        setCombineError(detail.trim() || `Combine failed (${response.status})`);
+      }
+    } catch (error) {
+      setCombineError(error.message);
     }
   };
 
@@ -759,6 +884,26 @@ export default function MediaLibrary({ backendAvailable = true }) {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {combineError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 3 }}
+          onClose={() => setCombineError(null)}
+        >
+          {combineError}
+        </Alert>
+      )}
+
+      {combineResult && (
+        <Alert
+          severity="success"
+          sx={{ mb: 3 }}
+          onClose={() => setCombineResult(null)}
+        >
+          {combineResult}
         </Alert>
       )}
 

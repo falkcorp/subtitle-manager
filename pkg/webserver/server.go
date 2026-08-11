@@ -285,6 +285,9 @@ func newMux(db *sql.DB) (*http.ServeMux, string, error) {
 	mux.Handle(prefix+"/api/library/search", authMiddleware(db, "basic", librarySearchHandler()))
 	mux.Handle(prefix+"/api/library/search/status", authMiddleware(db, "basic", librarySearchStatusHandler()))
 	mux.Handle(prefix+"/api/dualsub", authMiddleware(db, "basic", dualSubHandler()))
+	// Combines two subtitles already in the library. Distinct from /api/dualsub,
+	// which uploads one file and machine-translates it.
+	mux.Handle(prefix+"/api/subtitles/stack", authMiddleware(db, "basic", stackSubtitlesHandler()))
 	mux.Handle(prefix+"/api/verify", authMiddleware(db, "basic", verifyHandler()))
 	mux.Handle(prefix+"/api/widgets", authMiddleware(db, "basic", widgetsListHandler()))
 	mux.Handle(prefix+"/api/widgets/layout", authMiddleware(db, "basic", dashboardLayoutHandler(db)))
@@ -1394,6 +1397,13 @@ func isSubtitleFile(ext string) bool {
 // defaultLanguagePatterns contains the built-in language codes used for filename
 // detection. Additional languages can be configured via SetLanguagePatterns.
 var defaultLanguagePatterns = map[string]string{
+	// `eo` is this product's sentinel for a generated bilingual "double subs"
+	// file, not a genuine Esperanto track — see cmd/dualsub.go, which picks an
+	// unused language so Plex/Jellyfin/Emby list the result as a distinct
+	// track. Reporting it as "Bilingual" rather than "Esperanto" tells the user
+	// what the file actually is; the trade is that a real Esperanto subtitle
+	// would be mislabelled, which is the rarer case by a wide margin.
+	"eo":      "Bilingual (double subs)",
 	"en":      "English",
 	"es":      "Spanish",
 	"fr":      "French",

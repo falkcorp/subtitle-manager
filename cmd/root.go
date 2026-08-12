@@ -1,6 +1,7 @@
 // file: cmd/root.go
-// version: 1.0.2
+// version: 1.1.0
 // guid: 537af48f-4b60-44b5-a4a1-76a2616b9ccb
+// last-edited: 2026-08-12
 // Package cmd implements the CLI commands for subtitle-manager.
 // It provides the root command and subcommands for all user-facing operations.
 //
@@ -267,9 +268,6 @@ func initConfig() {
 	viper.SetDefault("whisper.device", "cuda")
 	viper.SetDefault("whisper.use_gpu", true)
 	viper.SetDefault("log_file", "/config/logs/subtitle-manager.log")
-	// Enable embedded subtitle provider by default so users can start
-	// extracting subtitles without additional configuration.
-	viper.SetDefault("providers.embedded.enabled", true)
 	viper.SetDefault("plex.url", "http://localhost:32400")
 	viper.SetDefault("plex.token", "")
 	viper.SetDefault("server_name", "Subtitle Manager")

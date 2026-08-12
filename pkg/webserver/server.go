@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.9.0
+// version: 1.10.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-08-12
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -620,6 +621,34 @@ func logoutHandler(db *sql.DB) http.Handler {
 // GET requests return the current configuration as JSON. POST requests accept a
 // JSON body of key/value pairs which are written into Viper and persisted to the
 // config file if one is in use.
+// writeOperatorConfig persists vals into the config file at path, preserving
+// whatever is already there and adding nothing else.
+//
+// It exists because viper.WriteConfig serialises viper.AllSettings(), which
+// merges in every default. Saving a single unrelated setting therefore used to
+// bake defaults into the operator's file — including provider enablement, where
+// it is actively harmful: pkg/providers/config.go reads enablement with
+// viper.InConfig specifically so that a default cannot enable a provider, and
+// writing the default into the file defeated that from the other end. The
+// result was subtitle search silently collapsing to a single provider.
+//
+// A fresh viper instance carries no defaults, so what it writes back is exactly
+// the previous file contents plus the keys the operator actually submitted.
+func writeOperatorConfig(path string, vals map[string]any) error {
+	v := viper.New()
+	v.SetConfigFile(path)
+	// A missing file is fine — the first save creates it. Any other read error
+	// means the existing config is unreadable, and overwriting it would discard
+	// settings we failed to parse.
+	if err := v.ReadInConfig(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("reading existing config %s: %w", path, err)
+	}
+	for k, val := range vals {
+		v.Set(k, val)
+	}
+	return v.WriteConfig()
+}
+
 func configHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -636,11 +665,26 @@ func configHandler() http.Handler {
 				viper.Set(k, v)
 			}
 			if cfg := viper.ConfigFileUsed(); cfg != "" {
-				if err := viper.WriteConfig(); err != nil {
+				if err := writeOperatorConfig(cfg, vals); err != nil {
+					logging.GetLogger("webserver").Errorf("failed to write config: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				// Re-read so the values just written reach viper's *config*
+				// layer. viper.Set only populates the override layer, and
+				// provider enablement is deliberately read with viper.InConfig
+				// (see pkg/providers/config.go) — so without this the setting
+				// is saved, visible in GET /api/config, and still invisible to
+				// the code that consumes it until the next restart.
+				if err := viper.ReadInConfig(); err != nil {
+					logging.GetLogger("webserver").Errorf("failed to re-read config: %v", err)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 			}
+			// Apply provider changes to the running process. Without this,
+			// toggling a provider in the UI did nothing until a restart.
+			providers.LoadFromConfig()
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)

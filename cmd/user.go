@@ -1,10 +1,14 @@
+// file: cmd/user.go
+// version: 1.0.0
+// guid: da91d023-084b-4dad-893b-8cc77b9f7fcc
+// last-edited: 2026-08-12
+
 package cmd
 
 import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/jdfalk/subtitle-manager/pkg/database"
 	auth "github.com/jdfalk/subtitle-manager/pkg/gcommonauth"
@@ -19,7 +23,7 @@ var userListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all users",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -42,7 +46,7 @@ var userRoleCmd = &cobra.Command{
 	Short: "Set user role",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		username, role := args[0], args[1]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -57,7 +61,7 @@ var userAddCmd = &cobra.Command{
 	Short: "Create user",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		username, email, password := args[0], args[1], args[2]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -72,7 +76,7 @@ var apiKeyCmd = &cobra.Command{
 	Short: "Generate API key for user",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		username := args[0]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -97,7 +101,7 @@ var userTokenCmd = &cobra.Command{
 	Short: "Generate one time login token",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email := args[0]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -122,7 +126,7 @@ var loginCmd = &cobra.Command{
 	Short: "Authenticate and get session token",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		username, password := args[0], args[1]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}
@@ -146,7 +150,7 @@ var loginTokenCmd = &cobra.Command{
 	Short: "Authenticate using a one time token",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		t := args[0]
-		db, err := database.Open(viper.GetString("db_path"))
+		db, err := database.Open(database.GetAuthDatabasePath())
 		if err != nil {
 			return err
 		}

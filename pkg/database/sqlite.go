@@ -1,5 +1,5 @@
 // file: pkg/database/sqlite.go
-// version: 2.0.0
+// version: 2.1.0
 // guid: 7e6f5a4b-3c2d-8e7f-1a0b-4c3d2e1f0a9b
 // last-edited: 2026-08-12
 
@@ -32,9 +32,35 @@ func HasSQLite() bool {
 	return true
 }
 
+// busyTimeout is how long a connection waits for the write lock before giving
+// up with SQLITE_BUSY.
+//
+// modernc.org/sqlite defaults this to 0, which means "fail immediately". That
+// is the wrong default for a server: database/sql hands out a *pool* of
+// connections, so ordinary single-process operation has several connections
+// contending for one write lock. Without this, `web --db-backend sqlite` logs
+//
+//	selftest database ping failed: database is locked (5) (SQLITE_BUSY)
+//
+// whenever the selftest ping lands while schema seeding still holds the lock.
+const busyTimeout = 5000
+
+// sqliteDSN attaches the pragmas the server needs to a database path.
+//
+// The driver accepts query parameters on a plain filename, not just on a
+// file: URI, and strips them before opening the file — so ":memory:" and
+// ordinary paths both work unchanged.
+func sqliteDSN(path string) string {
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	return fmt.Sprintf("%s%s_pragma=busy_timeout(%d)", path, sep, busyTimeout)
+}
+
 // OpenSQLStore opens or creates an SQLite database and returns a SQLStore.
 func OpenSQLStore(path string) (*SQLStore, error) {
-	db, err := sql.Open(sqliteDriver, path)
+	db, err := sql.Open(sqliteDriver, sqliteDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database at %s: %w", path, err)
 	}

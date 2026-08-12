@@ -1,13 +1,15 @@
 // file: pkg/database/puregosqlite_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 2f8c41ab-9d63-4e07-85b1-6c0fa3d29e74
 // last-edited: 2026-08-12
 
 package database
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -83,6 +85,84 @@ func TestPureGoSQLiteAppliesSchema(t *testing.T) {
 	}
 	if profiles == 0 {
 		t.Error("language_profiles is empty; the default profile was not seeded")
+	}
+}
+
+// TestPureGoSQLiteBusyTimeoutIsSet guards against SQLITE_BUSY under concurrent
+// access. modernc.org/sqlite defaults busy_timeout to 0, meaning a connection
+// that finds the write lock held fails immediately instead of waiting. That is
+// not theoretical: `web --db-backend sqlite` logged
+//
+//	selftest database ping failed: database is locked (5) (SQLITE_BUSY)
+//
+// on a loaded machine, because database/sql keeps a connection *pool* and the
+// selftest pinged on a second connection while schema seeding still held the
+// write lock on the first.
+//
+// This asserts the effective pragma rather than the DSN string. A DSN the
+// driver does not understand is silently ignored, so checking that we passed
+// the option would pass while the setting had no effect.
+func TestPureGoSQLiteBusyTimeoutIsSet(t *testing.T) {
+	for _, path := range []string{filepath.Join(t.TempDir(), "auth.db"), ":memory:"} {
+		t.Run(path, func(t *testing.T) {
+			db, err := Open(path)
+			if err != nil {
+				t.Fatalf("Open(%q): %v", path, err)
+			}
+			defer db.Close()
+
+			var timeout int
+			if err := db.QueryRow(`PRAGMA busy_timeout`).Scan(&timeout); err != nil {
+				t.Fatalf("reading busy_timeout: %v", err)
+			}
+			if timeout <= 0 {
+				t.Errorf("busy_timeout = %d, want > 0; concurrent writers will fail instantly with SQLITE_BUSY", timeout)
+			}
+		})
+	}
+}
+
+// TestPureGoSQLiteConcurrentWriters exercises the pool the way the running
+// server does: several goroutines writing through one *sql.DB. Without a busy
+// timeout this surfaces "database is locked" instead of serialising.
+func TestPureGoSQLiteConcurrentWriters(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "auth.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	const writers = 8
+	errs := make(chan error, writers)
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				_, err := db.Exec(
+					`INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now'))`,
+					fmt.Sprintf("user-%d-%d", n, j), "hash", "user",
+				)
+				if err != nil {
+					errs <- err
+					return
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("concurrent write failed: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
+		t.Fatalf("counting users: %v", err)
+	}
+	if want := writers * 20; count != want {
+		t.Errorf("wrote %d rows, want %d", count, want)
 	}
 }
 

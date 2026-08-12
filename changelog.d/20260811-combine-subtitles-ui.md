@@ -51,3 +51,7 @@ The destination is now always derived from the already-validated primary
 subtitle — same directory, same base name, sentinel language tag, `.srt` — and
 re-validated, with an explicit check that it lands beside the file it was built
 from. An `output` field in the body is inert, which a test pins.
+
+The write itself now goes through an `os.Root` rooted at the primary's
+directory, so the confinement is enforced by the OS rather than by our own
+string comparisons.

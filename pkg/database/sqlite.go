@@ -1,9 +1,7 @@
-//go:build sqlite
-// +build sqlite
-
-// file: pkg/database/sqlite_enabled.go
-// version: 1.1.0
+// file: pkg/database/sqlite.go
+// version: 2.0.0
 // guid: 7e6f5a4b-3c2d-8e7f-1a0b-4c3d2e1f0a9b
+// last-edited: 2026-08-12
 
 package database
 
@@ -11,12 +9,32 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	// Pure-Go SQLite driver. Registers itself as "sqlite" (note: not "sqlite3",
+	// which was the CGO mattn/go-sqlite3 name this replaced).
+	//
+	// SQLite is compiled in unconditionally. It used to sit behind a `sqlite`
+	// build tag that required CGO, which meant every published release binary —
+	// built with CGO_ENABLED=0 — could not open the auth database and so refused
+	// to start the web server at all. Only the Docker image worked, because the
+	// Dockerfile passed the tag.
+	_ "modernc.org/sqlite"
 )
 
+// sqliteDriver is the database/sql driver name registered by modernc.org/sqlite.
+const sqliteDriver = "sqlite"
+
+// HasSQLite reports whether the binary was built with SQLite support.
+//
+// Always true. Kept as a function rather than removed because callers use it to
+// decide whether the SQLite backend is selectable; it is now a constant answer.
+func HasSQLite() bool {
+	return true
+}
+
 // OpenSQLStore opens or creates an SQLite database and returns a SQLStore.
-// This function is only available when building with the 'sqlite' tag.
 func OpenSQLStore(path string) (*SQLStore, error) {
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(sqliteDriver, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database at %s: %w", path, err)
 	}
@@ -27,7 +45,6 @@ func OpenSQLStore(path string) (*SQLStore, error) {
 }
 
 // Open maintains backward compatibility by returning the raw *sql.DB.
-// This function is only available when building with the 'sqlite' tag.
 func Open(path string) (*sql.DB, error) {
 	s, err := OpenSQLStore(path)
 	if err != nil {

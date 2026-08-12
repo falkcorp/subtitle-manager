@@ -1,5 +1,6 @@
 <!-- file: README.md -->
-<!-- version: 1.0.2 -->
+<!-- version: 1.1.0 -->
+<!-- last-edited: 2026-08-12 -->
 <!-- guid: 2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e -->
 
 # Subtitle Manager
@@ -388,40 +389,26 @@ and deployment tasks:
 The Makefile handles dependency resolution, web UI building, Go compilation,
 testing, Docker builds, and more.
 
-### Database Backend Build Options
+### Database Backends
 
-Subtitle Manager supports multiple database backends that can be selected at
-build time:
-
-#### Pure Go Build (Default)
+Subtitle Manager supports two database backends. **The choice is made at
+runtime, not at build time** — there are no build tags and no CGO.
 
 ```bash
-# Build without CGO dependencies (uses PebbleDB)
-go build -tags nosqlite .
+# One build, every backend, every platform
+CGO_ENABLED=0 go build .
 ```
 
-- **No CGO required** - Fully portable binary
-- **PebbleDB backend** - High-performance embedded key-value store
-- **All features supported** - Authentication, sessions, tags, permissions, etc.
-- **Smaller binary size** - No SQLite dependencies
+- **PebbleDB** - high-performance embedded key-value store; the default
+- **SQLite** - traditional SQL, via the pure-Go `modernc.org/sqlite` driver;
+  full SQL querying and migration from existing databases
 
-#### SQLite Build (CGO Required)
+Select one with the `db_backend` setting (`pebble` or `sqlite`).
 
-```bash
-# Build with SQLite support (requires CGO)
-go build -tags sqlite .
-```
-
-- **CGO required** - Needs C compiler and SQLite libraries
-- **SQLite backend** - Traditional SQL database
-- **Full SQL querying** - Standard SQL operations available
-- **Migration support** - Can migrate from existing SQLite databases
-
-#### Build Tag Summary
-
-- **No tags or `-tags nosqlite`**: Pure Go build with PebbleDB (recommended)
-- **`-tags sqlite`**: CGO build with SQLite support
-- **Tests**: Run `go test -tags nosqlite` or `go test -tags sqlite` respectively
+> **Note:** the `sqlite` and `nosqlite` build tags were removed. They required
+> CGO, which meant binaries built the way releases are built could not open the
+> authentication database and refused to start the web server at all. Passing
+> `-tags sqlite` today is a harmless no-op. Run tests with plain `go test ./...`.
 
 Both backends provide identical functionality for all user-facing features
 including authentication, session management, API keys, dashboard preferences,
@@ -1486,40 +1473,26 @@ and deployment tasks:
 The Makefile handles dependency resolution, web UI building, Go compilation,
 testing, Docker builds, and more.
 
-### Database Backend Build Options
+### Database Backends
 
-Subtitle Manager supports multiple database backends that can be selected at
-build time:
-
-#### Pure Go Build (Default)
+Subtitle Manager supports two database backends. **The choice is made at
+runtime, not at build time** — there are no build tags and no CGO.
 
 ```bash
-# Build without CGO dependencies (uses PebbleDB)
-go build -tags nosqlite .
+# One build, every backend, every platform
+CGO_ENABLED=0 go build .
 ```
 
-- **No CGO required** - Fully portable binary
-- **PebbleDB backend** - High-performance embedded key-value store
-- **All features supported** - Authentication, sessions, tags, permissions, etc.
-- **Smaller binary size** - No SQLite dependencies
+- **PebbleDB** - high-performance embedded key-value store; the default
+- **SQLite** - traditional SQL, via the pure-Go `modernc.org/sqlite` driver;
+  full SQL querying and migration from existing databases
 
-#### SQLite Build (CGO Required)
+Select one with the `db_backend` setting (`pebble` or `sqlite`).
 
-```bash
-# Build with SQLite support (requires CGO)
-go build -tags sqlite .
-```
-
-- **CGO required** - Needs C compiler and SQLite libraries
-- **SQLite backend** - Traditional SQL database
-- **Full SQL querying** - Standard SQL operations available
-- **Migration support** - Can migrate from existing SQLite databases
-
-#### Build Tag Summary
-
-- **No tags or `-tags nosqlite`**: Pure Go build with PebbleDB (recommended)
-- **`-tags sqlite`**: CGO build with SQLite support
-- **Tests**: Run `go test -tags nosqlite` or `go test -tags sqlite` respectively
+> **Note:** the `sqlite` and `nosqlite` build tags were removed. They required
+> CGO, which meant binaries built the way releases are built could not open the
+> authentication database and refused to start the web server at all. Passing
+> `-tags sqlite` today is a harmless no-op. Run tests with plain `go test ./...`.
 
 Both backends provide identical functionality for all user-facing features
 including authentication, session management, API keys, dashboard preferences,

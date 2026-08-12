@@ -1,8 +1,14 @@
-// file: docs/DATABASE_TESTING_ARCHITECTURE.md
-// version: 1.0.0
-// guid: 2b3c4d5e-6f78-9012-3456-789012345678
+<!-- file: docs/DATABASE_TESTING_ARCHITECTURE.md -->
+<!-- version: 2.0.0 -->
+<!-- guid: 2b3c4d5e-6f78-9012-3456-789012345678 -->
+<!-- last-edited: 2026-08-12 -->
 
-# Database Testing Architecture: CGO vs Pure Go Builds
+# Database Testing Architecture
+
+> **Changed 2026-08-12.** This document used to describe two build modes, CGO
+> and pure Go, gated by a `sqlite` build tag. There is now one build. SQLite
+> comes from the pure-Go `modernc.org/sqlite` driver and is compiled into every
+> binary; backends are selected at runtime with `db_backend`.
 
 ## Overview
 
@@ -55,8 +61,8 @@ func OpenStore(path, backend string) (SubtitleStore, error) {
 - Handles expected failures gracefully
 
 **Test Matrix**:
-- **CGO Build** (`go build -tags sqlite`): Tests SQLite + Pebble
-- **Pure Go Build** (`go build`): Tests only Pebble, expects SQLite failure
+- **Every build** (`CGO_ENABLED=0 go build`): Tests SQLite + Pebble.
+  `HasSQLite()` is now always true, so no backend is skipped.
 
 ### 2. Interface Compatibility Tests (`TestSubtitleStoreInterface`)
 
@@ -78,17 +84,16 @@ func OpenStore(path, backend string) (SubtitleStore, error) {
 
 ## Implementation Details
 
-### CGO-Enabled Testing
+### Testing
 
-When building with CGO support:
 ```bash
-go test -tags sqlite ./pkg/database -v
+CGO_ENABLED=0 go test ./pkg/database -v
 ```
 
 **Expected behavior**:
 - SQLite backend works with `:memory:` or file paths
 - Pebble backend works normally
-- PostgreSQL fails with connection errors (expected)
+- PostgreSQL fails with connection errors (expected, unless a server is present)
 
 ### Pure Go Testing
 
@@ -126,31 +131,27 @@ go test ./pkg/database -v
 
 ## Usage Examples
 
-### Testing with SQLite Support
+### Testing
 ```bash
-# Enable CGO and SQLite driver
-go build -tags sqlite
-go test -tags sqlite ./pkg/database -v -run TestBackendSelection
-```
-
-### Testing Pure Go Build
-```bash
-# Disable CGO for pure Go compatibility
 CGO_ENABLED=0 go build
-go test ./pkg/database -v -run TestBackendSelection
+CGO_ENABLED=0 go test ./pkg/database -v -run TestBackendSelection
 ```
 
 ### Continuous Integration
 ```bash
-# Test both configurations in CI
-go test ./pkg/database -v                    # Pure Go
-go test -tags sqlite ./pkg/database -v      # CGO enabled
+go test ./pkg/database -v
 ```
+
+### Guarding the release-binary regression
+`TestPureGoSQLite*` in `pkg/database/puregosqlite_test.go` is deliberately not
+gated behind `HasSQLite()`. Every other SQLite test in the package skips itself
+when SQLite is unavailable — which is exactly how the suite stayed green while
+no published binary could start the web server. Do not add a skip guard to it.
 
 ## Key Benefits
 
-1. **Build Flexibility**: Supports both CGO and pure Go deployments
-2. **Clear Error Messages**: Users understand why SQLite isn't available
+1. **One Build**: a single CGO-free binary serves every backend and platform
+2. **No Silent Skips**: `HasSQLite()` is always true, so SQLite tests run
 3. **Automatic Fallback**: Tests use best available backend automatically
 4. **Comprehensive Coverage**: All interface methods tested across backends
 5. **CI-Friendly**: Tests work in both local and CI environments

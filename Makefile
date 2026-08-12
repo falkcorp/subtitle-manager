@@ -18,7 +18,7 @@ PLATFORMS := linux/amd64,linux/arm64
 # Go Build Flags
 LDFLAGS := -ldflags="-s -w -X 'main.Version=$(VERSION)' -X 'main.BuildTime=$(BUILD_TIME)' -X 'main.GitCommit=$(GIT_COMMIT)'"
 GO_BUILD_FLAGS := -v $(LDFLAGS)
-CGO_ENABLED := 1
+CGO_ENABLED := 0
 
 # Directories
 WEBUI_DIR := ./webui
@@ -56,7 +56,7 @@ help: ## Show this help message
 	@echo "  make docker             # Build Docker image (includes protobuf generation)"
 	@echo "  make proto-gen          # Generate protobuf code only"
 	@echo "  make test-all           # Run all tests"
-	@echo "  make test-all-sqlite    # Run all tests with SQLite support"
+	@echo "  make test-race          # Run all tests with race detection"
 	@echo "  make clean-all          # Clean everything"
 
 #
@@ -87,12 +87,9 @@ build-static: ## Build static binary (no CGO)
 	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o $(BINARY_PATH)-static .
 
-.PHONY: build-sqlite
-build-sqlite: webui-build go-generate ## Build binary with SQLite support for web server
-	@echo "$(COLOR_BLUE)Building with SQLite support for web server...$(COLOR_RESET)"
-	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=1 go build -tags sqlite $(GO_BUILD_FLAGS) -o $(BINARY_PATH)-sqlite .
-	@echo "$(COLOR_GREEN)✓ Binary with SQLite support built: $(BINARY_PATH)-sqlite$(COLOR_RESET)"
+# build-sqlite was removed: SQLite is now compiled into every build via the
+# pure-Go modernc.org/sqlite driver, so `make build` produces a binary that can
+# serve the web UI on any platform. Use `make build`.
 
 .PHONY: build-all-platforms
 build-all-platforms: ## Build for multiple platforms
@@ -203,20 +200,10 @@ test: ## Run Go tests
 	@echo "$(COLOR_BLUE)Running Go tests...$(COLOR_RESET)"
 	GOTOOLCHAIN=local go test -v ./...
 
-.PHONY: test-sqlite
-test-sqlite: ## Run Go tests with SQLite support enabled
-	@echo "$(COLOR_BLUE)Running Go tests with SQLite support...$(COLOR_RESET)"
-	GOTOOLCHAIN=local CGO_ENABLED=1 go test -tags sqlite -v ./...
-
 .PHONY: test-race
 test-race: ## Run Go tests with race detection
 	@echo "$(COLOR_BLUE)Running Go tests with race detection...$(COLOR_RESET)"
 	GOTOOLCHAIN=local go test -race -v ./...
-
-.PHONY: test-race-sqlite
-test-race-sqlite: ## Run Go tests with race detection and SQLite support
-	@echo "$(COLOR_BLUE)Running Go tests with race detection and SQLite support...$(COLOR_RESET)"
-	GOTOOLCHAIN=local CGO_ENABLED=1 go test -tags sqlite -race -v ./...
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage
@@ -225,28 +212,13 @@ test-coverage: ## Run tests with coverage
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "$(COLOR_GREEN)✓ Coverage report generated: coverage.html$(COLOR_RESET)"
 
-.PHONY: test-coverage-sqlite
-test-coverage-sqlite: ## Run tests with coverage and SQLite support
-	@echo "$(COLOR_BLUE)Running tests with coverage and SQLite support...$(COLOR_RESET)"
-	GOTOOLCHAIN=local CGO_ENABLED=1 go test -tags sqlite -coverprofile=coverage.out -v ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "$(COLOR_GREEN)✓ Coverage report generated: coverage.html$(COLOR_RESET)"
-
 .PHONY: test-all
 test-all: test webui-test ## Run all tests (Go + Web UI)
 	@echo "$(COLOR_GREEN)✓ All tests completed$(COLOR_RESET)"
 
-.PHONY: test-all-sqlite
-test-all-sqlite: test-sqlite webui-test ## Run all tests with SQLite support (Go + Web UI)
-	@echo "$(COLOR_GREEN)✓ All tests with SQLite support completed$(COLOR_RESET)"
-
 .PHONY: test-e2e-all
 test-e2e-all: test-race webui-test-e2e ## Run all tests including E2E
 	@echo "$(COLOR_GREEN)✓ All tests including E2E completed$(COLOR_RESET)"
-
-.PHONY: test-e2e-all-sqlite
-test-e2e-all-sqlite: test-race-sqlite webui-test-e2e ## Run all tests including E2E with SQLite support
-	@echo "$(COLOR_GREEN)✓ All tests including E2E with SQLite support completed$(COLOR_RESET)"
 
 #
 # Docker Targets
@@ -686,14 +658,9 @@ test-binary: binary ## Test that the binary works correctly
 	@echo "$(COLOR_GREEN)✓ Binary test passed$(COLOR_RESET)"
 
 .PHONY: run-web
-run-web: binary ## Build and run the web server
+run-web: build ## Build and run the web server
 	@echo "$(COLOR_BLUE)Starting web server...$(COLOR_RESET)"
 	$(BINARY_PATH) web
-
-.PHONY: run-web-sqlite
-run-web-sqlite: build-sqlite ## Build with SQLite support and run the web server
-	@echo "$(COLOR_BLUE)Starting web server with SQLite support...$(COLOR_RESET)"
-	$(BINARY_PATH)-sqlite web
 
 .PHONY: check-cgo
 check-cgo: ## Check if CGO is properly configured

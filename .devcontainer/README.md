@@ -1,3 +1,8 @@
+<!-- file: .devcontainer/README.md -->
+<!-- version: 1.0.0 -->
+<!-- guid: 2a352a51-01b6-4731-9cb6-fedc6932c523 -->
+<!-- last-edited: 2026-08-12 -->
+
 # Development Container
 
 This directory contains the development container configuration for Subtitle
@@ -82,8 +87,8 @@ golangci-lint run
 # Generate code (embeds web UI assets)
 go generate ./webui
 
-# Build with SQLite support
-CGO_ENABLED=1 go build -tags=sqlite
+# Build (SQLite included; no CGO, no build tags)
+CGO_ENABLED=0 go build
 ```
 
 ## Port Forwarding

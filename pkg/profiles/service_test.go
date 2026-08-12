@@ -1,5 +1,6 @@
 // file: pkg/profiles/service_test.go
-// version: 1.0.0
+// version: 1.1.0
+// last-edited: 2026-08-12
 // guid: d5e6f7a8-9b0c-1d2e-3f4a-5b6c7d8e9f0a
 
 package profiles
@@ -8,12 +9,12 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func TestServiceIntegration(t *testing.T) {
 	// Skip if SQLite not available
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Skip("SQLite not available")
 	}

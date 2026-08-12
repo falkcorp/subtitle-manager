@@ -1,7 +1,7 @@
 // file: pkg/webserver/system.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 37c23ec8-b8b9-4086-be5c-8058fee3fd54
-// last-edited: 2026-08-04
+// last-edited: 2026-08-12
 
 package webserver
 
@@ -115,7 +115,12 @@ func startTaskHandler() http.Handler {
 			return nil
 		})
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(t)
+		// Encode a snapshot, never the live *Task. tasks.Start has already
+		// launched the goroutine above, which mutates Status/Progress/Error
+		// under the task's mutex; marshalling the Task itself reads those
+		// fields by reflection with no lock held, which is a data race.
+		// GetSnapshot exists for exactly this.
+		_ = json.NewEncoder(w).Encode(t.GetSnapshot())
 	})
 }
 

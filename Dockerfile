@@ -1,4 +1,7 @@
 # file: Dockerfile
+# version: 1.0.0
+# guid: 5ca1a82d-6cec-4d76-bdee-fe3e655c7c37
+# last-edited: 2026-08-12
 # Optimized multi-stage Dockerfile to reduce build times from ~20min to ~3-5min
 
 # Stage 1: Node.js build stage (can be cached separately)
@@ -52,16 +55,15 @@ COPY --from=node-builder /src/webui/dist ./webui/dist
 # Note: No need to run 'go generate ./webui' since we already have the dist directory
 # The embed.go file will automatically embed the dist directory during go build
 
-# Build the application with version information
-# Use conditional CGO and build tags based on target architecture
+# Build the application with version information.
+#
+# One pure-Go build for every architecture. This used to branch on TARGETARCH:
+# amd64 got CGO + `-tags=sqlite`, arm64 got neither — which meant the arm64
+# image could not open the auth database and refused to start the web server at
+# all. SQLite now comes from the pure-Go modernc.org/sqlite driver, so CGO is
+# not needed and both architectures build identically.
 ARG TARGETARCH
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-    echo "Building for ARM64 with pure Go (no CGO)" && \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" -o subtitle-manager ./; \
-    else \
-    echo "Building for AMD64 with CGO and SQLite support" && \
-    CGO_ENABLED=1 go build -tags=sqlite -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" -o subtitle-manager ./; \
-    fi
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" -o subtitle-manager ./
 
 # Stage 4: Final runtime image
 FROM golang:1.26.5-bookworm AS final

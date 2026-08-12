@@ -1,5 +1,6 @@
 // file: pkg/database/backend_selection_test.go
-// version: 1.0.0
+// version: 1.1.0
+// last-edited: 2026-08-12
 // guid: 1a2b3c4d-5e6f-7890-1234-567890abcdef
 
 package database
@@ -110,19 +111,12 @@ func TestBackendSelectionAndCGOSupport(t *testing.T) {
 	})
 
 	t.Run("Build instructions validation", func(t *testing.T) {
-		// Test that demonstrates proper build instructions
-		if HasSQLite() {
-			t.Log("✓ CGO Build Detected:")
-			t.Log("  - Built with: go build -tags sqlite")
-			t.Log("  - Or with: CGO_ENABLED=1 go build -tags sqlite")
-			t.Log("  - SQLite driver available: github.com/mattn/go-sqlite3")
-		} else {
-			t.Log("✓ Pure Go Build Detected:")
-			t.Log("  - Built with: go build (no sqlite tag)")
-			t.Log("  - Or with: CGO_ENABLED=0 go build")
-			t.Log("  - Using Pebble database for pure Go compatibility")
-			t.Log("  - To enable SQLite: go build -tags sqlite")
-		}
+		// There is one build configuration now; HasSQLite() is always true.
+		require.True(t, HasSQLite(), "SQLite must be available in every build")
+		t.Log("✓ Pure Go build:")
+		t.Log("  - Built with: CGO_ENABLED=0 go build (no build tags)")
+		t.Log("  - SQLite driver: modernc.org/sqlite (pure Go)")
+		t.Log("  - Both SQLite and Pebble backends available, chosen via db_backend")
 	})
 }
 

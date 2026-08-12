@@ -1,5 +1,6 @@
 <!-- file: systemd/README.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 1.1.0 -->
+<!-- last-edited: 2026-08-12 -->
 <!-- guid: 789e1234-e89b-12d3-a456-426614174002 -->
 
 # Systemd Service Installation Guide
@@ -82,10 +83,7 @@ sudo chmod +x /usr/local/bin/subtitle-manager
 git clone https://github.com/jdfalk/subtitle-manager.git
 cd subtitle-manager
 
-# Build with SQLite support (recommended for production)
-CGO_ENABLED=1 go build -tags sqlite -o subtitle-manager .
-
-# OR build without CGO (PebbleDB only, smaller binary)
+# One build supports both the SQLite and PebbleDB backends
 CGO_ENABLED=0 go build -o subtitle-manager .
 
 sudo cp bin/subtitle-manager /usr/local/bin/subtitle-manager

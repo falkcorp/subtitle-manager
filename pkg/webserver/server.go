@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.8.0
+// version: 1.9.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-08-12
 
@@ -376,25 +376,21 @@ func StartServer(addr string) error {
 	var db *sql.DB
 	var err error
 
-	// For web server, we need SQL database for authentication
-	// If backend is not sqlite, we still need to create a SQLite DB for auth
-	if backend == "sqlite" {
-		fullPath := database.GetDatabasePath()
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-			return fmt.Errorf("failed to create database directory: %w", err)
-		}
-		db, err = database.Open(fullPath)
-		logger.Infof("opened SQLite database %s", fullPath)
-	} else {
-		// For non-SQLite backends, create a separate SQLite DB for auth
-		authDbPath := filepath.Join(dbPath, "auth.db")
-		// Ensure directory exists
-		if err := os.MkdirAll(dbPath, 0755); err != nil {
-			return fmt.Errorf("failed to create database directory: %w", err)
-		}
-		db, err = database.Open(authDbPath)
-		logger.Infof("opened auth database %s", authDbPath)
+	// Authentication always lives in SQLite, whatever db_backend is. On the
+	// sqlite backend that is the main database; on pebble or postgres it is a
+	// separate auth.db beside the data directory.
+	//
+	// database.GetAuthDatabasePath is the single source of truth for that
+	// choice. It used to be spelled out only here, and the `user` CLI opened
+	// the raw db_path instead — so on a pebble deployment every `user`
+	// subcommand handed SQLite a directory and died, while the web server
+	// worked against the same configuration.
+	authDbPath := database.GetAuthDatabasePath()
+	if err := os.MkdirAll(filepath.Dir(authDbPath), 0755); err != nil {
+		return fmt.Errorf("failed to create database directory: %w", err)
 	}
+	db, err = database.Open(authDbPath)
+	logger.Infof("opened auth database %s", authDbPath)
 
 	if err != nil {
 		// There is no longer a "SQLite support not available" case to special-case

@@ -1,7 +1,7 @@
 // file: pkg/database/database.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 6e68e15d-7acf-4121-94f7-b29e4650650d
-// last-edited: 2026-08-04
+// last-edited: 2026-08-12
 
 // Package database provides data storage and retrieval functionality for subtitle-manager.
 // It supports SQLite and other database backends for managing subtitle metadata and operations.
@@ -74,6 +74,25 @@ func GetDatabasePath() string {
 	}
 
 	return dbPath
+}
+
+// GetAuthDatabasePath returns the path to the SQLite database holding users,
+// sessions and API keys.
+//
+// Authentication always lives in SQLite, whatever db_backend is set to. On the
+// sqlite backend that is simply the main database. On pebble or postgres,
+// db_path is not a SQLite file at all — pebble's is a *directory* — so auth
+// gets its own "auth.db" beside it.
+//
+// This exists because that join used to be written out only in pkg/webserver.
+// Every `user` subcommand opened viper's raw db_path instead and therefore
+// handed SQLite the pebble directory, failing with "unable to open database
+// file" while the web server worked fine against the same configuration.
+func GetAuthDatabasePath() string {
+	if GetDatabaseBackend() == "sqlite" {
+		return GetDatabasePath()
+	}
+	return filepath.Join(viper.GetString("db_path"), "auth.db")
 }
 
 // GetDatabaseBackend returns the configured database backend

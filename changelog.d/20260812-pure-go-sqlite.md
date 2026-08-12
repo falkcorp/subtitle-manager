@@ -1,5 +1,5 @@
 <!-- file: changelog.d/20260812-pure-go-sqlite.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 1.1.0 -->
 <!-- guid: c4e81f70-2a95-4d63-9b18-5e7d0a3f6c21 -->
 <!-- last-edited: 2026-08-12 -->
 
@@ -51,6 +51,43 @@ This race is not new — it reproduces on the previous release under
 themselves when SQLite was unavailable, which in the untagged build CI actually
 runs was always.
 
+#### `SQLITE_BUSY` on the SQLite backend under load
+
+`web --db-backend sqlite` could fail a query the moment it started:
+
+    selftest database ping failed: database is locked (5) (SQLITE_BUSY)
+
+`modernc.org/sqlite` defaults `busy_timeout` to 0, meaning a connection that
+finds the write lock held gives up immediately rather than waiting. `database/sql`
+hands out a connection *pool*, so even single-process operation has several
+connections contending for SQLite's single write lock — here the selftest ping
+landed while schema seeding still held it.
+
+The connection string now sets `busy_timeout` to 5s. `TestPureGoSQLiteConcurrentWriters`
+reproduces the failure deterministically without it (8 goroutines, 20 inserts
+each), and `TestPureGoSQLiteBusyTimeoutIsSet` asserts the *effective* pragma
+rather than the DSN text — a connection string the driver did not understand
+would be silently ignored and the DSN-level check would pass anyway.
+
+#### The `user` CLI opened the wrong database on Pebble deployments
+
+Every `user` subcommand died on the default backend:
+
+    subtitle-manager user list --db-backend pebble --db-path <dbdir>
+    level=fatal msg="unable to open database file (14)"
+
+Authentication always lives in SQLite regardless of `db_backend`, but the join
+onto `auth.db` was written out only in `pkg/webserver/server.go`. The CLI opened
+viper's raw `db_path`, which on Pebble is a *directory*. So `user add` was
+unusable on the backend the product defaults to, while the web server worked
+against the very same configuration.
+
+Both callers now go through `database.GetAuthDatabasePath()`, which returns the
+main database on the sqlite backend and `<db_path>/auth.db` on pebble and
+postgres. Verified as a round trip on a real Pebble deployment: `user add`
+creates an account the web UI can log in with, and `user list` shows accounts
+created through the web UI — with no `--db-path` workaround.
+
 ### Changed
 
 #### The `sqlite` and `nosqlite` build tags are gone
@@ -83,16 +120,3 @@ that need a live server.
 gated behind `HasSQLite()`. Every other SQLite test in the package skips itself
 when SQLite is unavailable — which is precisely how a green suite coexisted with
 a product that could not start. Do not add a skip guard to it.
-
-### Known issue, not fixed here
-
-The `user` CLI still fails on a Pebble deployment:
-
-    subtitle-manager user list --db-backend pebble --db-path <dbdir>
-    level=fatal msg="unable to open database file (14)"
-
-This is a **path** bug, not a driver bug, and the pure-Go driver does not fix it:
-`filepath.Join(dbPath, "auth.db")` exists only in `pkg/webserver/server.go`, so
-every `user` subcommand hands SQLite the Pebble *directory* instead of the auth
-database inside it. Workaround: `--db-path <dbdir>/auth.db`, which is confirmed
-to list users created through the web UI.

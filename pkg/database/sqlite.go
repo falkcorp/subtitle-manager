@@ -1,5 +1,5 @@
 // file: pkg/database/sqlite.go
-// version: 2.1.0
+// version: 2.2.0
 // guid: 7e6f5a4b-3c2d-8e7f-1a0b-4c3d2e1f0a9b
 // last-edited: 2026-08-12
 
@@ -50,7 +50,17 @@ const busyTimeout = 5000
 // The driver accepts query parameters on a plain filename, not just on a
 // file: URI, and strips them before opening the file — so ":memory:" and
 // ordinary paths both work unchanged.
+//
+// An empty path is the exception, and must be left alone. It means "private
+// temporary database" to SQLite, but the driver only splits parameters off when
+// something precedes the "?" — so a bare "?_pragma=..." is taken as a literal
+// *filename*, creating a file of that name in the working directory while the
+// pragma goes unapplied. A temporary database has no other connection to
+// contend with, so it does not need the timeout anyway.
 func sqliteDSN(path string) string {
+	if path == "" {
+		return path
+	}
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"

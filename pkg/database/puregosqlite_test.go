@@ -1,5 +1,5 @@
 // file: pkg/database/puregosqlite_test.go
-// version: 1.1.0
+// version: 1.2.0
 // guid: 2f8c41ab-9d63-4e07-85b1-6c0fa3d29e74
 // last-edited: 2026-08-12
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -119,6 +120,36 @@ func TestPureGoSQLiteBusyTimeoutIsSet(t *testing.T) {
 				t.Errorf("busy_timeout = %d, want > 0; concurrent writers will fail instantly with SQLITE_BUSY", timeout)
 			}
 		})
+	}
+}
+
+// TestPureGoSQLiteEmptyPathCreatesNoStrayFile covers the one path where
+// appending pragmas to the DSN backfires.
+//
+// An empty path means "private temporary database" to SQLite. The driver only
+// splits query parameters off when something precedes the "?", so a DSN of
+// just "?_pragma=busy_timeout(5000)" is taken as a *filename* — creating a file
+// literally named "?_pragma=busy_timeout(5000)" in the working directory, with
+// the pragma silently not applied. Three of those appeared in the repository
+// during a test run before this was guarded.
+func TestPureGoSQLiteEmptyPathCreatesNoStrayFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	db, err := Open("")
+	if err != nil {
+		t.Fatalf("Open(%q): %v", "", err)
+	}
+	defer db.Close()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("reading %s: %v", dir, err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "_pragma") {
+			t.Errorf("DSN leaked into a filename: %q", e.Name())
+		}
 	}
 }
 

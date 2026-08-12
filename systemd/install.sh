@@ -1,6 +1,7 @@
 #!/bin/bash
 # file: systemd/install.sh
-# version: 1.0.0
+# version: 1.1.0
+# last-edited: 2026-08-12
 # guid: 890e2345-e89b-12d3-a456-426614174003
 
 # Subtitle Manager systemd service installation script
@@ -68,8 +69,7 @@ check_binary() {
     else
         print_error "Subtitle Manager binary not found."
         print_error "Please build the binary first:"
-        print_error "  For SQLite support: CGO_ENABLED=1 go build -tags sqlite -o subtitle-manager ."
-        print_error "  For PebbleDB only:  CGO_ENABLED=0 go build -o subtitle-manager ."
+        print_error "  CGO_ENABLED=0 go build -o subtitle-manager ."
         print_error "Alternatively, download from: https://github.com/jdfalk/subtitle-manager/releases"
         exit 1
     fi

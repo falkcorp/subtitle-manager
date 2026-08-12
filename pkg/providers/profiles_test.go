@@ -1,5 +1,6 @@
 // file: pkg/providers/profiles_test.go
-// version: 1.0.0
+// version: 1.1.0
+// last-edited: 2026-08-12
 // guid: a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d
 
 package providers
@@ -10,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/jdfalk/subtitle-manager/pkg/profiles"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func initTestSchema(db *sql.DB) {
@@ -42,7 +43,7 @@ func initTestSchema(db *sql.DB) {
 
 func TestGetLanguagesFromProfile(t *testing.T) {
 	// Skip if SQLite not available
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Skip("SQLite not available")
 	}
@@ -88,7 +89,7 @@ func TestGetLanguagesFromProfile(t *testing.T) {
 
 func TestGetLanguagesFromProfile_NoProfile(t *testing.T) {
 	// Skip if SQLite not available
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Skip("SQLite not available")
 	}

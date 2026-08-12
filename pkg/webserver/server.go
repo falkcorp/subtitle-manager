@@ -1,7 +1,7 @@
 // file: pkg/webserver/server.go
-// version: 1.7.0
+// version: 1.8.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
-// last-edited: 2026-08-04
+// last-edited: 2026-08-12
 
 package webserver
 
@@ -397,11 +397,12 @@ func StartServer(addr string) error {
 	}
 
 	if err != nil {
-		// Check if this is a SQLite support issue and provide helpful error message
-		if strings.Contains(err.Error(), "SQLite support not available") {
-			return fmt.Errorf("web server requires SQLite for authentication. Please build with: go build -tags sqlite\nOriginal error: %w", err)
-		}
-		return fmt.Errorf("failed to open database: %w", err)
+		// There is no longer a "SQLite support not available" case to special-case
+		// here: SQLite is compiled into every build via the pure-Go driver. Any
+		// failure now is a real one — bad path, permissions, or a corrupt file —
+		// and telling the operator to rebuild with a build tag that no longer
+		// exists would send them chasing a problem they cannot fix.
+		return fmt.Errorf("failed to open authentication database: %w", err)
 	}
 	defer db.Close()
 	logger.Info("database initialized")

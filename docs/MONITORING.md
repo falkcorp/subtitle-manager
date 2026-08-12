@@ -1,5 +1,6 @@
 <!-- file: docs/MONITORING.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 1.1.0 -->
+<!-- last-edited: 2026-08-12 -->
 <!-- guid: d4e5f6g7-h8i9-0j1k-2l3m-n4o5p6q7r8s9 -->
 
 # Monitoring and Metrics
@@ -8,15 +9,12 @@ Subtitle Manager exposes Prometheus metrics for monitoring and observability.
 
 ## Prerequisites
 
-The web server requires SQLite support for authentication. When building the
-application, you must include the `sqlite` build tag:
+The web server stores authentication in SQLite, which is compiled into every
+build via the pure-Go `modernc.org/sqlite` driver. No build tag and no CGO:
 
 ```bash
-go build -tags sqlite -o subtitle-manager main.go
+CGO_ENABLED=0 go build -o subtitle-manager .
 ```
-
-If you try to run the web server without SQLite support, you'll get an error
-message with instructions.
 
 ## Prometheus Metrics Endpoint
 

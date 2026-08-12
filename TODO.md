@@ -1,3 +1,8 @@
+<!-- file: TODO.md -->
+<!-- version: 1.0.0 -->
+<!-- guid: 71e75b6a-7b5c-4ce2-93a3-ec1c8f80504a -->
+<!-- last-edited: 2026-08-12 -->
+
 # TODO
 
 ## 📥 Inbox
@@ -107,12 +112,12 @@ PebbleDB for pure Go deployments.
   - Subtitle history and metadata storage
   - Provider configuration and settings
 
-- **✅ Pure Go Builds**: CGO-free builds using PebbleDB (`-tags nosqlite`)
-  - No CGO dependencies required
+- **✅ Pure Go Builds**: every build is CGO-free, on every platform
+  - No CGO dependencies required, no build tags
   - Smaller binary size and easier deployment
-  - High-performance embedded key-value store
+  - PebbleDB: high-performance embedded key-value store
 
-- **✅ SQLite Builds**: Traditional CGO builds with SQLite (`-tags sqlite`)
+- **✅ SQLite**: available in the same binary via `modernc.org/sqlite` (pure Go)
   - Full SQL querying capabilities
   - Migration support from existing databases
   - Backward compatibility maintained
@@ -131,11 +136,8 @@ PebbleDB for pure Go deployments.
 #### Build Options
 
 ```bash
-# Pure Go build (default) - uses PebbleDB
-go build -tags nosqlite .
-
-# SQLite build - requires CGO
-go build -tags sqlite .
+# One build covers both backends; select with db_backend at runtime
+CGO_ENABLED=0 go build .
 
 # Migration between backends
 subtitle-manager migrate old.db newdir

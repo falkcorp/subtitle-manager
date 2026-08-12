@@ -1,7 +1,7 @@
 // file: pkg/database/shared_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 5e71b4c8-9a02-4d3f-81b6-c47f0e29a1d3
-// last-edited: 2026-07-25
+// last-edited: 2026-08-12
 
 package database
 
@@ -19,7 +19,7 @@ import (
 // Pebble is used rather than SQLite because it is the backend that exhibits the
 // bug: it takes an exclusive file lock, so a second concurrent open fails. It
 // also needs no cgo and no build tag, so these tests run in CI — unlike the
-// webserver suite, which skips without `-tags sqlite`.
+// webserver suite.
 func usePebbleAt(t *testing.T, dir string) {
 	t.Helper()
 	prevBackend := viper.GetString("db_backend")

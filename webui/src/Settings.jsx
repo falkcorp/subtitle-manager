@@ -1,6 +1,7 @@
 // file: webui/src/Settings.jsx
-// version: 1.1.0
+// version: 1.2.0
 // guid: b1c2d3e4-f5a6-4b7c-8d9e-0a1b2c3d4e5f
+// last-edited: 2026-08-12
 
 import {
   Security as AuthIcon,
@@ -228,25 +229,45 @@ export default function Settings({ backendAvailable = true }) {
   /**
    * Toggle provider enabled state
    */
+  // Provider settings are written through POST /api/config as flat dotted
+  // keys, which is the shape pkg/providers/config.go reads
+  // (providers.<name>.enabled / .priority / .tags).
+  //
+  // This used to PATCH /api/providers/{name}, which is not a mounted route —
+  // it fell into the /api/providers/ subtree handler and 404'd. Combined with
+  // an `if (response.ok)` that had no `else`, every toggle reported success
+  // and changed nothing.
   const handleProviderToggle = async (providerName, enabled) => {
     try {
-      const response = await apiFetch(`/api/providers/${providerName}`, {
-        method: 'PATCH',
+      const response = await apiFetch('/api/config', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({
+          [`providers.${providerName}.enabled`]: enabled,
+        }),
       });
 
-      if (response.ok) {
-        setProviders(prev =>
-          prev.map(p => (p.name === providerName ? { ...p, enabled } : p))
-        );
+      if (!response.ok) {
+        // Never leave the switch showing a state the server did not accept.
         setStatus(
-          `${formatProviderName(providerName)} ${enabled ? 'enabled' : 'disabled'}`
+          `Failed to ${enabled ? 'enable' : 'disable'} ${formatProviderName(providerName)} (${response.status})`
         );
         setSnackbarOpen(true);
+        return;
       }
+
+      setProviders(prev =>
+        prev.map(p => (p.name === providerName ? { ...p, enabled } : p))
+      );
+      setStatus(
+        `${formatProviderName(providerName)} ${enabled ? 'enabled' : 'disabled'}`
+      );
+      setSnackbarOpen(true);
     } catch (error) {
-      console.error('Failed to toggle provider:', error);
+      setStatus(
+        `Failed to update ${formatProviderName(providerName)}: ${error.message}`
+      );
+      setSnackbarOpen(true);
     }
   };
 
@@ -260,31 +281,55 @@ export default function Settings({ backendAvailable = true }) {
   /**
    * Save provider configuration
    */
+  // Returns true when the configuration was actually persisted, so the dialog
+  // can stay open on failure instead of closing as though it had saved.
+  //
+  // Like the toggle above, this used to POST /api/providers/{name}/config —
+  // an unmounted route swallowed by the /api/providers/ subtree.
   const handleProviderSave = async provider => {
-    try {
-      const response = await apiFetch(
-        `/api/providers/${provider.name}/config`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(provider.config),
-        }
-      );
+    // Flatten to the dotted keys the server reads. Nested objects posted to
+    // /api/config are stored verbatim under the literal key, which is how
+    // settings pages here have silently saved data nothing ever reads.
+    const payload = Object.fromEntries(
+      Object.entries(provider.config ?? {}).map(([field, value]) => [
+        `providers.${provider.name}.${field}`,
+        value,
+      ])
+    );
+    payload[`providers.${provider.name}.enabled`] = provider.enabled !== false;
 
-      if (response.ok) {
-        setProviders(prev =>
-          prev.map(p =>
-            p.name === provider.name
-              ? { ...provider, configured: hasRequiredConfig(provider) }
-              : p
-          )
+    try {
+      const response = await apiFetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        setStatus(
+          `Failed to save ${formatProviderName(provider.name)} configuration (${response.status})`
         );
-        setProviderConfigDialog({ open: false, provider: null });
-        setStatus(`${formatProviderName(provider.name)} configuration saved`);
         setSnackbarOpen(true);
+        return false;
       }
+
+      setProviders(prev =>
+        prev.map(p =>
+          p.name === provider.name
+            ? { ...provider, configured: hasRequiredConfig(provider) }
+            : p
+        )
+      );
+      setProviderConfigDialog({ open: false, provider: null });
+      setStatus(`${formatProviderName(provider.name)} configuration saved`);
+      setSnackbarOpen(true);
+      return true;
     } catch (error) {
-      console.error('Failed to save provider config:', error);
+      setStatus(
+        `Failed to save ${formatProviderName(provider.name)} configuration: ${error.message}`
+      );
+      setSnackbarOpen(true);
+      return false;
     }
   };
 

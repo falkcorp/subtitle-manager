@@ -1,5 +1,5 @@
 <!-- file: changelog.d/20260812-pure-go-sqlite.md -->
-<!-- version: 1.2.0 -->
+<!-- version: 1.3.0 -->
 <!-- guid: c4e81f70-2a95-4d63-9b18-5e7d0a3f6c21 -->
 <!-- last-edited: 2026-08-12 -->
 
@@ -94,6 +94,25 @@ main database on the sqlite backend and `<db_path>/auth.db` on pebble and
 postgres. Verified as a round trip on a real Pebble deployment: `user add`
 creates an account the web UI can log in with, and `user list` shows accounts
 created through the web UI — with no `--db-path` workaround.
+
+#### A clean shutdown no longer exits with status 1
+
+The periodic self-test goroutine outlives the call that starts it. On shutdown
+the context is cancelled and the database is closed underneath it, so the next
+tick's ping fails with `sql: database is closed` — and it called `ExitFunc(1)`
+for that. A supervisor reads exit 1 as a crash, so an orderly stop could look
+like a failure and trigger a restart loop.
+
+A ping failure with an already-cancelled context is now treated as shutdown.
+A ping failure on a live context still exits, which is the point of the check;
+`TestStartPeriodicFailure` continues to assert that.
+
+This also made `pkg/selftest`'s own tests kill the test binary: the deferred
+restore of `ExitFunc` puts the real `os.Exit` back while the goroutine is still
+running, so the ping-after-close called it for real. It surfaced as a bare
+`FAIL` with no `--- FAIL` line and no second test — nothing failed, the process
+died. Like the task race above, it reproduces on the previous release under
+`-tags sqlite` and was hidden only because CI never built that configuration.
 
 ### Changed
 

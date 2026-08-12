@@ -186,8 +186,17 @@ export default function ProviderConfigDialog({
       enabled: config.enabled !== false,
     };
 
-    onSave(providerData);
-    onClose();
+    // Only close once the save is known to have succeeded. This used to call
+    // onSave and onClose back to back, so a failed save looked identical to a
+    // successful one — the dialog shut and the operator moved on.
+    //
+    // A handler that returns nothing is treated as success, so callers that
+    // do not report a result keep their old behaviour.
+    Promise.resolve(onSave(providerData)).then(result => {
+      if (result !== false) {
+        onClose();
+      }
+    });
   };
 
   const renderConfigField = field => {

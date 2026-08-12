@@ -1,5 +1,5 @@
 // file: pkg/webserver/providerconfig_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 4e2a7c81-93f5-4d06-b7ac-58e1230fd946
 // last-edited: 2026-08-12
 
@@ -72,6 +72,120 @@ func TestEnablingAProviderTakesEffect(t *testing.T) {
 	}
 	if insts[0].Priority != 5 {
 		t.Errorf("priority = %d, want 5", insts[0].Priority)
+	}
+}
+
+// TestConfigHierarchyIsPreserved pins down that nested option trees merge
+// rather than overwrite each other. Settings are keyed by dotted path
+// (providers.<name>.<field>, integrations.<name>.<field>), so a save from one
+// page must never disturb a sibling subtree owned by another page.
+//
+// Verified behaviour, not assumption: viper deep-merges a dotted Set into the
+// existing tree, and normalises key case, so none of these collide.
+func TestConfigHierarchyIsPreserved(t *testing.T) {
+	existing := `db_backend: pebble
+providers:
+    gestdown:
+        api_key: SECRET
+        priority: 7
+    opensubtitles:
+        api_key: OTHER
+integrations:
+    sonarr:
+        api_key: SONARRKEY
+        url: http://sonarr:8989
+`
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"dotted leaf", `{"providers.gestdown.enabled": true}`},
+		{"nested object at the parent key", `{"providers":{"gestdown":{"enabled":true}}}`},
+		{"mixed-case key", `{"providers.GestDown.enabled": true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "config.yaml")
+			if err := os.WriteFile(cfgPath, []byte(existing), 0o600); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+			viper.Reset()
+			t.Cleanup(func() {
+				viper.Reset()
+				providers.SetInstances(nil)
+			})
+			viper.SetConfigFile(cfgPath)
+			if err := viper.ReadInConfig(); err != nil {
+				t.Fatalf("reading config: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader([]byte(tc.body)))
+			rec := httptest.NewRecorder()
+			configHandler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("POST /api/config = %d, want %d", rec.Code, http.StatusNoContent)
+			}
+
+			raw, err := os.ReadFile(cfgPath)
+			if err != nil {
+				t.Fatalf("reading back: %v", err)
+			}
+			got := string(raw)
+			// Everything the request did not mention must survive verbatim.
+			for _, want := range []string{"SECRET", "priority: 7", "OTHER", "SONARRKEY", "sonarr:8989", "db_backend"} {
+				if !strings.Contains(got, want) {
+					t.Errorf("saving one option destroyed %q from another part of the tree.\nfile:\n%s", want, got)
+				}
+			}
+			if !strings.Contains(got, "enabled: true") {
+				t.Errorf("the submitted option was not persisted.\nfile:\n%s", got)
+			}
+		})
+	}
+}
+
+// TestConfigRejectsOverwritingASubtreeWithAScalar guards the one shape that
+// genuinely clobbers. Setting a key that is a *prefix* of an existing subtree
+// to a non-map value replaces the whole subtree: posting
+// {"providers.gestdown": "x"} silently deletes gestdown's api_key and
+// priority.
+//
+// Nothing in the UI should send that, which is exactly why it must fail loudly
+// rather than quietly destroy credentials — a settings page with a
+// wrong-shaped key would otherwise wipe an operator's provider config and
+// report success.
+func TestConfigRejectsOverwritingASubtreeWithAScalar(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	existing := "providers:\n    gestdown:\n        api_key: SECRET\n        priority: 7\n"
+	if err := os.WriteFile(cfgPath, []byte(existing), 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	viper.Reset()
+	t.Cleanup(func() {
+		viper.Reset()
+		providers.SetInstances(nil)
+	})
+	viper.SetConfigFile(cfgPath)
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("reading config: %v", err)
+	}
+
+	body := []byte(`{"providers.gestdown": "scalar"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	configHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("POST /api/config = %d, want %d for a scalar over a subtree", rec.Code, http.StatusBadRequest)
+	}
+
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("reading back: %v", err)
+	}
+	if !strings.Contains(string(raw), "SECRET") {
+		t.Errorf("the rejected write still destroyed the subtree.\nfile:\n%s", raw)
 	}
 }
 

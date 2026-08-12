@@ -109,7 +109,19 @@ func stackSubtitlesHandler() http.Handler {
 
 		primarySub.Items = subtitles.StackTracks(primarySub.Items, secondarySub.Items)
 
-		f, err := os.Create(out)
+		// Write through an os.Root rooted at the primary's directory. Root
+		// confines every operation beneath it at the OS level — a traversal in
+		// the name is refused by the kernel-facing API rather than by our own
+		// string checks — so the one call here that creates a file cannot
+		// escape the directory the primary already validated into.
+		root, err := os.OpenRoot(filepath.Dir(primary))
+		if err != nil {
+			http.Error(w, "cannot write output", http.StatusInternalServerError)
+			return
+		}
+		defer root.Close()
+
+		f, err := root.Create(filepath.Base(out))
 		if err != nil {
 			http.Error(w, "cannot write output", http.StatusInternalServerError)
 			return

@@ -1,7 +1,7 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 5.0.0 -->
+<!-- version: 6.0.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
-<!-- last-edited: 2026-08-11 -->
+<!-- last-edited: 2026-08-12 -->
 
 # Next-session prompt
 
@@ -25,106 +25,77 @@ confirmation each time, and no bulk/mass label operations. After merging, check
 the merged commits actually cover every commit that was in the PR — a PR
 silently lost two fix commits that way once.
 
-## State as of 2026-08-11: everything is merged
+## State as of 2026-08-12
 
-`main` is at `2ed2636d`. **Zero open PRs.** No uncommitted work of mine exists.
+Items 1 and 2 of the previous list are **done and merged**. `main` is at the
+Settings→Providers work. Landed 2026-08-12:
 
-Landed this session:
+- **Release binaries can run `web`** (#2264). SQLite now comes from the pure-Go
+  `modernc.org/sqlite` driver and the `sqlite`/`nosqlite` build tags are gone
+  entirely — one CGO-free build, both backends, every platform. Verified by
+  running a release-style binary, not by tests.
+- **Settings → Providers works.** Browser-verified: Add Provider → Gestdown →
+  Save writes the config and the provider registers **without a restart**.
 
-- **The Media Library works.** Four defects were fixed (#2258) — the page had
-  been rendering *completely empty* because the component read `is_dir` while
-  the server sends `isDirectory`; breadcrumbs called an undefined function;
-  opening a directory refetched the previous one; and "Select all" swept in
-  sidecar `.srt` files. All four are covered by tests written test-first.
-- **Bilingual "double subs" work, manually** (#2259, #2260). Tick two subtitles
-  on a file in the Media Library, press **Combine**. Verified in a real browser
-  against a real library.
-- **Executive summaries** backfilled across the whole project history (#2257) in
-  `docs/executive-summaries/`, with a template. These exist to justify cost and
-  work to non-technical decision-makers. Update them in place; there is a house
-  format documented in `TEMPLATE-executive-summary.md`.
-- All dependabot PRs merged.
+Four defects had to be fixed along the way. Two were pre-existing bugs the build
+tag had been hiding from CI, and one is far more serious than the page itself:
 
-## Verified working, end to end, in a real browser
+- **Saving ANY setting could collapse subtitle search to one provider.**
+  `viper.WriteConfig` serialises `AllSettings()`, which merges defaults, and
+  `cmd/root.go` set `providers.embedded.enabled: true`. Saving one unrelated
+  setting wrote that default into the config file; on the next start
+  `InConfig` reported true, `LoadFromConfig` registered one instance, and
+  `FetchFromAll` dropped out of its all-providers fallback to embedded-only.
+  `POST /api/config` now writes only operator-submitted keys, and the dead
+  default is gone.
+- A data race marshalling a live `*tasks.Task` on `POST /api/tasks/start`.
+- A clean shutdown exiting status **1**, which a supervisor reads as a crash.
+- The `user` CLI opening the Pebble *directory* instead of `auth.db`.
 
-A local build served a real library and did the following for real — not from
-tests, and not from a toast message:
+**Two corrections to the previous handoff, which asserted otherwise:**
 
-- Scanned and **detected** a nested library (`TV Shows/Breaking Bad/Season 01/`),
-  associating both sidecar subtitles with the episode.
-- Navigated four levels deep, used the breadcrumb, and ran Mass Edit.
-- **Combined** an English and a Spanish sidecar into one bilingual file, three
-  cues, English over Spanish, confirmed on disk.
+1. The **Docker image was not a working escape hatch**. Its build branched on
+   `TARGETARCH`; amd64 got `-tags=sqlite`, **arm64 got neither**. The arm64
+   container could not run `web` either.
+2. `POST /api/config` with `providers.<name>.enabled` did **not** "work today".
+   It persisted, but `viper.Set` only populates the override layer while
+   `LoadFromConfig` reads `viper.InConfig` (the file layer), so nothing applied
+   until a restart. Repointing the UI alone would have moved the silent failure,
+   not fixed it.
 
-**To reproduce the environment:** you must build locally with
-`CGO_ENABLED=1 go build -tags sqlite`, *and* run `npm run build` in `webui/`
-first — the frontend is embedded via `webui/embed.go`, so building the Go binary
-alone silently serves a stale/empty shell. `make build-sqlite` does both but
-writes to `bin/subtitle-manager-sqlite`, **not** `bin/subtitle-manager`.
+## Reproducing the environment
 
-## The four things worth doing next, in order
+`CGO_ENABLED=0 go build .` is now enough — no build tags, no CGO. You still must
+run `npm run build` in `webui/` (and `go generate ./webui`) first, or the binary
+silently serves a stale/empty shell. `make build` does both and writes to
+`bin/subtitle-manager`.
 
-### 1. Release binaries cannot run `web` at all — CONFIRMED, needs your decision
+## The things worth doing next, in order
 
-I downloaded the published `darwin_arm64` artifact from `v1.0.1-rc.53` and ran
-it. It fails:
+### 1. Bilingual subtitles automatically, not just manually
 
-```
-Error: web server requires SQLite for authentication. Please build with: go build -tags sqlite
-```
+The manual path is done (tick two subtitles, press Combine). The automatic one
+is not: when a language profile asks for two languages, it should produce the
+bilingual file during scan/download. Building blocks all exist
+(`subtitles.StackTracks`, `POST /api/subtitles/stack`, `merge --stack`).
 
-**No published release binary, on any platform, can start the web UI.** Only the
-Docker image works, because the Dockerfile passes `-tags=sqlite`. The web server
-opens a SQLite auth DB unconditionally, even when `db_backend: pebble`.
+Two real decisions in it, both still unanswered: does the bilingual file
+**replace** the separate per-language sidecars or come **in addition**? And
+`singleLanguageNaming()` collapses multi-language output to one filename, so a
+multi-language profile would currently overwrite itself.
 
-Three ways out, and this is a decision I want from you rather than a guess:
+### 2. Delete the Python surface — decided, not yet done
 
-| Option | Scope |
-| --- | --- |
-| **Pure-Go SQLite driver** (`modernc.org/sqlite`) | ~40 lines + one dependency. Everything funnels through one `Open()` in `pkg/database/sqlite_disabled.go`; swap the `!sqlite` build-tag stub for a real implementation. Fixes every platform at `CGO_ENABLED=0`. Large new dependency; migrations need exercising under it. |
-| **CGO releases with `-tags sqlite`** | No code change, but needs a cross-compiler toolchain per target. Fragile releases. |
-| **Pebble-native auth** | 16 auth functions take `*sql.DB` and 87 call sites pass it. Cleanest architecturally, by far the most work. |
+The operator chose **delete** over fix on 2026-08-12. `Python CI (3.13)` fails
+on every PR touching Python deps and reports *skipped* on main, so it has been
+broken while main looked green. Inventory what Python exists and what it is for,
+**show the operator the list**, and delete only what is genuinely vestigial. If
+something load-bearing turns up, stop and report.
 
-I lean toward the first. **This also fixes the `user` CLI**, which currently dies
-with `unable to open database file: is a directory` on a Pebble deployment
-(workaround: `--db-path <dbdir>/auth.db`).
+### 3. Audit the provider registry
 
-### 2. Settings → Providers is dead, and fails silently
-
-You cannot enable or configure **any** provider from the web UI.
-`Settings.jsx:233` PATCHes `/api/providers/{name}` and `:266` POSTs
-`/api/providers/{name}/config`; neither is mounted, and both are swallowed by
-the `/api/providers/` **subtree** at `server.go:316`. Both call sites are
-`if (response.ok)` with no `else`, and `ProviderConfigDialog.jsx:189-190` closes
-the dialog unconditionally — so it reads as success.
-
-`POST /api/config` with `{"providers.gestdown.enabled": true}` **works today**,
-so repointing the UI is probably better than adding two routes. Only `embedded`
-ships enabled, and it needs ffmpeg plus a real container — so out of the box,
-via the UI alone, there is no route to a working provider.
-
-### 3. Bilingual subtitles automatically, not just manually
-
-The manual path is done. The automatic one is not: when a language profile asks
-for two languages, it should produce the bilingual file during scan/download.
-Building blocks all exist (`subtitles.StackTracks`,
-`POST /api/subtitles/stack`, `merge --stack`, correct sentinel-language
-detection).
-
-Two real decisions in it: does the bilingual file **replace** the separate
-per-language sidecars or come **in addition**? And `singleLanguageNaming()`
-collapses multi-language output to one filename, so a multi-language profile
-would currently overwrite itself.
-
-### 4. Python CI is broken and hidden
-
-`Python CI (3.13)` fails on every PR that touches Python dependencies, and
-reports **skipped** on main because `Detect Changes` finds no Python diff. So
-the Python build has been broken while main looks green. Likely causes: a dead
-`gcommon` git pin in `requirements.txt`, a missing `selenium` test dependency,
-and a `SyntaxError` in an inline `python -c` in a workflow. **Ask first whether
-Python is needed here at all** — this is a Go service with a React UI, and
-deleting a vestigial surface beats fixing it.
+22 of 51 provider hostnames do not resolve — fabricated `api.<name>.com` shells
+taking a slot in every fetch wave. Audit the registry, not the hostnames.
 
 ## Also open
 
@@ -138,8 +109,6 @@ deleting a vestigial surface beats fixing it.
   would impersonate Bazarr and share its rate limit, so I did not.
 - **Cloudflare Access** needs your team domain and audience before it can be
   built or tested.
-- **22 of 51 provider hostnames do not resolve** — fabricated `api.<name>.com`
-  shells taking a slot in every fetch wave. Audit the registry, not the hostnames.
 - **Two CodeQL path-injection alerts** on `pkg/webserver/subtitlepath.go` await
   your call. Worth knowing: those are read-only `os.Stat` checks. A *third*
   alert appeared this session on a genuine **write** and was fixed properly with
@@ -152,18 +121,20 @@ deleting a vestigial surface beats fixing it.
 
 ## Housekeeping I did not do without asking
 
-- `docs/NEXT_SESSION_PROMPT.md` had an uncommitted modification predating my
-  session; I left it alone until this rewrite.
-- Untracked debris in the repo root: `SUBTITLE_MANAGER_FIX_PLAN.md` (dated
-  2026-07-22, self-describes as delete-when-done), `dashboard-loggedin.png`,
-  `.playwright-mcp/`.
-- A stale worktree registration: `git worktree prune` will clear a `prunable`
-  entry whose directory is gone, and the empty branch
-  `fix/media-library-isdirectory` can be deleted.
+- Untracked debris in the repo root, all predating me:
+  `SUBTITLE_MANAGER_FIX_PLAN.md` (dated 2026-07-22, self-describes as
+  delete-when-done), `dashboard-loggedin.png`, `.playwright-mcp/`.
 - `~/.worktrees/subtitle-manager-release-fix` (`fix/release-protobuf`) and five
   git stashes on abandoned copilot/codex branches have never been checked for
   unpushed work.
-- A local server may still be running on `127.0.0.1:18099`.
+- A local server may still be running on `127.0.0.1:18099` — it is an **old**
+  binary from a previous session, so anything verified against that port is
+  not testing your build. Check the listener before trusting a live check.
+
+*(Resolved 2026-08-12: the stale scratchpad worktree registration was pruned,
+`fix/media-library-isdirectory` deleted, and the uncommitted
+`NEXT_SESSION_PROMPT.md` modification turned out to be byte-identical to
+`origin/main` — local `main` was simply 13 commits behind.)*
 
 ## How I want you to work
 
@@ -192,6 +163,11 @@ deleting a vestigial surface beats fixing it.
 - **React reports a throw inside an event handler as an unhandled error that
   Vitest does NOT count as a failure.** Assert the observable effect — a
   follow-up request, a changed list — never `console.error`.
+- **A skipped check is not a passing check, and the reverse matters too.**
+  Dropping the `sqlite` build tag made five `pkg/database` tests run for the
+  first time (66 passing/8 skipped → 74/3) and exposed two real bugs in
+  packages CI had never built. When de-gating anything, report the skip delta —
+  a green suite before and after looks identical without it.
 - **Reading CI: sort by duration, not status.** Concurrency-cancelled jobs are
   reported as failures; `Code Quality Check` and `Intelligent AI Labeling`
   routinely appear **twice**, once failing at 0–1s and once passing. But do not

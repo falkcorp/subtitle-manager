@@ -1,5 +1,5 @@
 <!-- file: changelog.d/20260812-pure-go-sqlite.md -->
-<!-- version: 1.1.0 -->
+<!-- version: 1.2.0 -->
 <!-- guid: c4e81f70-2a95-4d63-9b18-5e7d0a3f6c21 -->
 <!-- last-edited: 2026-08-12 -->
 
@@ -68,6 +68,13 @@ reproduces the failure deterministically without it (8 goroutines, 20 inserts
 each), and `TestPureGoSQLiteBusyTimeoutIsSet` asserts the *effective* pragma
 rather than the DSN text — a connection string the driver did not understand
 would be silently ignored and the DSN-level check would pass anyway.
+
+An empty path is left untouched. It means "private temporary database" to
+SQLite, and the driver only splits query parameters off when something precedes
+the `?`, so a bare `?_pragma=...` is read as a literal *filename*. Adding the
+suffix unconditionally scattered files named `?_pragma=busy_timeout(5000)`
+through three package directories during a test run, with the pragma unapplied.
+`TestPureGoSQLiteEmptyPathCreatesNoStrayFile` pins that down.
 
 #### The `user` CLI opened the wrong database on Pebble deployments
 

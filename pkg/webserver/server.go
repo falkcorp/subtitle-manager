@@ -1,5 +1,5 @@
 // file: pkg/webserver/server.go
-// version: 1.10.0
+// version: 1.11.0
 // guid: a3f02a01-bcb0-4d6e-a572-8138f7a6d720
 // last-edited: 2026-08-12
 
@@ -621,6 +621,11 @@ func logoutHandler(db *sql.DB) http.Handler {
 // GET requests return the current configuration as JSON. POST requests accept a
 // JSON body of key/value pairs which are written into Viper and persisted to the
 // config file if one is in use.
+// errSubtreeOverwrite reports a request that would replace a group of settings
+// with a single value, destroying everything nested under it. It is a client
+// error, not a server fault, so it answers 400 rather than 500.
+var errSubtreeOverwrite = errors.New("refusing to overwrite a settings group")
+
 // writeOperatorConfig persists vals into the config file at path, preserving
 // whatever is already there and adding nothing else.
 //
@@ -649,6 +654,34 @@ func writeOperatorConfig(path string, vals map[string]any) error {
 	return v.WriteConfig()
 }
 
+// checkNoSubtreeOverwrite rejects a request that would replace a group of
+// settings with a single value.
+//
+// Settings form a hierarchy — providers.<name>.<field>,
+// integrations.<name>.<field>. viper deep-merges a dotted Set into the existing
+// tree, so ordinary saves from different pages cannot disturb one another;
+// setting providers.gestdown.enabled leaves gestdown's api_key and every other
+// provider untouched. That property is covered by
+// TestConfigHierarchyIsPreserved.
+//
+// The exception is assigning a non-map to a key that currently holds a map:
+// {"providers.gestdown": "x"} replaces the whole subtree, silently deleting
+// that provider's credentials, and the endpoint would still answer 204.
+// Nothing in the UI sends that shape, which is exactly why it should fail
+// loudly rather than quietly destroy configuration.
+func checkNoSubtreeOverwrite(vals map[string]any) error {
+	for k, val := range vals {
+		if _, holdsGroup := viper.Get(k).(map[string]any); !holdsGroup {
+			continue
+		}
+		if _, isGroup := val.(map[string]any); isGroup {
+			continue
+		}
+		return fmt.Errorf("%w: %q holds a group of settings and cannot be replaced by a single value", errSubtreeOverwrite, k)
+	}
+	return nil
+}
+
 func configHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -659,6 +692,15 @@ func configHandler() http.Handler {
 			var vals map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&vals); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			// Validate before touching anything. The in-memory viper is process
+			// state: mutating it and only then discovering the write is invalid
+			// would leave the running server disagreeing with its own config
+			// file, so a rejected request must change nothing at all.
+			if err := checkNoSubtreeOverwrite(vals); err != nil {
+				logging.GetLogger("webserver").Warnf("rejected config write: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			for k, v := range vals {

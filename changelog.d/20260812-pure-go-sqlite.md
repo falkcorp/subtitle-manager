@@ -47,9 +47,9 @@ exists "for safe copying and serialization". This one call site reached past it.
 `/api/tasks` was already correct, because `tasks.List()` returns snapshots.
 
 This race is not new — it reproduces on the previous release under
-`-tags sqlite`. It was invisible because `pkg/webserver`'s tests skipped
-themselves when SQLite was unavailable, which in the untagged build CI actually
-runs was always.
+`-tags sqlite`. It stayed invisible because `pkg/webserver`'s tests skipped
+themselves whenever SQLite was unavailable, and in the untagged build CI
+actually runs, SQLite was never available.
 
 #### `SQLITE_BUSY` on the SQLite backend under load
 

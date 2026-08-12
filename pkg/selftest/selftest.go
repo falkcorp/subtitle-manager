@@ -1,6 +1,8 @@
 // file: pkg/selftest/selftest.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+// last-edited: 2026-08-12
+
 package selftest
 
 import (
@@ -30,6 +32,15 @@ func StartPeriodic(ctx context.Context, db *sql.DB, freq string) {
 	go func() {
 		_ = scheduler.Run(ctx, d, func(c context.Context) error {
 			if err := db.PingContext(c); err != nil {
+				// A cancelled context means the server is shutting down, and
+				// the database is expected to close underneath this goroutine
+				// — it outlives the call that started it. Exiting here would
+				// turn a clean shutdown into status 1, which a supervisor
+				// reads as a crash and may restart-loop on.
+				if c.Err() != nil || ctx.Err() != nil {
+					logger.Debug("selftest stopping: shutting down")
+					return err
+				}
 				logger.Errorf("selftest database ping failed: %v", err)
 				ExitFunc(1)
 				return err

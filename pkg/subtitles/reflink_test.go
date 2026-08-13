@@ -1,5 +1,5 @@
 // file: pkg/subtitles/reflink_test.go
-// version: 1.0.0
+// version: 2.0.0
 // guid: 1d7c4f80-2e39-4a56-b8c1-90fa35d27e64
 // last-edited: 2026-08-12
 
@@ -30,8 +30,9 @@ func TestCloneFileProducesAnIndependentCopy(t *testing.T) {
 		t.Fatalf("writing source: %v", err)
 	}
 
-	if err := CloneFile(src, dst); err != nil {
-		t.Fatalf("CloneFile: %v", err)
+	root := openRoot(t, dir)
+	if err := CloneFileIn(root, "Episode.en-es.srt", "Episode.eo.srt"); err != nil {
+		t.Fatalf("CloneFileIn: %v", err)
 	}
 
 	got, err := os.ReadFile(dst)
@@ -70,8 +71,9 @@ func TestCloneFileRefusesToClobber(t *testing.T) {
 		t.Fatalf("writing destination: %v", err)
 	}
 
-	if err := CloneFile(src, dst); err == nil {
-		t.Error("CloneFile overwrote an existing file; it must refuse")
+	root := openRoot(t, dir)
+	if err := CloneFileIn(root, "Episode.en-es.srt", "Episode.eo.srt"); err == nil {
+		t.Error("CloneFileIn overwrote an existing file; it must refuse")
 	}
 
 	got, err := os.ReadFile(dst)
@@ -99,7 +101,8 @@ func TestReflinkBackendIsWired(t *testing.T) {
 		t.Fatalf("writing source: %v", err)
 	}
 
-	switch err := reflink(src, dst); {
+	root := openRoot(t, dir)
+	switch err := reflink(root, "a.srt", "b.srt"); {
 	case err == nil:
 		t.Log("reflink succeeded: this filesystem shares blocks")
 		got, readErr := os.ReadFile(dst)
@@ -123,11 +126,50 @@ func TestReflinkBackendIsWired(t *testing.T) {
 // creating an empty destination.
 func TestCloneFileMissingSource(t *testing.T) {
 	dir := t.TempDir()
-	err := CloneFile(filepath.Join(dir, "nope.srt"), filepath.Join(dir, "out.srt"))
-	if err == nil {
+	root := openRoot(t, dir)
+	if err := CloneFileIn(root, "nope.srt", "out.srt"); err == nil {
 		t.Fatal("expected an error for a missing source")
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, "out.srt")); statErr == nil {
 		t.Error("a destination was created despite the source being missing")
+	}
+}
+
+// openRoot confines every operation in these tests beneath dir, the same way
+// the scanner does when it writes beside a media file.
+func openRoot(t *testing.T, dir string) *os.Root {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatalf("opening root %s: %v", dir, err)
+	}
+	t.Cleanup(func() { root.Close() })
+	return root
+}
+
+// TestCloneFileInRefusesToEscapeTheRoot is why this API takes a *os.Root and
+// base names rather than two paths.
+//
+// The earlier version took paths and passed them straight to os.Open and
+// os.OpenFile, which CodeQL flagged as go/path-injection across twelve
+// high-severity alerts: a user-derived media path reached a file operation with
+// no confinement. os.Root refuses a traversal at the kernel-facing API, so this
+// cannot be talked past with string checks.
+func TestCloneFileInRefusesToEscapeTheRoot(t *testing.T) {
+	base := t.TempDir()
+	inside := filepath.Join(base, "media")
+	if err := os.Mkdir(inside, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(inside, "a.srt"), []byte("subtitle"), 0o644); err != nil {
+		t.Fatalf("writing source: %v", err)
+	}
+
+	root := openRoot(t, inside)
+	if err := CloneFileIn(root, "a.srt", filepath.Join("..", "escaped.srt")); err == nil {
+		t.Error("a traversing destination was accepted")
+	}
+	if _, err := os.Stat(filepath.Join(base, "escaped.srt")); err == nil {
+		t.Error("a file was written outside the root")
 	}
 }

@@ -1,6 +1,7 @@
 // file: pkg/webhooks/handlers_test.go
-// version: 1.0.0
+// version: 1.1.0
 // guid: 2ad5bf1d-6db9-45a1-b132-6f9b82b529b0
+// last-edited: 2026-08-12
 
 package webhooks
 
@@ -224,8 +225,17 @@ func TestCustomHandlerHandleErrors(t *testing.T) {
 			wantErr: "invalid file path",
 		},
 		{
+			// "en-us" used to be the fixture here, but a hyphen is now valid:
+			// BCP-47 regional tags (pt-BR, zh-Hans) are ordinary subtitle
+			// languages and were being rejected outright. With it accepted, this
+			// case stopped testing validation at all — the handler got past the
+			// check and attempted a real download, failing 22 seconds later on a
+			// DNS lookup for a provider host.
+			//
+			// A path separator is unambiguously invalid and matches the style of
+			// the provider cases below.
 			name:    "invalid language",
-			payload: []byte(`{"path":"` + validPath + `","lang":"en-us"}`),
+			payload: []byte(`{"path":"` + validPath + `","lang":"en/us"}`),
 			wantErr: "invalid language code",
 		},
 		{

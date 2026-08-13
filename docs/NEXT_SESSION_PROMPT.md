@@ -1,5 +1,5 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 7.0.0 -->
+<!-- version: 7.1.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
 <!-- last-edited: 2026-08-12 -->
 
@@ -48,12 +48,20 @@ Settings→Providers work. Landed 2026-08-12:
   `Python CI (3.13)` now **runs and passes** instead of skipping. Kept:
   `sdks/python` (a published SDK), `scripts/assemble_todo.py` (mandated by
   CLAUDE.md), and the rest of `scripts/*.py`.
-- **Bilingual subtitles are automatic** (#2268 — check it merged). A profile
+- **Bilingual subtitles are automatic** (#2268, merged). A profile
   with 2+ languages stacks the top two during scan/download, additively. Two
   files: `Episode.en-es.srt` (self-describing) and a reflinked
   `Episode.eo.srt` (the sentinel media servers actually surface). Reflink is
-  APFS clonefile / FICLONE on btrfs, XFS and OpenZFS ≥2.2, degrading to a copy;
-  deliberately not a hardlink, which would share an inode.
+  APFS clonefileat / FICLONE on btrfs, XFS and OpenZFS ≥2.2, degrading to a
+  copy; deliberately not a hardlink, which would share an inode.
+
+  CodeQL caught 12 high-severity `go/path-injection` alerts in the first cut of
+  this — `CloneFile(src, dst string)` handed user-derived paths straight to
+  `os.Open`. Fixed by reshaping it as `CloneFileIn(root *os.Root, srcName,
+  dstName string)`. **Any new file operation on a media-derived path needs
+  `os.Root` confinement**; `security.Validate*` is not recognised as a
+  sanitizer. The branch shows ~38 open alerts but ~26 are pre-existing
+  elsewhere, so the check gates on newly-introduced ones only.
 
 Four defects had to be fixed along the way. Two were pre-existing bugs the build
 tag had been hiding from CI, and one is far more serious than the page itself:
@@ -140,9 +148,19 @@ taking a slot in every fetch wave. Audit the registry, not the hostnames.
 - Untracked debris in the repo root, all predating me:
   `SUBTITLE_MANAGER_FIX_PLAN.md` (dated 2026-07-22, self-describes as
   delete-when-done), `dashboard-loggedin.png`, `.playwright-mcp/`.
-- `~/.worktrees/subtitle-manager-release-fix` (`fix/release-protobuf`) and five
-  git stashes on abandoned copilot/codex branches have never been checked for
-  unpushed work.
+- `~/.worktrees/subtitle-manager-release-fix` (`fix/release-protobuf`),
+  `~/.worktrees/sm-libdir` (`docs/next-session-prompt-v5`) and five git stashes
+  on abandoned copilot/codex branches have never been checked for unpushed
+  work. Check before removing: a rebase-merged branch shows its commits as
+  "not in origin/main" because the SHAs were rewritten, so compare **content**
+  (`git diff <merged-commit> HEAD`) rather than trusting the commit list.
+- Several merged branches are prunable (`feat/combine-subs-ui`,
+  `feat/stack-bilingual-subs`, `fix/media-library-browse-shape`,
+  `fix/media-library-isdirectory`).
+- **Dependabot: 5 high/moderate Go alerts, all `github.com/docker/docker`.**
+  Not removable — `pkg/transcriber` genuinely uses the Docker client for
+  Whisper containers, so they need a version bump. `modernc.org/sqlite`, added
+  2026-08-12, has zero alerts.
 - A local server may still be running on `127.0.0.1:18099` — it is an **old**
   binary from a previous session, so anything verified against that port is
   not testing your build. Check the listener before trusting a live check.

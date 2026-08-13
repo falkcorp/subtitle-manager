@@ -1,5 +1,5 @@
 // file: pkg/scanner/bilingual.go
-// version: 1.0.0
+// version: 2.0.0
 // guid: e44a390a-a81c-4356-8090-da46b181d8cc
 // last-edited: 2026-08-12
 
@@ -63,16 +63,6 @@ func writeBilingualPair(videoPath, primaryLang, secondaryLang string) error {
 		return fmt.Errorf("secondary sidecar path: %w", err)
 	}
 
-	// Both sidecars must actually be on disk. A language can be reported as
-	// downloaded and still be missing here if post-processing renamed or
-	// converted it, and stacking half a pair would produce a file that looks
-	// bilingual but is not.
-	for _, p := range []string{primaryPath, secondaryPath} {
-		if _, err := os.Stat(p); err != nil {
-			return fmt.Errorf("expected sidecar %s: %w", p, err)
-		}
-	}
-
 	combinedPath, err := security.ValidateSubtitleOutputPathWithFormat(
 		videoPath, primaryLang+"-"+secondaryLang, false, format)
 	if err != nil {
@@ -83,7 +73,30 @@ func writeBilingualPair(videoPath, primaryLang, secondaryLang string) error {
 		return fmt.Errorf("sentinel output path: %w", err)
 	}
 
-	if _, err := os.Stat(combinedPath); err == nil {
+	// Everything below goes through an os.Root rooted at the media directory.
+	// Root confines each operation beneath it at the OS level, so a traversal
+	// in a name is refused by the kernel-facing API rather than by our own
+	// string checks. Statting these paths directly was twelve high-severity
+	// go/path-injection findings; the equivalent write in
+	// pkg/webserver/stacksubs.go was a genuine CodeQL alert when it used
+	// os.Create. Do not simplify this back to os.Stat/os.Create.
+	root, err := os.OpenRoot(filepath.Dir(combinedPath))
+	if err != nil {
+		return fmt.Errorf("opening media directory: %w", err)
+	}
+	defer root.Close()
+
+	// Both sidecars must actually be on disk. A language can be reported as
+	// downloaded and still be missing here if post-processing renamed or
+	// converted it, and stacking half a pair would produce a file that looks
+	// bilingual but is not.
+	for _, p := range []string{primaryPath, secondaryPath} {
+		if _, err := root.Stat(filepath.Base(p)); err != nil {
+			return fmt.Errorf("expected sidecar %s: %w", p, err)
+		}
+	}
+
+	if _, err := root.Stat(filepath.Base(combinedPath)); err == nil {
 		logger.Debugf("bilingual subtitle already exists, leaving it alone: %s", combinedPath)
 		return nil
 	}
@@ -97,17 +110,6 @@ func writeBilingualPair(videoPath, primaryLang, secondaryLang string) error {
 		return fmt.Errorf("reading %s: %w", secondaryPath, err)
 	}
 	primarySub.Items = subtitles.StackTracks(primarySub.Items, secondarySub.Items)
-
-	// Write through an os.Root rooted at the media directory. Root confines
-	// every operation beneath it at the OS level, so a traversal in the name is
-	// refused by the kernel-facing API rather than by our own string checks.
-	// The equivalent write in pkg/webserver/stacksubs.go was a genuine CodeQL
-	// high-severity finding when it used os.Create; do not simplify this back.
-	root, err := os.OpenRoot(filepath.Dir(combinedPath))
-	if err != nil {
-		return fmt.Errorf("opening media directory: %w", err)
-	}
-	defer root.Close()
 
 	f, err := root.Create(filepath.Base(combinedPath))
 	if err != nil {
@@ -124,7 +126,10 @@ func writeBilingualPair(videoPath, primaryLang, secondaryLang string) error {
 	// The sentinel copy is what players show, but a failure here is not worth
 	// discarding the combined file that already succeeded — most often it just
 	// means a real Esperanto subtitle already occupies the name.
-	if err := subtitles.CloneFile(combinedPath, sentinelPath); err != nil {
+	//
+	// Cloned through the same root, so the copy is confined to the media
+	// directory exactly as the write above was.
+	if err := subtitles.CloneFileIn(root, filepath.Base(combinedPath), filepath.Base(sentinelPath)); err != nil {
 		logger.Warnf("bilingual subtitle written to %s, but the player-visible copy at %s was not created: %v",
 			combinedPath, sentinelPath, err)
 		return nil

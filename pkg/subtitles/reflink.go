@@ -1,5 +1,5 @@
 // file: pkg/subtitles/reflink.go
-// version: 1.0.0
+// version: 2.0.0
 // guid: 3b8e60d1-47af-4c92-9e05-1af7c2635d80
 // last-edited: 2026-08-12
 
@@ -16,8 +16,8 @@ import (
 // blocks between files, so the caller should fall back to copying.
 var errReflinkUnsupported = errors.New("reflink not supported")
 
-// CloneFile creates dst with the same contents as src, sharing storage where
-// the filesystem supports it.
+// CloneFileIn creates dstName with the same contents as srcName, both relative
+// to root, sharing storage where the filesystem supports it.
 //
 // A bilingual subtitle is written twice: once under a self-describing name
 // (Episode.en-es.srt) and once under the Esperanto sentinel tag
@@ -26,58 +26,68 @@ var errReflinkUnsupported = errors.New("reflink not supported")
 // the second costs no space. Everywhere else this degrades to a plain copy —
 // subtitles are tens of kilobytes, so the fallback is not worth avoiding.
 //
+// # Why this takes a *os.Root rather than two paths
+//
+// Every operation goes through root, which confines it beneath that directory
+// at the OS level: a traversal in a name is refused by the kernel-facing API
+// rather than by our own string checks. Taking paths instead let a caller's
+// (ultimately user-derived) media path flow straight into os.Open/os.OpenFile,
+// which CodeQL correctly flagged as go/path-injection — twelve high-severity
+// alerts across this file and its platform backends. Names here are expected to
+// be single filename components produced by filepath.Base.
+//
 // Deliberately not a hardlink: a hardlink shares an inode, so a tool that
 // rewrote one file in place would silently rewrite the other. A reflink is
 // copy-on-write, and the copy fallback is independent too, which keeps the
-// behaviour identical on every platform. TestCloneFileProducesAnIndependentCopy
-// pins that down.
+// behaviour identical on every platform.
 //
-// CloneFile never overwrites: bilingual output is additive, and the sentinel
-// name could legitimately belong to a real Esperanto subtitle.
-func CloneFile(src, dst string) error {
-	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("cloning %s: %w", src, err)
+// It never overwrites: bilingual output is additive, and the sentinel name
+// could legitimately belong to a real Esperanto subtitle.
+func CloneFileIn(root *os.Root, srcName, dstName string) error {
+	if _, err := root.Stat(srcName); err != nil {
+		return fmt.Errorf("cloning %s: %w", srcName, err)
 	}
-	if _, err := os.Stat(dst); err == nil {
-		return fmt.Errorf("refusing to overwrite %s", dst)
+	if _, err := root.Stat(dstName); err == nil {
+		return fmt.Errorf("refusing to overwrite %s", dstName)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checking %s: %w", dst, err)
+		return fmt.Errorf("checking %s: %w", dstName, err)
 	}
 
-	if err := reflink(src, dst); err == nil {
+	if err := reflink(root, srcName, dstName); err == nil {
 		return nil
 	} else if !errors.Is(err, errReflinkUnsupported) {
 		// A real failure on a filesystem that does support reflinks — out of
-		// space, permissions, a cross-device destination. Copying would most
-		// likely fail the same way, but it is cheap and might not, so try.
-		_ = os.Remove(dst)
+		// space, permissions. Copying would most likely fail the same way, but
+		// it is cheap and might not, so try. Clear any partial destination
+		// first or the copy's O_EXCL will trip over it.
+		_ = root.Remove(dstName)
 	}
-	return copyFile(src, dst)
+	return copyFileIn(root, srcName, dstName)
 }
 
-// copyFile is the portable fallback. O_EXCL keeps the no-overwrite guarantee
-// even if something created dst between the check above and here.
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+// copyFileIn is the portable fallback. O_EXCL keeps the no-overwrite guarantee
+// even if something created dstName between the check above and here.
+func copyFileIn(root *os.Root, srcName, dstName string) error {
+	in, err := root.Open(srcName)
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", src, err)
+		return fmt.Errorf("opening %s: %w", srcName, err)
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	out, err := root.OpenFile(dstName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return fmt.Errorf("creating %s: %w", dst, err)
+		return fmt.Errorf("creating %s: %w", dstName, err)
 	}
 
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		// Do not leave a truncated subtitle behind for a player to pick up.
-		_ = os.Remove(dst)
-		return fmt.Errorf("copying to %s: %w", dst, err)
+		_ = root.Remove(dstName)
+		return fmt.Errorf("copying to %s: %w", dstName, err)
 	}
 	if err := out.Close(); err != nil {
-		_ = os.Remove(dst)
-		return fmt.Errorf("closing %s: %w", dst, err)
+		_ = root.Remove(dstName)
+		return fmt.Errorf("closing %s: %w", dstName, err)
 	}
 	return nil
 }

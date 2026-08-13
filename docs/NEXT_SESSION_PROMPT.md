@@ -1,5 +1,5 @@
 <!-- file: docs/NEXT_SESSION_PROMPT.md -->
-<!-- version: 6.0.0 -->
+<!-- version: 7.0.0 -->
 <!-- guid: 3a7f21c8-64b9-4e05-9d3a-8f1e07b26c54 -->
 <!-- last-edited: 2026-08-12 -->
 
@@ -34,8 +34,26 @@ Settings→Providers work. Landed 2026-08-12:
   `modernc.org/sqlite` driver and the `sqlite`/`nosqlite` build tags are gone
   entirely — one CGO-free build, both backends, every platform. Verified by
   running a release-style binary, not by tests.
-- **Settings → Providers works.** Browser-verified: Add Provider → Gestdown →
-  Save writes the config and the provider registers **without a restart**.
+- **Settings → Providers works** (#2265, #2266). Browser-verified: Add Provider
+  → Gestdown → Save writes the config and the provider registers **without a
+  restart**. A settings save also used to bake `providers.embedded.enabled` into
+  the config file (viper.WriteConfig serialises defaults), which on the next
+  start collapsed subtitle search to embedded-only; the writer now persists only
+  operator-submitted keys, and a request that would replace a settings *group*
+  with a single value is refused with 400 before anything is mutated.
+- **The dead Python surface is gone** (#2267). `requirements.txt` was Bazarr's
+  110-package list that nothing imported, and it was the `requirements*.txt`
+  path trigger keeping the broken-and-hidden Python CI alive. `tests/e2e`
+  (Selenium, never run, never had its dependency declared) went with it.
+  `Python CI (3.13)` now **runs and passes** instead of skipping. Kept:
+  `sdks/python` (a published SDK), `scripts/assemble_todo.py` (mandated by
+  CLAUDE.md), and the rest of `scripts/*.py`.
+- **Bilingual subtitles are automatic** (#2268 — check it merged). A profile
+  with 2+ languages stacks the top two during scan/download, additively. Two
+  files: `Episode.en-es.srt` (self-describing) and a reflinked
+  `Episode.eo.srt` (the sentinel media servers actually surface). Reflink is
+  APFS clonefile / FICLONE on btrfs, XFS and OpenZFS ≥2.2, degrading to a copy;
+  deliberately not a hardlink, which would share an inode.
 
 Four defects had to be fixed along the way. Two were pre-existing bugs the build
 tag had been hiding from CI, and one is far more serious than the page itself:
@@ -72,27 +90,25 @@ silently serves a stale/empty shell. `make build` does both and writes to
 
 ## The things worth doing next, in order
 
-### 1. Bilingual subtitles automatically, not just manually
+### 1. Browser-verify automatic bilingual output
 
-The manual path is done (tick two subtitles, press Combine). The automatic one
-is not: when a language profile asks for two languages, it should produce the
-bilingual file during scan/download. Building blocks all exist
-(`subtitles.StackTracks`, `POST /api/subtitles/stack`, `merge --stack`).
+The feature (#2268) is covered by unit tests — both output files, stacking
+order, never-overwrite, the partial case, and the reflink backend — but it has
+**not** been driven end to end. Doing so needs a real library with a
+two-language profile assigned to a file, then a scan, then checking both
+`<base>.en-es.srt` and `<base>.eo.srt` land on disk with the right content and
+that the player lists the `eo` track.
 
-Two real decisions in it, both still unanswered: does the bilingual file
-**replace** the separate per-language sidecars or come **in addition**? And
-`singleLanguageNaming()` collapses multi-language output to one filename, so a
-multi-language profile would currently overwrite itself.
+The operator's decisions, for the record: bilingual is **additive** (the
+per-language sidecars stay), the hyphenated name is the primary artifact, and
+the `eo` copy exists so media servers show it.
 
-### 2. Delete the Python surface — decided, not yet done
+Note the previous handoff was wrong that `singleLanguageNaming()` "would
+overwrite itself" — `pkg/scanner/profile.go:116` already truncates a
+multi-language profile to one language, so the real prior behaviour was
+*silently dropping* the other languages.
 
-The operator chose **delete** over fix on 2026-08-12. `Python CI (3.13)` fails
-on every PR touching Python deps and reports *skipped* on main, so it has been
-broken while main looked green. Inventory what Python exists and what it is for,
-**show the operator the list**, and delete only what is genuinely vestigial. If
-something load-bearing turns up, stop and report.
-
-### 3. Audit the provider registry
+### 2. Audit the provider registry
 
 22 of 51 provider hostnames do not resolve — fabricated `api.<name>.com` shells
 taking a slot in every fetch wave. Audit the registry, not the hostnames.

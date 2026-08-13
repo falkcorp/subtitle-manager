@@ -1,7 +1,7 @@
 // file: pkg/scanner/profile.go
-// version: 1.2.0
+// version: 1.3.0
 // guid: 4f7c2a91-8d05-4e63-b7a2-90c1e5d3846b
-// last-edited: 2026-08-04
+// last-edited: 2026-08-12
 
 package scanner
 
@@ -138,7 +138,7 @@ func processWithAssignedProfile(ctx context.Context, path string, langs []string
 	logger := logging.GetLogger("scanner")
 
 	var firstErr error
-	got := 0
+	obtained := make([]string, 0, len(langs))
 	for _, lang := range langs {
 		if err := ProcessFile(ctx, path, lang, providerName, p, upgrade, store); err != nil {
 			logger.Debugf("profile language %s for %s: %v", lang, path, err)
@@ -147,10 +147,29 @@ func processWithAssignedProfile(ctx context.Context, path string, langs []string
 			}
 			continue
 		}
-		got++
+		obtained = append(obtained, lang)
 	}
 
-	if got > 0 {
+	// A profile asking for two or more languages wants to watch them together,
+	// so stack the two highest-priority ones into a bilingual file. langs is
+	// already in priority order, and obtained preserves it.
+	//
+	// Purely additive: the per-language sidecars written above are left alone,
+	// so a player can still select either language on its own.
+	//
+	// Skipped under single-language naming, where every language is written to
+	// the same <video>.srt. assignedProfileLanguages already truncates the
+	// profile to one language in that mode, so there is never a second sidecar
+	// to stack — the guard is here so this does not silently depend on that.
+	if len(obtained) >= 2 && !singleLanguageNaming() {
+		if err := writeBilingualPair(path, obtained[0], obtained[1]); err != nil {
+			// The individual languages downloaded fine; failing the whole scan
+			// because they could not be combined would be a worse outcome.
+			logger.Warnf("bilingual subtitle for %s (%s + %s): %v", path, obtained[0], obtained[1], err)
+		}
+	}
+
+	if len(obtained) > 0 {
 		return nil
 	}
 	return firstErr

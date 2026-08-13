@@ -1,6 +1,7 @@
 // file: pkg/security/path_test.go
-// version: 1.3.0
+// version: 1.4.0
 // guid: 0f457ffd-07c4-4ea3-b917-e86abb3ed750
+// last-edited: 2026-08-12
 package security
 
 import (
@@ -54,7 +55,15 @@ func TestValidateLanguageCode(t *testing.T) {
 		{"too long", "verylonglanguagecode", true},
 		{"with slash", "en/us", true},
 		{"with dot", "en.us", true},
-		{"with dash", "en-us", true},
+		// An interior dash is required for BCP-47 regional tags (pt-BR,
+		// zh-Hans) and for the "en-es" bilingual filename. It is not a path
+		// separator and cannot form "..", and ValidateProviderName has always
+		// allowed one. Edge positions stay rejected so a code can never begin
+		// a filename component with "-" or leave a dangling separator.
+		{"valid regional tag", "en-us", false},
+		{"leading dash", "-en", true},
+		{"trailing dash", "en-", true},
+		{"dash alone", "-", true},
 		{"with underscore", "en_us", true},
 		{"with space", "en us", true},
 		{"path traversal", "../en", true},

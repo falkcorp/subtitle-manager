@@ -1,7 +1,7 @@
 // file: pkg/security/security.go
-// version: 1.6.0
+// version: 1.7.0
 // guid: efe90a08-389d-4157-a46e-8a57bfc1181a
-// last-edited: 2026-08-04
+// last-edited: 2026-08-12
 package security
 
 import (
@@ -336,9 +336,22 @@ func ValidateLanguageCode(lang string) error {
 		return fmt.Errorf("language code too long: %s", lang)
 	}
 
-	// Only allow alphanumeric characters
-	for _, r := range lang {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+	// Alphanumerics, plus an interior hyphen.
+	//
+	// The hyphen is needed for BCP-47 regional tags — pt-BR, zh-Hans, sr-Latn
+	// are ordinary subtitle languages that an alphanumeric-only rule rejected
+	// outright — and for the "en-es" form naming a bilingual file.
+	//
+	// It is safe in this position: this value is interpolated into a filename
+	// component, and a hyphen is not a path separator and cannot form "..".
+	// Requiring it to be interior means a code can never start a filename
+	// component with "-" (which some tools would read as a flag) or leave a
+	// dangling separator before the extension.
+	for i, r := range lang {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9'):
+		case r == '-' && i > 0 && i < len(lang)-1:
+		default:
 			return fmt.Errorf("invalid character in language code: %c", r)
 		}
 	}

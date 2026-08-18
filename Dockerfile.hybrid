@@ -14,7 +14,7 @@ COPY webui/ ./
 RUN npm run build
 
 # Stage 2: Go build stage with Node.js for go generate
-FROM golang:1.26.5-bookworm AS go-builder
+FROM golang:1.26.6-bookworm AS go-builder
 WORKDIR /src
 
 # Install build dependencies including Node.js
@@ -48,7 +48,7 @@ RUN CGO_ENABLED=1 \
     go build -ldflags="-s -w" -o subtitle-manager ./
 
 # Stage 3: Final runtime image
-FROM golang:1.26.5-bookworm AS final
+FROM golang:1.26.6-bookworm AS final
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

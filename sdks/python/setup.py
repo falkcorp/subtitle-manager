@@ -1,5 +1,5 @@
 # file: sdks/python/setup.py
-# version: 1.0.0
+# version: 1.0.1
 # guid: 550e8400-e29b-41d4-a716-446655440008
 
 """
@@ -50,7 +50,7 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
+        "License :: Other/Proprietary License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",

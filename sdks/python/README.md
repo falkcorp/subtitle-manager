@@ -399,5 +399,6 @@ See the [examples directory](examples/) for complete usage examples:
 
 ## License
 
-This project is licensed under the MIT License - see the
-[LICENSE](../../LICENSE) file for details.
+This project is licensed under the PolyForm Noncommercial License 1.0.0 -
+free for noncommercial use; commercial use requires a separate license from
+the author. See the [LICENSE](../../LICENSE) file for details.

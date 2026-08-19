@@ -1118,8 +1118,10 @@ recent security fixes.
 
 ## License
 
-This project is licensed under the terms of the MIT license. See `LICENSE` for
-details.
+This project is licensed under the PolyForm Noncommercial License 1.0.0 —
+free for noncommercial use (personal, hobby, research, education, nonprofit).
+Commercial use requires a separate license from the author. See `LICENSE`
+for the full terms.
 
 ### Manual Subtitle Search Interface
 
@@ -2218,8 +2220,10 @@ recent security fixes.
 
 ## License
 
-This project is licensed under the terms of the MIT license. See `LICENSE` for
-details.
+This project is licensed under the PolyForm Noncommercial License 1.0.0 —
+free for noncommercial use (personal, hobby, research, education, nonprofit).
+Commercial use requires a separate license from the author. See `LICENSE`
+for the full terms.
 
 - Expose gRPC health service using gcommon protobufs Cache configuration now
   uses gcommon.v1.common.CachePolicy messages for each TTL

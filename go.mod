@@ -1,6 +1,6 @@
 module github.com/jdfalk/subtitle-manager
 
-go 1.26.0
+go 1.27.0
 
 require (
 	buf.build/gen/go/falkcorp/gcommon/grpc/go v1.6.2-20260725232151-e6284ae1c9aa.1

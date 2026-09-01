@@ -21,7 +21,7 @@ COPY webui/ ./
 RUN npm run build
 
 # Stage 2: Go dependencies (can be cached separately)
-FROM golang:1.26.6-bookworm AS go-deps
+FROM golang:1.27.0-bookworm AS go-deps
 WORKDIR /src
 
 # Install build dependencies
@@ -66,7 +66,7 @@ ARG TARGETARCH
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" -o subtitle-manager ./
 
 # Stage 4: Final runtime image
-FROM golang:1.26.6-bookworm AS final
+FROM golang:1.27.0-bookworm AS final
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

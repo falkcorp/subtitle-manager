@@ -489,7 +489,7 @@ jobs:
       - name: Check Go test coverage
         if: ${{ !inputs.skip-tests }}
         continue-on-error: true
-        uses: vladopajic/go-test-coverage@f94bcf0d6b9fa5fb8b783830b22648f6c17475e2 # v2.19.0
+        uses: vladopajic/go-test-coverage@f484eec846448c97c777a26f8b58c5a69a327e12 # v2.20.0
         with:
           config: ./.testcoverage.yml
 
@@ -599,7 +599,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
         with:
           toolchain: ${{ matrix.rust-version }}
           components: rustfmt, clippy
